@@ -1,0 +1,46 @@
+name: Build Unsigned iOS IPA
+
+on:
+  workflow_dispatch:   # gives you a manual "Run workflow" button in the Actions tab
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: List available schemes (only useful if the next step fails)
+        run: xcodebuild -list -project iosApp/iosApp.xcodeproj
+
+      - name: Build unsigned iOS app
+        run: |
+          xcodebuild \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -destination 'generic/platform=iOS' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            -derivedDataPath build \
+            clean build
+
+      - name: Package into unsigned IPA
+        run: |
+          cd build/Build/Products/Debug-iphoneos
+          mkdir Payload
+          cp -r *.app Payload/
+          zip -r unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa
+          path: build/Build/Products/Debug-iphoneos/unsigned.ipa
