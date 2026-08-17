@@ -1,7 +1,7 @@
 name: Build Unsigned iOS IPA
 
 on:
-  workflow_dispatch:   # gives you a manual "Run workflow" button in the Actions tab
+  workflow_dispatch:
 
 jobs:
   build-ios:
@@ -11,8 +11,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
