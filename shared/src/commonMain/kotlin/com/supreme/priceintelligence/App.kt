@@ -42,8 +42,11 @@ import com.supreme.priceintelligence.data.AppDatabase
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.getRoomDatabase
 import com.supreme.priceintelligence.inventory.InventoryScreen
+import com.supreme.priceintelligence.inventory.InventoryUndoBanner
 import com.supreme.priceintelligence.inventory.InventoryViewModel
 import com.supreme.priceintelligence.network.NetworkMonitor
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
 import com.supreme.priceintelligence.ui.theme.PriceIntelligenceTheme
@@ -99,6 +102,16 @@ fun App(
                 productCount = repository.getTotalCount()
             }
 
+            LaunchedEffect(inventoryState.pendingDeletes) {
+                if (inventoryState.pendingDeletes.isNotEmpty()) {
+                    delay(4000.milliseconds)
+
+                    if (inventoryViewModel.uiState.value.pendingDeletes.isNotEmpty()) {
+                        inventoryViewModel.commitDelete()
+                    }
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -129,6 +142,11 @@ fun App(
                         )
                     }
                 }
+
+                InventoryUndoBanner(
+                    pendingItems = inventoryState.pendingDeletes,
+                    onUndo = inventoryViewModel::cancelDelete
+                )
 
                 BottomAppNavigation(
                     selectedDestination = destination,

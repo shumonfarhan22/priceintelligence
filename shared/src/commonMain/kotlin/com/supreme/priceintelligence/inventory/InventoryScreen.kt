@@ -2,6 +2,7 @@ package com.supreme.priceintelligence.inventory
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -58,12 +60,35 @@ fun InventoryScreen(
         mutableStateOf(false)
     }
 
+    val pendingIds = state.pendingDeletes.map { item ->
+        item.id
+    }.toSet()
+
+    val visibleProducts = state.products.filter { item ->
+        item.id !in pendingIds
+    }
+
+    val groupedProducts = visibleProducts
+        .groupBy { item ->
+            item.productName
+                .trim()
+                .substringBefore(" ")
+                .uppercase()
+                .ifBlank { "OTHER" }
+        }
+        .toList()
+        .sortedBy { group ->
+            group.first
+        }
+
     Column(
         modifier = modifier.fillMaxSize()
     ) {
         InventoryTitleRow(
-            shownProductCount = state.products.size,
+            shownProductCount = visibleProducts.size,
             isSearching = state.directoryQuery.isNotBlank(),
+            isRefreshing = state.isRefreshing,
+            onRefresh = viewModel::refreshInventory,
             onAddProduct = {
                 viewModel.clearForm()
                 isEditorOpen = true
@@ -104,7 +129,7 @@ fun InventoryScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (state.products.isEmpty()) {
+        if (visibleProducts.isEmpty()) {
             EmptyInventoryMessage(
                 isSearching = state.directoryQuery.isNotBlank(),
                 modifier = Modifier.weight(1f)
@@ -117,18 +142,47 @@ fun InventoryScreen(
                 contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(
-                    items = state.products,
-                    key = { item -> item.id }
-                ) { item ->
-                    InventoryProductRow(
-                        item = item,
-                        isHighlighted = item.id == state.highlightedItemId,
-                        onEdit = {
-                            viewModel.startEditing(item)
-                            isEditorOpen = true
+                groupedProducts.forEach { group ->
+                    val brandName = group.first
+                    val brandProducts = group.second
+
+                    val isExpanded =
+                        state.directoryQuery.isNotBlank() ||
+                            brandName in state.expandedGroups
+
+                    item(
+                        key = "group:$brandName"
+                    ) {
+                        InventoryGroupHeader(
+                            brandName = brandName,
+                            productCount = brandProducts.size,
+                            isExpanded = isExpanded,
+                            onClick = {
+                                viewModel.toggleGroup(brandName)
+                            }
+                        )
+                    }
+
+                    if (isExpanded) {
+                        items(
+                            items = brandProducts,
+                            key = { item ->
+                                "product:${item.id}"
+                            }
+                        ) { item ->
+                            InventoryProductRow(
+                                item = item,
+                                isHighlighted = item.id == state.highlightedItemId,
+                                onEdit = {
+                                    viewModel.startEditing(item)
+                                    isEditorOpen = true
+                                },
+                                onDelete = {
+                                    viewModel.queueDelete(setOf(item))
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }
@@ -171,41 +225,62 @@ fun InventoryScreen(
 private fun InventoryTitleRow(
     shownProductCount: Int,
     isSearching: Boolean,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
     onAddProduct: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = "Inventory",
-                color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
+        Text(
+            text = "Inventory",
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
 
-            Text(
-                text = if (isSearching) {
-                    "$shownProductCount search result(s)"
-                } else {
-                    "$shownProductCount saved product(s)"
-                },
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp
-            )
-        }
+        Text(
+            text = when {
+                isRefreshing -> "Refreshing your inventory..."
+                isSearching -> "$shownProductCount search result(s)"
+                else -> "$shownProductCount saved product(s)"
+            },
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp
+        )
 
-        Button(
-            onClick = onAddProduct,
-            shape = RoundedCornerShape(14.dp)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "+ Add product",
-                fontWeight = FontWeight.Bold
-            )
+            OutlinedButton(
+                onClick = onRefresh,
+                enabled = !isRefreshing,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = if (isRefreshing) {
+                        "Refreshing..."
+                    } else {
+                        "Refresh"
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Button(
+                onClick = onAddProduct,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = "+ Add product",
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
@@ -281,10 +356,63 @@ private fun EmptyInventoryMessage(
 }
 
 @Composable
+private fun InventoryGroupHeader(
+    brandName: String,
+    productCount: Int,
+    isExpanded: Boolean,
+    onClick: () -> Unit
+) {
+    val groupShape = RoundedCornerShape(14.dp)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(groupShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = brandName,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+
+            Text(
+                text = if (productCount == 1) {
+                    "1 product"
+                } else {
+                    "$productCount products"
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
+        }
+
+        Text(
+            text = if (isExpanded) {
+                "Hide ▲"
+            } else {
+                "Show ▼"
+            },
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
 private fun InventoryProductRow(
     item: InventoryItem,
     isHighlighted: Boolean,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
 ) {
     val cardShape = RoundedCornerShape(16.dp)
 
@@ -310,41 +438,23 @@ private fun InventoryProductRow(
             )
             .padding(14.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top
-        ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = item.productName,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+        Text(
+            text = item.productName,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
 
-                Spacer(modifier = Modifier.height(5.dp))
+        Spacer(modifier = Modifier.height(5.dp))
 
-                Text(
-                    text = "Shop price: ${displayPrice(item.shopPrice)}",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            OutlinedButton(
-                onClick = onEdit,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Edit")
-            }
-        }
+        Text(
+            text = "Shop price: ${displayPrice(item.shopPrice)}",
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold
+        )
 
         item.barcode?.takeIf { it.isNotBlank() }?.let { barcode ->
             Spacer(modifier = Modifier.height(8.dp))
@@ -370,8 +480,42 @@ private fun InventoryProductRow(
                 fontSize = 12.sp
             )
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OutlinedButton(
+                onClick = onEdit,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "Edit",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Button(
+                onClick = onDelete,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text(
+                    text = "Delete",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
+
 
 @Composable
 private fun ProductEditorDialog(
