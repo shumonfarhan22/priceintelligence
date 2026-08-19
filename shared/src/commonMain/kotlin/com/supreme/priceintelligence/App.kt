@@ -36,10 +36,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room3.RoomDatabase
 import com.supreme.priceintelligence.data.AppDatabase
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.getRoomDatabase
+import com.supreme.priceintelligence.inventory.InventoryScreen
+import com.supreme.priceintelligence.inventory.InventoryViewModel
 import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
@@ -78,6 +81,12 @@ fun App(
 
             val isConnected by networkMonitor.isConnected.collectAsState()
 
+            val inventoryViewModel: InventoryViewModel = viewModel {
+                InventoryViewModel(repository)
+            }
+
+            val inventoryState by inventoryViewModel.uiState.collectAsState()
+
             var destination by remember {
                 mutableStateOf(AppDestination.Dashboard)
             }
@@ -86,7 +95,7 @@ fun App(
                 mutableStateOf<Int?>(null)
             }
 
-            LaunchedEffect(Unit) {
+            LaunchedEffect(inventoryState.products) {
                 productCount = repository.getTotalCount()
             }
 
@@ -114,14 +123,9 @@ fun App(
                             }
                         )
 
-                        AppDestination.Inventory -> DestinationPlaceholder(
-                            title = "Inventory",
-                            message = when (val count = productCount) {
-                                null -> "Opening your inventory..."
-                                0 -> "Your inventory is empty.\nThe product form is coming next."
-                                1 -> "1 product is currently saved."
-                                else -> "$count products are currently saved."
-                            }
+                        AppDestination.Inventory -> InventoryScreen(
+                            viewModel = inventoryViewModel,
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                 }
