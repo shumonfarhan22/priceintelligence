@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,26 +22,34 @@ import com.supreme.priceintelligence.data.getRoomDatabase
 @Composable
 fun App(databaseBuilder: RoomDatabase.Builder<AppDatabase>) {
     MaterialTheme {
-        // remember{} means this only runs once per app session, not on every recomposition
-        val repository = remember { InventoryRepository(getRoomDatabase(databaseBuilder).inventoryDao()) }
-        var productCount by remember { mutableStateOf<Int?>(null) }
-
-        LaunchedEffect(Unit) {
-            productCount = repository.getTotalCount()
-        }
-
-        Column(
-            modifier = Modifier
-                .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        // Surface is what actually paints an opaque background. MaterialTheme alone
+        // only makes colors/typography available to children — it doesn't draw
+        // anything itself. This is why the screen was black on iOS specifically.
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
         ) {
-            Text(
-                text = when (val count = productCount) {
-                    null -> "Loading your inventory..."
-                    else -> "Room is alive — $count product(s) in the database."
-                }
-            )
+            // remember{} means this only runs once per app session, not on every recomposition
+            val repository = remember { InventoryRepository(getRoomDatabase(databaseBuilder).inventoryDao()) }
+            var productCount by remember { mutableStateOf<Int?>(null) }
+
+            LaunchedEffect(Unit) {
+                productCount = repository.getTotalCount()
+            }
+
+            Column(
+                modifier = Modifier
+                    .safeContentPadding()
+                    .fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = when (val count = productCount) {
+                        null -> "Loading your inventory..."
+                        else -> "Room is alive — $count product(s) in the database."
+                    }
+                )
+            }
         }
     }
 }
