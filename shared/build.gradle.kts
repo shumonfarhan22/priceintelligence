@@ -5,6 +5,9 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.androidxRoom3)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -43,6 +46,8 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
+            implementation(libs.squareup.okhttp)
+            implementation(libs.jsoup)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -53,6 +58,14 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.androidx.room3.runtime)
+            implementation(libs.androidx.sqlite.bundled)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.ksoup)
+            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -60,6 +73,14 @@ kotlin {
     }
 }
 
+room3 {
+    schemaDirectory("$projectDir/schemas")
+}
+
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+    add("kspCommonMainMetadata", libs.androidx.room3.compiler)
+    add("kspAndroid", libs.androidx.room3.compiler)
+    add("kspIosArm64", libs.androidx.room3.compiler)
+    add("kspIosSimulatorArm64", libs.androidx.room3.compiler)
 }
