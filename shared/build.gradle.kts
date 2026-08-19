@@ -58,7 +58,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation(libs.androidx.room3.runtime)
+            api(libs.androidx.room3.runtime)
             implementation(libs.androidx.sqlite.bundled)
         }
         iosMain.dependencies {
