@@ -2,7 +2,6 @@
 
 package com.supreme.priceintelligence.data
 
-import androidx.room3.RoomRawQuery
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
@@ -49,9 +48,10 @@ class InventoryRepository(private val dao: InventoryDao) {
     suspend fun getAllRecent(): List<InventoryItem> = dao.getAllRecent()
 
     /**
-     * Mirrors db.py's search_products(): digits-only query tries an exact
-     * barcode match first; otherwise (or if no barcode hit) it does a
-     * multi-word AND search over product_name.
+     * Mirrors the original search_products(): digits-only query tries an exact
+     * barcode match first; otherwise (or if no barcode hit) does a multi-word
+     * AND search over product_name — now filtered in Kotlin instead of raw SQL,
+     * since @RawQuery isn't supported on iOS yet in Room's multiplatform build.
      */
     suspend fun search(query: String): List<InventoryItem> {
         val trimmed = query.trim()
@@ -62,61 +62,37 @@ class InventoryRepository(private val dao: InventoryDao) {
             if (byBarcode.isNotEmpty()) return byBarcode
         }
 
-        // If the user pasted a link, try to find the exact product directly
-        if (trimmed.startsWith("http") || trimmed.contains("amazon") || trimmed.contains("flipkart")) {
-            val urlSql = """
-                SELECT * FROM inventory 
-                WHERE (amazon_url LIKE ? ESCAPE '\' OR (? LIKE '%' || amazon_url || '%' AND amazon_url IS NOT NULL AND amazon_url != ''))
-                   OR (flipkart_url LIKE ? ESCAPE '\' OR (? LIKE '%' || flipkart_url || '%' AND flipkart_url IS NOT NULL AND flipkart_url != ''))
-                ORDER BY search_count DESC
-            """.trimIndent()
+        val allRanked = dao.getAllRanked()
 
-            val urlQuery = "%${escapeLike(trimmed)}%"
-            val urlMatches = dao.searchRaw(buildRawQuery(urlSql, listOf(urlQuery, trimmed, urlQuery, trimmed)))
+        if (looksLikeUrl(trimmed)) {
+            val urlMatches = allRanked.filter { matchesUrl(it, trimmed) }
             if (urlMatches.isNotEmpty()) return urlMatches
         }
 
         val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        val whereClause = words.joinToString(" AND ") { "product_name LIKE ? ESCAPE '\\'" }
-        val args: List<Any> = words.map { "%${escapeLike(it)}%" }
-        val sql = "SELECT * FROM inventory WHERE $whereClause " +
-                "ORDER BY search_count DESC, product_name COLLATE NOCASE"
-        return dao.searchRaw(buildRawQuery(sql, args))
+        return allRanked.filter { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
     }
 
-    /** Mirrors db.py's get_name_suggestions() autocomplete. */
+    /** Mirrors the original get_name_suggestions() autocomplete. */
     suspend fun getNameSuggestions(prefix: String, limit: Int = 6): List<String> {
         val trimmed = prefix.trim()
         if (trimmed.isEmpty()) return emptyList()
 
-        if (trimmed.startsWith("http") || trimmed.contains("amazon") || trimmed.contains("flipkart")) {
-            val urlSql = """
-                SELECT * FROM inventory 
-                WHERE (amazon_url LIKE ? ESCAPE '\' OR (? LIKE '%' || amazon_url || '%' AND amazon_url IS NOT NULL AND amazon_url != ''))
-                   OR (flipkart_url LIKE ? ESCAPE '\' OR (? LIKE '%' || flipkart_url || '%' AND flipkart_url IS NOT NULL AND flipkart_url != ''))
-                LIMIT ?
-            """.trimIndent()
-
-            val urlQuery = "%${escapeLike(trimmed)}%"
-            val urlMatches = dao.suggestRaw(buildRawQuery(urlSql, listOf(urlQuery, trimmed, urlQuery, trimmed, limit)))
+        if (looksLikeUrl(trimmed)) {
+            val urlMatches = dao.getAllRanked().filter { matchesUrl(it, trimmed) }.take(limit)
             if (urlMatches.isNotEmpty()) return urlMatches.map { it.productName }.distinct()
         }
 
         val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        val whereClause = words.joinToString(" AND ") { "product_name LIKE ? ESCAPE '\\'" }
-        val likeArgs: List<Any> = words.map { "%${escapeLike(it)}%" }
-        val exactLike = "${escapeLike(trimmed)}%"
+        val exactPrefix = trimmed.lowercase()
 
-        val sql = """
-            SELECT * FROM inventory
-            WHERE $whereClause
-            ORDER BY (CASE WHEN product_name LIKE ? ESCAPE '\' THEN 0 ELSE 1 END) ASC,
-                     search_count DESC, product_name COLLATE NOCASE
-            LIMIT ?
-        """.trimIndent()
-
-        val args: List<Any> = likeArgs + listOf(exactLike, limit)
-        val rows = dao.suggestRaw(buildRawQuery(sql, args))
+        // getAllRanked() is already ordered by search_count DESC, name — Kotlin's
+        // sortedWith is stable, so this only reshuffles exact-prefix matches to
+        // the front without disturbing that existing order, same as the old SQL did.
+        val rows = dao.getAllRanked()
+            .filter { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
+            .sortedWith(compareBy { if (it.productName.lowercase().startsWith(exactPrefix)) 0 else 1 })
+            .take(limit)
 
         val seen = LinkedHashSet<String>()
         val names = mutableListOf<String>()
@@ -135,10 +111,6 @@ class InventoryRepository(private val dao: InventoryDao) {
         dao.incrementSearchCountBulk(ids, Clock.System.now().toEpochMilliseconds())
     }
 
-    // --- PRICE MEMORY BANK ---
-    // DashboardViewModel used to reach around the repository straight to the DAO
-    // for these two — now that it only holds a repository, these thin wrappers
-    // keep that same call working.
     suspend fun updateAmazonCache(itemId: Long, price: Double, timestamp: Long) =
         dao.updateAmazonCache(itemId, price, timestamp)
 
@@ -165,32 +137,21 @@ class InventoryRepository(private val dao: InventoryDao) {
             if (byBarcode.isNotEmpty()) return byBarcode
         }
 
-        if (trimmed.startsWith("http") || trimmed.contains("amazon") || trimmed.contains("flipkart")) {
-            val urlSql = """
-                SELECT * FROM inventory 
-                WHERE (amazon_url LIKE ? ESCAPE '\' OR (? LIKE '%' || amazon_url || '%' AND amazon_url IS NOT NULL AND amazon_url != ''))
-                   OR (flipkart_url LIKE ? ESCAPE '\' OR (? LIKE '%' || flipkart_url || '%' AND flipkart_url IS NOT NULL AND flipkart_url != ''))
-                ORDER BY search_count DESC LIMIT ? OFFSET ?
-            """.trimIndent()
-            val urlQuery = "%${escapeLike(trimmed)}%"
-            return dao.searchRaw(buildRawQuery(urlSql, listOf(urlQuery, trimmed, urlQuery, trimmed, limit, offset)))
+        // URL matches always rank by search_count, same as the original — regardless
+        // of whatever sortOrder the user has picked for the rest of the list.
+        if (looksLikeUrl(trimmed)) {
+            val urlMatches = dao.getAllRanked().filter { matchesUrl(it, trimmed) }
+            return urlMatches.drop(offset).take(limit)
         }
 
+        val baseList = when (sortOrder) {
+            "ALPHABETICAL" -> dao.getAll()
+            "RECENT" -> dao.getAllRecent()
+            else -> dao.getAllRanked()
+        }
         val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        val whereClause = words.joinToString(" AND ") { "product_name LIKE ? ESCAPE '\\'" }
-
-        val orderClause = when (sortOrder) {
-            "ALPHABETICAL" -> "product_name COLLATE NOCASE ASC"
-            "RECENT" -> "updated_at DESC, id DESC"
-            else -> "search_count DESC, product_name COLLATE NOCASE"
-        }
-
-        val sql = "SELECT * FROM inventory WHERE $whereClause ORDER BY $orderClause LIMIT ? OFFSET ?"
-        val args: MutableList<Any> = words.map { "%${escapeLike(it)}%" as Any }.toMutableList()
-        args.add(limit)
-        args.add(offset)
-
-        return dao.searchRaw(buildRawQuery(sql, args))
+        val filtered = baseList.filter { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
+        return filtered.drop(offset).take(limit)
     }
 
     suspend fun getSearchCount(query: String): Int {
@@ -201,39 +162,22 @@ class InventoryRepository(private val dao: InventoryDao) {
             return if (dao.findByBarcode(trimmed).isNotEmpty()) 1 else 0
         }
 
-        if (trimmed.startsWith("http") || trimmed.contains("amazon") || trimmed.contains("flipkart")) {
-            val urlSql = """
-                SELECT COUNT(*) FROM inventory 
-                WHERE (amazon_url LIKE ? ESCAPE '\' OR (? LIKE '%' || amazon_url || '%' AND amazon_url IS NOT NULL AND amazon_url != ''))
-                   OR (flipkart_url LIKE ? ESCAPE '\' OR (? LIKE '%' || flipkart_url || '%' AND flipkart_url IS NOT NULL AND flipkart_url != ''))
-            """.trimIndent()
-            val urlQuery = "%${escapeLike(trimmed)}%"
-            return dao.countRaw(buildRawQuery(urlSql, listOf(urlQuery, trimmed, urlQuery, trimmed)))
+        if (looksLikeUrl(trimmed)) {
+            return dao.getAllRanked().count { matchesUrl(it, trimmed) }
         }
 
         val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        val whereClause = words.joinToString(" AND ") { "product_name LIKE ? ESCAPE '\\'" }
-        val sql = "SELECT COUNT(*) FROM inventory WHERE $whereClause"
-        val args: List<Any> = words.map { "%${escapeLike(it)}%" }
-
-        return dao.countRaw(buildRawQuery(sql, args))
+        return dao.getAllRanked().count { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
     }
 
-    private fun escapeLike(value: String): String =
-        value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    private fun looksLikeUrl(value: String): Boolean =
+        value.startsWith("http") || value.contains("amazon") || value.contains("flipkart")
 
-    // Room KMP's raw queries bind arguments via a callback instead of a plain array —
-    // this one helper keeps every call site above looking almost exactly like it did before.
-    private fun buildRawQuery(sql: String, args: List<Any>): RoomRawQuery {
-        return RoomRawQuery(sql = sql, onBindStatement = { stmt ->
-            args.forEachIndexed { index, value ->
-                when (value) {
-                    is String -> stmt.bindText(index + 1, value)
-                    is Int -> stmt.bindLong(index + 1, value.toLong())
-                    is Long -> stmt.bindLong(index + 1, value)
-                    else -> error("Unsupported bind arg type: ${value::class}")
-                }
-            }
-        })
+    private fun matchesUrl(item: InventoryItem, pasted: String): Boolean {
+        val amazon = item.amazonUrl
+        val flipkart = item.flipkartUrl
+        val amazonMatch = !amazon.isNullOrEmpty() && (amazon.contains(pasted) || pasted.contains(amazon))
+        val flipkartMatch = !flipkart.isNullOrEmpty() && (flipkart.contains(pasted) || pasted.contains(flipkart))
+        return amazonMatch || flipkartMatch
     }
 }
