@@ -77,6 +77,10 @@ room3 {
     schemaDirectory("$projectDir/schemas")
 }
 
+compose.resources {
+    packageOfResClass = "com.supreme.priceintelligence.resources"
+}
+
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
     add("kspCommonMainMetadata", libs.androidx.room3.compiler)

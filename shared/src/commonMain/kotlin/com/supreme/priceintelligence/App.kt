@@ -18,19 +18,25 @@ import androidx.room3.RoomDatabase
 import com.supreme.priceintelligence.data.AppDatabase
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.getRoomDatabase
+import com.supreme.priceintelligence.network.NetworkMonitor
+import com.supreme.priceintelligence.network.PriceScraper
 
+// networkMonitor is built by each platform's own entry point (MainActivity /
+// MainViewController) and handed in here, same idea as databaseBuilder — since
+// AndroidNetworkMonitor needs a Context and IosNetworkMonitor doesn't, there's
+// no single shared way to construct one from inside commonMain.
 @Composable
-fun App(databaseBuilder: RoomDatabase.Builder<AppDatabase>) {
+fun App(
+    databaseBuilder: RoomDatabase.Builder<AppDatabase>,
+    networkMonitor: NetworkMonitor
+) {
     MaterialTheme {
-        // Surface is what actually paints an opaque background. MaterialTheme alone
-        // only makes colors/typography available to children — it doesn't draw
-        // anything itself. This is why the screen was black on iOS specifically.
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            // remember{} means this only runs once per app session, not on every recomposition
             val repository = remember { InventoryRepository(getRoomDatabase(databaseBuilder).inventoryDao()) }
+            val scraper = remember { PriceScraper() }
             var productCount by remember { mutableStateOf<Int?>(null) }
 
             LaunchedEffect(Unit) {

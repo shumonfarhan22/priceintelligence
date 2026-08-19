@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.supreme.priceintelligence.data.getDatabaseBuilder
+import com.supreme.priceintelligence.network.AndroidNetworkMonitor
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -12,7 +13,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            App(databaseBuilder = getDatabaseBuilder(this))
+            App(
+                databaseBuilder = getDatabaseBuilder(this),
+                networkMonitor = AndroidNetworkMonitor(this)
+            )
         }
     }
 }
