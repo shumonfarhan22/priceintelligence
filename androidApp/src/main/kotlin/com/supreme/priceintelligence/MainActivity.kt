@@ -11,6 +11,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import com.supreme.priceintelligence.data.getDatabaseBuilder
 import com.supreme.priceintelligence.network.AndroidNetworkMonitor
+import com.supreme.priceintelligence.settings.AndroidAppPreferences
 
 class MainActivity : ComponentActivity() {
 
@@ -35,6 +36,10 @@ class MainActivity : ComponentActivity() {
                 AndroidNetworkMonitor(applicationContext)
             }
 
+            val appPreferences = remember {
+                AndroidAppPreferences(applicationContext)
+            }
+
             DisposableEffect(networkMonitor) {
                 onDispose {
                     networkMonitor.stop()
@@ -43,7 +48,8 @@ class MainActivity : ComponentActivity() {
 
             App(
                 databaseBuilder = databaseBuilder,
-                networkMonitor = networkMonitor
+                networkMonitor = networkMonitor,
+                appPreferences = appPreferences
             )
         }
     }

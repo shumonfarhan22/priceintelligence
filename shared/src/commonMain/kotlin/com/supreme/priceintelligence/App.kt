@@ -22,28 +22,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room3.RoomDatabase
-import com.supreme.priceintelligence.dashboard.DashboardScreen
+import com.supreme.priceintelligence.dashboard.OriginalDashboardScreen
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.data.AppDatabase
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.getRoomDatabase
-import com.supreme.priceintelligence.inventory.InventoryScreen
-import com.supreme.priceintelligence.inventory.InventoryUndoBanner
+import com.supreme.priceintelligence.inventory.OriginalInventoryScreen
+import com.supreme.priceintelligence.inventory.OriginalInventoryUndoBanner
 import com.supreme.priceintelligence.inventory.InventoryViewModel
 import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.network.PriceScraper
 import com.supreme.priceintelligence.ui.components.AppDestination
-import com.supreme.priceintelligence.ui.components.SupremeAmbientBackground
-import com.supreme.priceintelligence.ui.components.SupremeBottomNavigation
-import com.supreme.priceintelligence.ui.components.SupremeHeader
+import com.supreme.priceintelligence.ui.components.OriginalAppBackground
+import com.supreme.priceintelligence.ui.components.OriginalBottomNavigation
+import com.supreme.priceintelligence.ui.components.OriginalDashboardHeader
 import com.supreme.priceintelligence.ui.theme.PriceIntelligenceTheme
+import com.supreme.priceintelligence.settings.AppPreferences
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun App(
     databaseBuilder: RoomDatabase.Builder<AppDatabase>,
-    networkMonitor: NetworkMonitor
+    networkMonitor: NetworkMonitor,
+    appPreferences: AppPreferences
 ) {
     PriceIntelligenceTheme {
         Surface(
@@ -74,9 +76,19 @@ fun App(
             var destinationName by rememberSaveable {
                 mutableStateOf(AppDestination.Dashboard.name)
             }
+            var advancedModeEnabled by remember {
+                mutableStateOf(appPreferences.advancedModeEnabled)
+            }
             val destination = AppDestination.entries.firstOrNull { item ->
                 item.name == destinationName
             } ?: AppDestination.Dashboard
+
+            PlatformBackHandler(
+                enabled = destination != AppDestination.Dashboard,
+                onBack = {
+                    destinationName = AppDestination.Dashboard.name
+                }
+            )
 
             LaunchedEffect(inventoryState.pendingDeletes) {
                 if (inventoryState.pendingDeletes.isNotEmpty()) {
@@ -87,62 +99,75 @@ fun App(
                 }
             }
 
-            SupremeAmbientBackground {
-                BoxWithConstraints(
+            OriginalAppBackground(
+                isConnected = isConnected
+            ) {
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .safeContentPadding()
                 ) {
-                    val horizontalPadding = when {
-                        maxWidth < 380.dp -> 14.dp
-                        maxWidth < 410.dp -> 18.dp
-                        else -> 20.dp
-                    }
-
                     Column(
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 104.dp)
                     ) {
-                        SupremeHeader(
-                            isConnected = isConnected,
-                            horizontalPadding = horizontalPadding
-                        )
+                        if (destination == AppDestination.Dashboard) {
+                            OriginalDashboardHeader(
+                                isConnected = isConnected,
+                                horizontalPadding = 16.dp
+                            )
+                        }
 
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
-                                .padding(horizontal = horizontalPadding)
+                                .padding(horizontal = 16.dp)
                         ) {
                             when (destination) {
-                                AppDestination.Dashboard -> DashboardScreen(
+                                AppDestination.Dashboard -> OriginalDashboardScreen(
                                     viewModel = dashboardViewModel,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    advancedModeEnabled = advancedModeEnabled
                                 )
 
-                                AppDestination.Inventory -> InventoryScreen(
+                                AppDestination.Inventory -> OriginalInventoryScreen(
                                     viewModel = inventoryViewModel,
+                                    advancedModeEnabled = advancedModeEnabled,
+                                    onAdvancedModeChanged = { enabled ->
+                                        advancedModeEnabled = enabled
+                                        appPreferences.advancedModeEnabled = enabled
+                                    },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
                         }
-
-                        InventoryUndoBanner(
-                            pendingItems = inventoryState.pendingDeletes,
-                            onUndo = inventoryViewModel::cancelDelete,
-                            horizontalPadding = horizontalPadding
-                        )
-
-                        SupremeBottomNavigation(
-                            selectedDestination = destination,
-                            horizontalPadding = horizontalPadding,
-                            onDestinationSelected = { selected ->
-                                destinationName = selected.name
-                                if (selected == AppDestination.Dashboard) {
-                                    dashboardViewModel.refresh()
-                                }
-                            }
-                        )
                     }
+
+                    OriginalInventoryUndoBanner(
+                        pendingItems = inventoryState.pendingDeletes,
+                        onUndo = inventoryViewModel::cancelDelete,
+                        modifier = Modifier
+                            .align(androidx.compose.ui.Alignment.BottomCenter)
+                            .padding(bottom = 96.dp),
+                        horizontalPadding = 16.dp
+                    )
+
+                    OriginalBottomNavigation(
+                        selectedDestination = destination,
+                        modifier = Modifier.align(
+                            androidx.compose.ui.Alignment.BottomCenter
+                        ),
+                        horizontalPadding = 16.dp,
+                        onDestinationSelected = { selected ->
+                            destinationName = selected.name
+
+                            if (selected == AppDestination.Dashboard) {
+                                dashboardViewModel.refresh()
+                            }
+                        }
+                    )
                 }
             }
         }

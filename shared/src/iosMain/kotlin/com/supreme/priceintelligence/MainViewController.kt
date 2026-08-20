@@ -5,6 +5,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.window.ComposeUIViewController
 import com.supreme.priceintelligence.data.getDatabaseBuilder
 import com.supreme.priceintelligence.network.IosNetworkMonitor
+import com.supreme.priceintelligence.settings.IosAppPreferences
 
 fun MainViewController() = ComposeUIViewController {
     val databaseBuilder = remember {
@@ -15,6 +16,10 @@ fun MainViewController() = ComposeUIViewController {
         IosNetworkMonitor()
     }
 
+    val appPreferences = remember {
+        IosAppPreferences()
+    }
+
     DisposableEffect(networkMonitor) {
         onDispose {
             networkMonitor.stop()
@@ -23,6 +28,7 @@ fun MainViewController() = ComposeUIViewController {
 
     App(
         databaseBuilder = databaseBuilder,
-        networkMonitor = networkMonitor
+        networkMonitor = networkMonitor,
+        appPreferences = appPreferences
     )
 }

@@ -178,6 +178,20 @@ class InventoryViewModel(
         }
     }
 
+    fun clearFormFields() {
+        _uiState.update { state ->
+            state.copy(
+                form = state.form.copy(
+                    productName = "",
+                    shopPrice = "",
+                    barcode = "",
+                    amazonUrl = "",
+                    flipkartUrl = ""
+                )
+            )
+        }
+    }
+
     fun clearForm() {
         _uiState.update { it.copy(form = InventoryFormState()) }
     }
