@@ -40,8 +40,11 @@ data class InventoryUiState(
     val highlightedItemId: Long? = null,
     val isRefreshing: Boolean = false,
     val pendingDeletes: Set<InventoryItem> = emptySet(),
-    val expandedGroups: Set<String> = emptySet()
-)
+    val expandedGroups: Set<String> = emptySet(),
+    val selectedItemIds: Set<Long> = emptySet()
+) {
+    val isSelectionMode: Boolean get() = selectedItemIds.isNotEmpty()
+}
 
 class InventoryViewModel(
     private val repository: InventoryRepository
@@ -72,7 +75,7 @@ class InventoryViewModel(
 
     private fun loadAll() {
         viewModelScope.launch {
-            _uiState.update { it.copy(products = repository.getAllRecent()) }
+            updateVisibleProducts(repository.getAllRecent())
         }
     }
 
@@ -88,7 +91,7 @@ class InventoryViewModel(
                 repository.search(query)
             }
 
-            _uiState.update { it.copy(products = results, isRefreshing = false) }
+            updateVisibleProducts(results, isRefreshing = false)
         }
     }
 
@@ -98,8 +101,45 @@ class InventoryViewModel(
         searchJob = viewModelScope.launch {
             delay(250.milliseconds)
             val results = if (query.isBlank()) repository.getAllRecent() else repository.search(query)
-            _uiState.update { it.copy(products = results) }
+            updateVisibleProducts(results)
         }
+    }
+
+    fun toggleSelection(itemId: Long) {
+        _uiState.update { state ->
+            if (state.products.none { item -> item.id == itemId }) return@update state
+            state.copy(
+                selectedItemIds = if (itemId in state.selectedItemIds) {
+                    state.selectedItemIds - itemId
+                } else {
+                    state.selectedItemIds + itemId
+                }
+            )
+        }
+    }
+
+    fun selectAllVisible() {
+        _uiState.update { state ->
+            val pendingIds = state.pendingDeletes.map { item -> item.id }.toSet()
+            state.copy(
+                selectedItemIds = state.products
+                    .map { item -> item.id }
+                    .filterNot { id -> id in pendingIds }
+                    .toSet()
+            )
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update { state -> state.copy(selectedItemIds = emptySet()) }
+    }
+
+    fun queueSelectedForDelete() {
+        val state = _uiState.value
+        val selectedItems = state.products
+            .filter { item -> item.id in state.selectedItemIds }
+            .toSet()
+        if (selectedItems.isNotEmpty()) queueDelete(selectedItems)
     }
 
     fun onFormFieldChanged(
@@ -125,6 +165,7 @@ class InventoryViewModel(
     fun startEditing(item: InventoryItem) {
         _uiState.update {
             it.copy(
+                selectedItemIds = emptySet(),
                 form = InventoryFormState(
                     editingItem = item,
                     productName = item.productName,
@@ -214,7 +255,13 @@ class InventoryViewModel(
     }
 
     fun queueDelete(items: Set<InventoryItem>) {
-        _uiState.update { it.copy(pendingDeletes = items) }
+        val itemIds = items.map { item -> item.id }.toSet()
+        _uiState.update {
+            it.copy(
+                pendingDeletes = it.pendingDeletes + items,
+                selectedItemIds = it.selectedItemIds - itemIds
+            )
+        }
     }
 
     fun cancelDelete() {
@@ -276,6 +323,20 @@ class InventoryViewModel(
         statusClearJob = viewModelScope.launch {
             delay(5000.milliseconds)
             _uiState.update { it.copy(statusMessage = null, statusIsError = false, statusIsInfo = false) }
+        }
+    }
+
+    private fun updateVisibleProducts(
+        products: List<InventoryItem>,
+        isRefreshing: Boolean = _uiState.value.isRefreshing
+    ) {
+        val visibleIds = products.map { item -> item.id }.toSet()
+        _uiState.update { state ->
+            state.copy(
+                products = products,
+                isRefreshing = isRefreshing,
+                selectedItemIds = state.selectedItemIds.intersect(visibleIds)
+            )
         }
     }
 }

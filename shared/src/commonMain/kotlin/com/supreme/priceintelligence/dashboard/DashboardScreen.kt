@@ -43,6 +43,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -76,9 +81,9 @@ fun DashboardScreen(
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
     var showSortMenu by remember { mutableStateOf(false) }
-    var selectedProductId by remember { mutableStateOf<Long?>(null) }
-    var isScannerOpen by remember { mutableStateOf(false) }
-    var cameraPermissionDenied by remember { mutableStateOf(false) }
+    var selectedProductId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var isScannerOpen by rememberSaveable { mutableStateOf(false) }
+    var cameraPermissionDenied by rememberSaveable { mutableStateOf(false) }
 
     val cameraPermissionRequester = rememberCameraPermissionRequester { granted ->
         if (granted) {
@@ -343,6 +348,13 @@ fun DashboardScreen(
                         contentPadding = PaddingValues(bottom = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        item(key = "decision-summary") {
+                            DashboardDecisionSummaryCard(
+                                summary = state.pageItems.buildDecisionSummary(),
+                                currentPage = state.currentPage
+                            )
+                        }
+
                         items(
                             items = state.pageItems,
                             key = { card -> card.item.id }
@@ -416,6 +428,9 @@ private fun DashboardFeedbackBanner(
                     Color(0xFF4A3510)
                 }
             )
+            .semantics {
+                liveRegion = LiveRegionMode.Polite
+            }
             .padding(horizontal = 13.dp, vertical = 10.dp)
     ) {
         Text(
@@ -567,7 +582,17 @@ private fun DashboardProductCard(
     )
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                stateDescription = when {
+                    card.isRefreshing -> "Checking online prices"
+                    liveCheckAttempted && !hasLivePrice -> "Live check failed"
+                    onlineIsCheaper -> "Online price is cheaper"
+                    hasOnlinePrice -> "Saved online comparison available"
+                    else -> "Online price not checked"
+                }
+            },
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(
@@ -1245,6 +1270,7 @@ private fun DashboardPagination(
 
 private fun SortOrder.displayName(): String = when (this) {
     SortOrder.MOST_VIEWED -> "Most viewed"
+    SortOrder.BEST_SAVING -> "Best online saving"
     SortOrder.ALPHABETICAL -> "A to Z"
     SortOrder.RECENT -> "Recently updated"
 }

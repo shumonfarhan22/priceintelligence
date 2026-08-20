@@ -120,6 +120,47 @@ class InventoryRepositoryTest {
         assertTrue(repository.getPriceHistory(phone.id).isEmpty())
     }
 
+    @Test
+    fun bestSavingSortUsesSavedPricesAndPutsUnknownPricesLast() = runTest {
+        val smallSaving = phone.copy(
+            shopPrice = 50_000.0,
+            amazonLastPrice = 49_000.0
+        )
+        val largeSaving = case.copy(
+            shopPrice = 25_000.0,
+            flipkartLastPrice = 20_000.0
+        )
+        val noSavedPrice = charger.copy(shopPrice = 2_000.0)
+        val repository = InventoryRepository(
+            FakeInventoryDao(smallSaving, noSavedPrice, largeSaving)
+        )
+
+        assertEquals(
+            listOf(largeSaving, smallSaving, noSavedPrice),
+            repository.getPaged("BEST_SAVING", limit = 10, offset = 0)
+        )
+    }
+
+    @Test
+    fun bestSavingSortStillWorksInsideSearchResults() = runTest {
+        val smallerSaving = phone.copy(
+            productName = "Samsung Phone A",
+            shopPrice = 10_000.0,
+            amazonLastPrice = 9_500.0
+        )
+        val largerSaving = case.copy(
+            productName = "Samsung Phone B",
+            shopPrice = 10_000.0,
+            flipkartLastPrice = 8_000.0
+        )
+        val repository = InventoryRepository(FakeInventoryDao(smallerSaving, largerSaving))
+
+        assertEquals(
+            listOf(largerSaving, smallerSaving),
+            repository.searchPaged("Samsung", "BEST_SAVING", limit = 10, offset = 0)
+        )
+    }
+
     private fun item(
         id: Long,
         name: String,
