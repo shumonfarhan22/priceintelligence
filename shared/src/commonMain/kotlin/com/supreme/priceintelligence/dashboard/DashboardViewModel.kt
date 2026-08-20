@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.data.InventoryRepository
+import com.supreme.priceintelligence.data.PriceHistoryEntry
+import com.supreme.priceintelligence.data.PriceRetailer
 import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.network.PriceFetcher
 import com.supreme.priceintelligence.network.ScrapeResult
@@ -42,6 +44,8 @@ data class DashboardUiState(
     val pageItems: List<ProductCardUiState> = emptyList(),
     val currentPage: Int = 1,
     val pageSize: Int = 10,
+    val priceHistoryByProduct: Map<Long, List<PriceHistoryEntry>> = emptyMap(),
+    val historyLoadingProductIds: Set<Long> = emptySet(),
     val isLoading: Boolean = false,
     val isRefreshingPage: Boolean = false,
     val isConnected: Boolean = false,
@@ -67,6 +71,7 @@ class DashboardViewModel(
     private var suggestionJob: Job? = null
     private var searchJob: Job? = null
     private var connectionFeedbackJob: Job? = null
+    private val historyJobs = mutableMapOf<Long, Job>()
 
     init {
         runSearch("")
@@ -144,9 +149,11 @@ class DashboardViewModel(
     }
 
     fun goToPage(page: Int) {
-        _uiState.update { it.copy(currentPage = page, isLoading = true) }
-        viewModelScope.launch {
-            fetchPageFromDatabase(page)
+        val safePage = page.coerceIn(1, _uiState.value.totalPages)
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            _uiState.update { it.copy(currentPage = safePage, isLoading = true) }
+            fetchPageFromDatabase(safePage)
         }
     }
 
@@ -165,10 +172,42 @@ class DashboardViewModel(
         }
 
         _uiState.update {
+            val pageIds = pageProducts.map { item -> item.id }.toSet()
             it.copy(
                 pageItems = pageProducts.map { item -> ProductCardUiState(item = item) },
+                priceHistoryByProduct = it.priceHistoryByProduct.filterKeys { id -> id in pageIds },
+                historyLoadingProductIds = it.historyLoadingProductIds.filter { id -> id in pageIds }.toSet(),
                 isLoading = false
             )
+        }
+    }
+
+    fun loadPriceHistory(productId: Long, force: Boolean = false) {
+        if (productId <= 0L) return
+        if (!force && _uiState.value.priceHistoryByProduct.containsKey(productId)) return
+
+        historyJobs.remove(productId)?.cancel()
+        historyJobs[productId] = viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    historyLoadingProductIds = state.historyLoadingProductIds + productId
+                )
+            }
+            try {
+                val history = repository.getPriceHistory(productId)
+                _uiState.update { state ->
+                    state.copy(
+                        priceHistoryByProduct = state.priceHistoryByProduct + (productId to history)
+                    )
+                }
+            } finally {
+                _uiState.update { state ->
+                    state.copy(
+                        historyLoadingProductIds = state.historyLoadingProductIds - productId
+                    )
+                }
+                historyJobs.remove(productId)
+            }
         }
     }
 
@@ -251,10 +290,26 @@ class DashboardViewModel(
 
             val now = Clock.System.now().toEpochMilliseconds()
             amazonResult?.price?.let { price ->
-                repository.updateAmazonCache(productId, price, now)
+                repository.recordPriceCheck(
+                    itemId = productId,
+                    retailer = PriceRetailer.AMAZON,
+                    price = price,
+                    checkedAt = now
+                )
             }
             flipkartResult?.price?.let { price ->
-                repository.updateFlipkartCache(productId, price, now)
+                repository.recordPriceCheck(
+                    itemId = productId,
+                    retailer = PriceRetailer.FLIPKART,
+                    price = price,
+                    checkedAt = now
+                )
+            }
+
+            val refreshedHistory = if (hasLivePrice) {
+                repository.getPriceHistory(productId)
+            } else {
+                null
             }
 
             val newImage = amazonResult?.image ?: flipkartResult?.image
@@ -271,6 +326,11 @@ class DashboardViewModel(
 
             _uiState.update { state ->
                 state.copy(
+                    priceHistoryByProduct = if (refreshedHistory == null) {
+                        state.priceHistoryByProduct
+                    } else {
+                        state.priceHistoryByProduct + (productId to refreshedHistory)
+                    },
                     pageItems = state.pageItems.map { card ->
                         if (card.item.id == productId) {
                             card.copy(

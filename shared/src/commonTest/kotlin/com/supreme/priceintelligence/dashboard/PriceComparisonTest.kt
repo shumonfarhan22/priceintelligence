@@ -46,6 +46,16 @@ class PriceComparisonTest {
     }
 
     @Test
+    fun handlesInvalidLegacyShopPriceWithoutCrashing() {
+        val comparison = compareWithOnlinePrices(Double.NaN, 900.0, null)
+
+        assertEquals(ShopPricePosition.INVALID_SHOP_PRICE, comparison.shopPosition)
+        assertEquals(900.0, comparison.onlineLowestPrice)
+        assertEquals(null, comparison.shopDifference)
+        assertEquals("Price unavailable", formatIndianPrice(Double.NaN))
+    }
+
+    @Test
     fun formatsIndianCurrencyGroupingAndPaise() {
         assertEquals("₹999", formatIndianPrice(999.0))
         assertEquals("₹12,345.50", formatIndianPrice(12_345.5))

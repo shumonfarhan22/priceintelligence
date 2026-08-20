@@ -71,6 +71,12 @@ class DashboardViewModelTest {
         assertEquals(48_000.0, dao.getAllRanked().single().amazonLastPrice)
         assertEquals(49_000.0, dao.getAllRanked().single().flipkartLastPrice)
         assertEquals(2, fetcher.requestedUrls.size)
+        val history = repository.getPriceHistory(productId)
+        assertEquals(2, history.size)
+        assertEquals(
+            setOf(48_000.0, 49_000.0),
+            history.map { entry -> entry.price }.toSet()
+        )
 
         viewModel.viewModelScope.cancel()
     }

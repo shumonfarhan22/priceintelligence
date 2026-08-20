@@ -10,7 +10,11 @@ import androidx.sqlite.execSQL
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.Dispatchers
 
-@Database(entities = [InventoryItem::class], version = 3, exportSchema = true)
+@Database(
+    entities = [InventoryItem::class, PriceHistoryEntry::class],
+    version = 4,
+    exportSchema = true
+)
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun inventoryDao(): InventoryDao
@@ -58,12 +62,56 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+// Version 4 keeps a bounded local history of successful retailer checks. Seed
+// it from the previously saved prices so upgrades do not start with an empty
+// history when useful cached data already exists.
+private val MIGRATION_3_4 = object : Migration(3, 4) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS price_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                inventory_item_id INTEGER NOT NULL,
+                retailer TEXT NOT NULL,
+                price REAL NOT NULL,
+                checked_at INTEGER NOT NULL,
+                FOREIGN KEY(inventory_item_id) REFERENCES inventory(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_price_history_inventory_item_id " +
+                "ON price_history(inventory_item_id)"
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_price_history_inventory_item_id_retailer_checked_at " +
+                "ON price_history(inventory_item_id, retailer, checked_at)"
+        )
+        connection.execSQL(
+            """
+            INSERT INTO price_history (inventory_item_id, retailer, price, checked_at)
+            SELECT id, 'AMAZON', amazon_last_price, amazon_last_checked
+            FROM inventory
+            WHERE amazon_last_price > 0 AND amazon_last_checked > 0
+            """.trimIndent()
+        )
+        connection.execSQL(
+            """
+            INSERT INTO price_history (inventory_item_id, retailer, price, checked_at)
+            SELECT id, 'FLIPKART', flipkart_last_price, flipkart_last_checked
+            FROM inventory
+            WHERE flipkart_last_price > 0 AND flipkart_last_checked > 0
+            """.trimIndent()
+        )
+    }
+}
+
 // Takes the platform-specific builder (which only knows WHERE the db file lives)
 // and applies the configuration that's identical everywhere — migrations, the
 // driver, and the coroutine context queries run on.
 fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
     return builder
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.Default)
         .build()

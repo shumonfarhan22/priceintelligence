@@ -4,6 +4,7 @@ import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
 
 enum class ShopPricePosition {
+    INVALID_SHOP_PRICE,
     NO_ONLINE_PRICE,
     LOWER,
     MATCHED,
@@ -37,6 +38,15 @@ fun compareWithOnlinePrices(
         )
     }
 
+    if (!shopPrice.isFinite() || shopPrice <= 0.0) {
+        return PriceComparison(
+            onlineLowestPrice = onlineLowest,
+            shopDifference = null,
+            shopDifferencePercent = null,
+            shopPosition = ShopPricePosition.INVALID_SHOP_PRICE
+        )
+    }
+
     val difference = shopPrice - onlineLowest
     val position = when {
         difference.absoluteValue <= 0.01 -> ShopPricePosition.MATCHED
@@ -58,6 +68,8 @@ fun compareWithOnlinePrices(
 }
 
 fun formatIndianPrice(value: Double): String {
+    if (!value.isFinite()) return "Price unavailable"
+
     val paise = (value * 100).roundToLong()
     val whole = paise / 100
     val decimal = (paise % 100).absoluteValue

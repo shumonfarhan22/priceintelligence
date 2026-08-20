@@ -43,9 +43,6 @@ data class InventoryUiState(
     val expandedGroups: Set<String> = emptySet()
 )
 
-// Was AndroidViewModel(application) — now takes the repository through the
-// constructor, same pattern as DashboardViewModel. Backup export/import is
-// deliberately left out for now — see the note near the bottom.
 class InventoryViewModel(
     private val repository: InventoryRepository
 ) : ViewModel() {

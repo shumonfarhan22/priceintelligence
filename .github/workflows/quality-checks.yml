@@ -34,4 +34,4 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Run shared tests and build Android
-        run: ./gradlew :shared:testAndroidHostTest :androidApp:lintDebug :androidApp:assembleDebug
+        run: ./gradlew :shared:testAndroidHostTest :androidApp:lintDebug :androidApp:assembleDebug :androidApp:assembleRelease

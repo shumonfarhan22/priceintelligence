@@ -9,8 +9,9 @@ Price Intelligence is a Kotlin Multiplatform app for comparing a shop price with
 - Save and edit a local product inventory.
 - Compare the shop price with live Amazon and Flipkart prices.
 - Keep the latest successful online prices available when the phone is offline.
+- Keep the newest 60 successful checks per retailer and show price movement and the lowest saved price.
 - Mark prices clearly as live or saved.
-- Back up inventory to a portable JSON file and merge it safely on restore.
+- Back up inventory and price history to a portable JSON file and merge it safely on restore.
 - Delete inventory products with a four-second Undo option.
 
 ## Data and privacy
@@ -18,7 +19,7 @@ Price Intelligence is a Kotlin Multiplatform app for comparing a shop price with
 - Inventory data stays in the app's local Room database.
 - Camera access is requested only when the user chooses to scan a barcode.
 - The app downloads only the Amazon and Flipkart product pages saved by the user.
-- Backup restore adds missing products. It does not delete or replace existing products.
+- Backup restore adds missing products and their saved history. It does not delete or replace existing products.
 - Retailer links are validated and upgraded to HTTPS before use.
 
 ## Project folders
@@ -36,7 +37,7 @@ The completed original Android application is stored separately as a read-only r
 Run this from the project folder:
 
 ```powershell
-.\gradlew.bat :shared:testAndroidHostTest :androidApp:lintDebug :androidApp:assembleDebug
+.\gradlew.bat :shared:testAndroidHostTest :androidApp:lintDebug :androidApp:assembleDebug :androidApp:assembleRelease
 ```
 
 ## Physical iPhone check
@@ -49,5 +50,7 @@ Run this from the project folder:
 6. Test search, barcode scanning, live price checks, inventory editing, backup, restore, delete, and Undo.
 
 The GitHub workflow runs the shared iPhone tests before building the IPA. This prevents creating an IPA when shared iPhone code does not compile or a shared test fails.
+
+The workflow also caches the Kotlin Native compiler files. A manual milestone run from `master` creates the reusable cache; later milestone runs can restore it instead of downloading the Apple compiler dependencies again.
 
 For a deliberate large milestone, pushing a tag whose name starts with `iphone-checkpoint-` starts the same workflow automatically. Normal code pushes do not create an IPA.

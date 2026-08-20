@@ -107,11 +107,11 @@ class InventoryRepository(private val dao: InventoryDao) {
     }
 
     suspend fun incrementSearchCount(id: Long) =
-        dao.incrementSearchCount(id, Clock.System.now().toEpochMilliseconds())
+        dao.incrementSearchCount(id)
 
     suspend fun incrementSearchCountBulk(ids: List<Long>) {
         if (ids.isEmpty()) return
-        dao.incrementSearchCountBulk(ids, Clock.System.now().toEpochMilliseconds())
+        dao.incrementSearchCountBulk(ids)
     }
 
     suspend fun updateAmazonCache(itemId: Long, price: Double, timestamp: Long) =
@@ -119,6 +119,84 @@ class InventoryRepository(private val dao: InventoryDao) {
 
     suspend fun updateFlipkartCache(itemId: Long, price: Double, timestamp: Long) =
         dao.updateFlipkartCache(itemId, price, timestamp)
+
+    suspend fun recordPriceCheck(
+        itemId: Long,
+        retailer: PriceRetailer,
+        price: Double,
+        checkedAt: Long
+    ): Boolean {
+        if (itemId <= 0L || !price.isFinite() || price <= 0.0 || checkedAt <= 0L) return false
+        if (dao.getById(itemId) == null) return false
+
+        return try {
+            when (retailer) {
+                PriceRetailer.AMAZON -> dao.updateAmazonCache(itemId, price, checkedAt)
+                PriceRetailer.FLIPKART -> dao.updateFlipkartCache(itemId, price, checkedAt)
+            }
+
+            dao.insertPriceHistory(
+                PriceHistoryEntry(
+                    inventoryItemId = itemId,
+                    retailer = retailer.name,
+                    price = price,
+                    checkedAt = checkedAt
+                )
+            )
+            dao.trimPriceHistory(
+                itemId = itemId,
+                retailer = retailer.name,
+                keepCount = MAX_PRICE_HISTORY_PER_RETAILER
+            )
+            true
+        } catch (error: androidx.sqlite.SQLiteException) {
+            // A product can be deleted while its slower network request is in
+            // flight. Treat that expected race as a canceled save, but keep
+            // surfacing real database failures for products that still exist.
+            if (dao.getById(itemId) == null) false else throw error
+        }
+    }
+
+    suspend fun importPriceHistory(
+        itemId: Long,
+        entries: List<PriceHistoryEntry>
+    ) {
+        if (itemId <= 0L) return
+
+        entries
+            .asSequence()
+            .filter { entry ->
+                entry.retailer in PriceRetailer.entries.map { it.name } &&
+                    entry.price.isFinite() &&
+                    entry.price > 0.0 &&
+                    entry.checkedAt > 0L
+            }
+            .sortedBy { it.checkedAt }
+            .forEach { entry ->
+                dao.insertPriceHistory(
+                    entry.copy(
+                        id = 0,
+                        inventoryItemId = itemId
+                    )
+                )
+            }
+
+        PriceRetailer.entries.forEach { retailer ->
+            dao.trimPriceHistory(
+                itemId = itemId,
+                retailer = retailer.name,
+                keepCount = MAX_PRICE_HISTORY_PER_RETAILER
+            )
+        }
+    }
+
+    suspend fun getPriceHistory(
+        itemId: Long,
+        limit: Int = MAX_PRICE_HISTORY_PER_RETAILER * PriceRetailer.entries.size
+    ): List<PriceHistoryEntry> = dao.getPriceHistory(
+        itemId = itemId,
+        limit = limit.coerceIn(1, MAX_PRICE_HISTORY_PER_RETAILER * PriceRetailer.entries.size)
+    )
 
     // --- STRICT DATABASE PAGINATION ---
 

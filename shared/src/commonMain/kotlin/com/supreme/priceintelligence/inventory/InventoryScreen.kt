@@ -42,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -476,7 +478,7 @@ private fun DataSafetyDialog(
                 )
 
                 Text(
-                    text = "Save a portable backup before changing phones or reinstalling the app.",
+                    text = "Save your products, saved prices, and price history before changing phones or reinstalling the app.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp
                 )
@@ -764,6 +766,12 @@ private fun ProductEditorDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
+    val priceFocusRequester = remember { FocusRequester() }
+    val barcodeFocusRequester = remember { FocusRequester() }
+    val amazonFocusRequester = remember { FocusRequester() }
+    val flipkartFocusRequester = remember { FocusRequester() }
+
     Dialog(
         onDismissRequest = onDismiss
     ) {
@@ -809,13 +817,21 @@ private fun ProductEditorDialog(
                     placeholder = {
                         Text("Example: Samsung Galaxy S25")
                     },
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { priceFocusRequester.requestFocus() }
+                    ),
                     singleLine = true
                 )
 
                 OutlinedTextField(
                     value = form.shopPrice,
                     onValueChange = onShopPriceChanged,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(priceFocusRequester),
                     label = {
                         Text("Your shop price")
                     },
@@ -823,7 +839,11 @@ private fun ProductEditorDialog(
                         Text("Example: 49999")
                     },
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Decimal
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { barcodeFocusRequester.requestFocus() }
                     ),
                     singleLine = true
                 )
@@ -831,7 +851,9 @@ private fun ProductEditorDialog(
                 OutlinedTextField(
                     value = form.barcode,
                     onValueChange = onBarcodeChanged,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(barcodeFocusRequester),
                     label = {
                         Text("Barcode — optional")
                     },
@@ -839,7 +861,11 @@ private fun ProductEditorDialog(
                         Text("Type the barcode number")
                     },
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { amazonFocusRequester.requestFocus() }
                     ),
                     trailingIcon = {
                         TextButton(onClick = onScanBarcode) {
@@ -852,7 +878,9 @@ private fun ProductEditorDialog(
                 OutlinedTextField(
                     value = form.amazonUrl,
                     onValueChange = onAmazonUrlChanged,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(amazonFocusRequester),
                     label = {
                         Text("Amazon link — optional")
                     },
@@ -860,7 +888,11 @@ private fun ProductEditorDialog(
                         Text("https://amazon.in/...")
                     },
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { flipkartFocusRequester.requestFocus() }
                     ),
                     singleLine = true
                 )
@@ -868,7 +900,9 @@ private fun ProductEditorDialog(
                 OutlinedTextField(
                     value = form.flipkartUrl,
                     onValueChange = onFlipkartUrlChanged,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(flipkartFocusRequester),
                     label = {
                         Text("Flipkart link — optional")
                     },
@@ -876,7 +910,11 @@ private fun ProductEditorDialog(
                         Text("https://flipkart.com/...")
                     },
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { focusManager.clearFocus() }
                     ),
                     singleLine = true
                 )
@@ -933,6 +971,8 @@ private fun ProductEditorDialog(
 }
 
 private fun displayPrice(price: Double): String {
+    if (!price.isFinite()) return "Price unavailable"
+
     val paise = (price * 100).roundToLong()
     val wholePart = paise / 100
     val decimalPart = (paise % 100)

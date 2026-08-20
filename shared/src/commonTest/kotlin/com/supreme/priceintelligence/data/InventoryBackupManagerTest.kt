@@ -23,9 +23,14 @@ class InventoryBackupManagerTest {
             amazonLastPrice = 72999.0,
             amazonLastChecked = 300
         )
-        val sourceManager = InventoryBackupManager(
-            InventoryRepository(FakeInventoryDao(sourceItem))
+        val sourceRepository = InventoryRepository(FakeInventoryDao(sourceItem))
+        sourceRepository.recordPriceCheck(
+            itemId = sourceItem.id,
+            retailer = PriceRetailer.AMAZON,
+            price = 71999.0,
+            checkedAt = 400
         )
+        val sourceManager = InventoryBackupManager(sourceRepository)
         val backupJson = sourceManager.createBackupJson()
 
         val destinationRepository = InventoryRepository(FakeInventoryDao())
@@ -37,10 +42,14 @@ class InventoryBackupManagerTest {
         assertEquals(sourceItem.productName, restored.productName)
         assertEquals(sourceItem.barcode, restored.barcode)
         assertEquals(sourceItem.shopPrice, restored.shopPrice)
-        assertEquals(sourceItem.amazonLastPrice, restored.amazonLastPrice)
-        assertEquals(sourceItem.amazonLastChecked, restored.amazonLastChecked)
+        assertEquals(71999.0, restored.amazonLastPrice)
+        assertEquals(400, restored.amazonLastChecked)
         assertEquals(sourceItem.imageUrl, restored.imageUrl)
         assertEquals(sourceItem.searchCount, restored.searchCount)
+        val restoredHistory = destinationRepository.getPriceHistory(restored.id)
+        assertEquals(1, restoredHistory.size)
+        assertEquals(71999.0, restoredHistory.single().price)
+        assertEquals(400, restoredHistory.single().checkedAt)
     }
 
     @Test
@@ -129,5 +138,52 @@ class InventoryBackupManagerTest {
         assertEquals(null, imported.amazonUrl)
         assertEquals("https://www.flipkart.com/item", imported.flipkartUrl)
         assertEquals(null, imported.imageUrl)
+    }
+
+    @Test
+    fun versionOneBackupTurnsSavedCacheIntoFirstHistoryEntry() = runTest {
+        val backupJson = """
+            {
+              "formatVersion": 1,
+              "exportedAt": 100,
+              "products": [
+                {
+                  "productName":"Legacy phone",
+                  "shopPrice":1000.0,
+                  "amazonLastPrice":900.0,
+                  "amazonLastChecked":200
+                }
+              ]
+            }
+        """.trimIndent()
+        val repository = InventoryRepository(FakeInventoryDao())
+
+        InventoryBackupManager(repository).importBackupJson(backupJson)
+
+        val restored = repository.getAllAlphabetical().single()
+        val history = repository.getPriceHistory(restored.id)
+        assertEquals(1, history.size)
+        assertEquals(PriceRetailer.AMAZON.name, history.single().retailer)
+        assertEquals(900.0, history.single().price)
+        assertEquals(200, history.single().checkedAt)
+    }
+
+    @Test
+    fun corruptedLegacyNumbersDoNotBreakTheWholeBackup() = runTest {
+        val corrupted = InventoryItem(
+            id = 1,
+            productName = "Legacy typo",
+            shopPrice = Double.NaN,
+            amazonLastPrice = Double.POSITIVE_INFINITY,
+            amazonLastChecked = 100
+        )
+
+        val backupJson = InventoryBackupManager(
+            InventoryRepository(FakeInventoryDao(corrupted))
+        ).createBackupJson()
+
+        assertTrue("NaN" !in backupJson)
+        assertTrue("Infinity" !in backupJson)
+        assertTrue("\"shopPrice\": 0.0" in backupJson)
     }
 }

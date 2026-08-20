@@ -1,0 +1,203 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "07cdf7e09b5ee28c2b337a27e7f1ed46",
+    "entities": [
+      {
+        "tableName": "inventory",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `product_name` TEXT NOT NULL, `barcode` TEXT, `shop_price` REAL NOT NULL, `pricebuddy_product_id` INTEGER, `amazon_url` TEXT, `flipkart_url` TEXT, `image_url` TEXT, `search_count` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `amazon_last_price` REAL, `amazon_last_checked` INTEGER, `flipkart_last_price` REAL, `flipkart_last_checked` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "productName",
+            "columnName": "product_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "barcode",
+            "columnName": "barcode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "shopPrice",
+            "columnName": "shop_price",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pricebuddyProductId",
+            "columnName": "pricebuddy_product_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "amazonUrl",
+            "columnName": "amazon_url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "flipkartUrl",
+            "columnName": "flipkart_url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "imageUrl",
+            "columnName": "image_url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "searchCount",
+            "columnName": "search_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "amazonLastPrice",
+            "columnName": "amazon_last_price",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "amazonLastChecked",
+            "columnName": "amazon_last_checked",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "flipkartLastPrice",
+            "columnName": "flipkart_last_price",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "flipkartLastChecked",
+            "columnName": "flipkart_last_checked",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_inventory_barcode",
+            "unique": true,
+            "columnNames": [
+              "barcode"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_inventory_barcode` ON `${TABLE_NAME}` (`barcode`)"
+          },
+          {
+            "name": "index_inventory_product_name",
+            "unique": false,
+            "columnNames": [
+              "product_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inventory_product_name` ON `${TABLE_NAME}` (`product_name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "price_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `inventory_item_id` INTEGER NOT NULL, `retailer` TEXT NOT NULL, `price` REAL NOT NULL, `checked_at` INTEGER NOT NULL, FOREIGN KEY(`inventory_item_id`) REFERENCES `inventory`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inventoryItemId",
+            "columnName": "inventory_item_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retailer",
+            "columnName": "retailer",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "price",
+            "columnName": "price",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "checkedAt",
+            "columnName": "checked_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_price_history_inventory_item_id",
+            "unique": false,
+            "columnNames": [
+              "inventory_item_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_price_history_inventory_item_id` ON `${TABLE_NAME}` (`inventory_item_id`)"
+          },
+          {
+            "name": "index_price_history_inventory_item_id_retailer_checked_at",
+            "unique": false,
+            "columnNames": [
+              "inventory_item_id",
+              "retailer",
+              "checked_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_price_history_inventory_item_id_retailer_checked_at` ON `${TABLE_NAME}` (`inventory_item_id`, `retailer`, `checked_at`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "inventory",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "inventory_item_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '07cdf7e09b5ee28c2b337a27e7f1ed46')"
+    ]
+  }
+}

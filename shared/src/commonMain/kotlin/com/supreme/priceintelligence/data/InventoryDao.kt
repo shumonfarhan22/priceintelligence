@@ -45,17 +45,37 @@ interface InventoryDao {
     @Query("SELECT * FROM inventory WHERE barcode = :barcode ORDER BY search_count DESC")
     suspend fun findByBarcode(barcode: String): List<InventoryItem>
 
-    @Query("UPDATE inventory SET search_count = search_count + 1, updated_at = :now WHERE id = :id")
-    suspend fun incrementSearchCount(id: Long, now: Long)
+    @Query("UPDATE inventory SET search_count = search_count + 1 WHERE id = :id")
+    suspend fun incrementSearchCount(id: Long)
 
-    @Query("UPDATE inventory SET search_count = search_count + 1, updated_at = :now WHERE id IN (:ids)")
-    suspend fun incrementSearchCountBulk(ids: List<Long>, now: Long)
+    @Query("UPDATE inventory SET search_count = search_count + 1 WHERE id IN (:ids)")
+    suspend fun incrementSearchCountBulk(ids: List<Long>)
 
     @Query("UPDATE inventory SET amazon_last_price = :price, amazon_last_checked = :timestamp WHERE id = :itemId")
     suspend fun updateAmazonCache(itemId: Long, price: Double, timestamp: Long)
 
     @Query("UPDATE inventory SET flipkart_last_price = :price, flipkart_last_checked = :timestamp WHERE id = :itemId")
     suspend fun updateFlipkartCache(itemId: Long, price: Double, timestamp: Long)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertPriceHistory(entry: PriceHistoryEntry): Long
+
+    @Query(
+        "SELECT * FROM price_history " +
+            "WHERE inventory_item_id = :itemId " +
+            "ORDER BY checked_at DESC, id DESC LIMIT :limit"
+    )
+    suspend fun getPriceHistory(itemId: Long, limit: Int): List<PriceHistoryEntry>
+
+    @Query(
+        "DELETE FROM price_history " +
+            "WHERE inventory_item_id = :itemId AND retailer = :retailer " +
+            "AND id NOT IN (" +
+            "SELECT id FROM price_history " +
+            "WHERE inventory_item_id = :itemId AND retailer = :retailer " +
+            "ORDER BY checked_at DESC, id DESC LIMIT :keepCount)"
+    )
+    suspend fun trimPriceHistory(itemId: Long, retailer: String, keepCount: Int)
 
     @Query("SELECT id FROM inventory WHERE amazon_url = :url AND id != :excludeId LIMIT 1")
     suspend fun checkAmazonUrlExists(url: String, excludeId: Long): Long?

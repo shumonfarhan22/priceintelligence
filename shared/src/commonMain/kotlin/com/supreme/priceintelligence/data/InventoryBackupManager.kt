@@ -34,7 +34,15 @@ private data class BackupProduct(
     val amazonLastPrice: Double? = null,
     val amazonLastChecked: Long? = null,
     val flipkartLastPrice: Double? = null,
-    val flipkartLastChecked: Long? = null
+    val flipkartLastChecked: Long? = null,
+    val priceHistory: List<BackupPriceObservation> = emptyList()
+)
+
+@Serializable
+private data class BackupPriceObservation(
+    val retailer: String = "",
+    val price: Double = 0.0,
+    val checkedAt: Long = 0
 )
 
 data class BackupImportResult(
@@ -53,7 +61,21 @@ class InventoryBackupManager(
     }
 
     suspend fun createBackupJson(): String {
-        val products = repository.getAllAlphabetical().map { it.toBackupProduct() }
+        val products = repository.getAllAlphabetical().map { item ->
+            item.toBackupProduct(
+                priceHistory = repository.getPriceHistory(item.id).map { entry ->
+                    BackupPriceObservation(
+                        retailer = entry.retailer,
+                        price = entry.price,
+                        checkedAt = entry.checkedAt
+                    )
+                }.filter { observation ->
+                    observation.price.isFinite() &&
+                        observation.price > 0.0 &&
+                        observation.checkedAt > 0L
+                }
+            )
+        }
         return json.encodeToString(
             InventoryBackup(
                 exportedAt = Clock.System.now().toEpochMilliseconds(),
@@ -109,7 +131,13 @@ class InventoryBackupManager(
             }
 
             try {
-                repository.importProduct(item)
+                val importedId = repository.importProduct(item)
+                repository.importPriceHistory(
+                    itemId = importedId,
+                    entries = product.historyWithLegacyFallback().mapNotNull { observation ->
+                        observation.toPriceHistoryEntryOrNull(importedId)
+                    }
+                )
                 added++
                 names += nameKey
                 barcodeKey?.let { barcodes += it }
@@ -130,10 +158,12 @@ class InventoryBackupManager(
     }
 }
 
-private fun InventoryItem.toBackupProduct() = BackupProduct(
+private fun InventoryItem.toBackupProduct(
+    priceHistory: List<BackupPriceObservation>
+) = BackupProduct(
     productName = productName,
     barcode = barcode,
-    shopPrice = shopPrice,
+    shopPrice = shopPrice.takeIf { it.isFinite() && it > 0.0 } ?: 0.0,
     pricebuddyProductId = pricebuddyProductId,
     amazonUrl = amazonUrl,
     flipkartUrl = flipkartUrl,
@@ -141,11 +171,51 @@ private fun InventoryItem.toBackupProduct() = BackupProduct(
     searchCount = searchCount,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    amazonLastPrice = amazonLastPrice,
+    amazonLastPrice = amazonLastPrice?.takeIf { it.isFinite() && it > 0.0 },
     amazonLastChecked = amazonLastChecked,
-    flipkartLastPrice = flipkartLastPrice,
-    flipkartLastChecked = flipkartLastChecked
+    flipkartLastPrice = flipkartLastPrice?.takeIf { it.isFinite() && it > 0.0 },
+    flipkartLastChecked = flipkartLastChecked,
+    priceHistory = priceHistory
 )
+
+private fun BackupPriceObservation.toPriceHistoryEntryOrNull(
+    inventoryItemId: Long
+): PriceHistoryEntry? {
+    if (retailer !in PriceRetailer.entries.map { it.name }) return null
+    if (!price.isFinite() || price <= 0.0 || checkedAt <= 0L) return null
+
+    return PriceHistoryEntry(
+        inventoryItemId = inventoryItemId,
+        retailer = retailer,
+        price = price,
+        checkedAt = checkedAt
+    )
+}
+
+private fun BackupProduct.historyWithLegacyFallback(): List<BackupPriceObservation> {
+    if (priceHistory.isNotEmpty()) return priceHistory
+
+    return buildList {
+        if (amazonLastPrice != null && amazonLastChecked != null) {
+            add(
+                BackupPriceObservation(
+                    retailer = PriceRetailer.AMAZON.name,
+                    price = amazonLastPrice,
+                    checkedAt = amazonLastChecked
+                )
+            )
+        }
+        if (flipkartLastPrice != null && flipkartLastChecked != null) {
+            add(
+                BackupPriceObservation(
+                    retailer = PriceRetailer.FLIPKART.name,
+                    price = flipkartLastPrice,
+                    checkedAt = flipkartLastChecked
+                )
+            )
+        }
+    }
+}
 
 private fun BackupProduct.toInventoryItemOrNull(): InventoryItem? {
     val cleanName = productName.trim()
@@ -176,4 +246,4 @@ private fun normalizeText(value: String): String =
 private fun normalizeOptional(value: String?): String? =
     value?.trim()?.lowercase()?.ifBlank { null }
 
-private const val CURRENT_BACKUP_FORMAT = 1
+private const val CURRENT_BACKUP_FORMAT = 2

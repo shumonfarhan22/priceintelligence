@@ -60,6 +60,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.rememberUrlOpener
+import com.supreme.priceintelligence.data.PriceHistoryEntry
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import kotlin.math.absoluteValue
@@ -350,6 +351,7 @@ fun DashboardScreen(
                                 card = card,
                                 onOpenDetails = {
                                     selectedProductId = card.item.id
+                                    viewModel.loadPriceHistory(card.item.id)
                                     focusManager.clearFocus()
                                 },
                                 onRefresh = {
@@ -385,6 +387,8 @@ fun DashboardScreen(
     if (selectedCard != null) {
         DashboardProductDetailDialog(
             card = selectedCard,
+            priceHistory = state.priceHistoryByProduct[selectedCard.item.id].orEmpty(),
+            isHistoryLoading = selectedCard.item.id in state.historyLoadingProductIds,
             onRefresh = {
                 viewModel.refreshProduct(selectedCard.item.id)
             },
@@ -779,6 +783,8 @@ private fun DashboardProductCard(
 @Composable
 private fun DashboardProductDetailDialog(
     card: ProductCardUiState,
+    priceHistory: List<PriceHistoryEntry>,
+    isHistoryLoading: Boolean,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -938,6 +944,13 @@ private fun DashboardProductDetailDialog(
                     onOpen = item.flipkartUrl?.takeIf { url -> url.isNotBlank() }?.let { url ->
                         { openUrl(url) }
                     }
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                PriceHistorySection(
+                    entries = priceHistory,
+                    isLoading = isHistoryLoading
                 )
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -1233,7 +1246,7 @@ private fun DashboardPagination(
 private fun SortOrder.displayName(): String = when (this) {
     SortOrder.MOST_VIEWED -> "Most viewed"
     SortOrder.ALPHABETICAL -> "A to Z"
-    SortOrder.RECENT -> "Recently added"
+    SortOrder.RECENT -> "Recently updated"
 }
 
 private fun priceDifferenceMessage(difference: Double?): String = when {
@@ -1243,7 +1256,7 @@ private fun priceDifferenceMessage(difference: Double?): String = when {
     else -> "${formatIndianPrice(difference.absoluteValue)} higher than your shop"
 }
 
-private fun formatTimeAgo(timeMs: Long): String {
+internal fun formatTimeAgo(timeMs: Long): String {
     val elapsedMs = (
         Clock.System.now().toEpochMilliseconds() - timeMs
     ).coerceAtLeast(0L)
@@ -1266,7 +1279,7 @@ private fun savedPriceLabel(timeMs: Long?): String =
         "Saved price"
     }
 
-private fun formatPercent(value: Double): String {
+internal fun formatPercent(value: Double): String {
     val tenths = (value.absoluteValue * 10.0).roundToLong()
     val whole = tenths / 10
     val decimal = tenths % 10
