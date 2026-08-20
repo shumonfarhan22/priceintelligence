@@ -2,9 +2,16 @@ name: Build Unsigned iOS IPA
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'iphone-checkpoint-*'
 
 permissions:
   contents: read
+
+concurrency:
+  group: iphone-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-ios:

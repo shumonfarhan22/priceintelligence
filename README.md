@@ -49,3 +49,5 @@ Run this from the project folder:
 6. Test search, barcode scanning, live price checks, inventory editing, backup, restore, delete, and Undo.
 
 The GitHub workflow runs the shared iPhone tests before building the IPA. This prevents creating an IPA when shared iPhone code does not compile or a shared test fails.
+
+For a deliberate large milestone, pushing a tag whose name starts with `iphone-checkpoint-` starts the same workflow automatically. Normal code pushes do not create an IPA.
