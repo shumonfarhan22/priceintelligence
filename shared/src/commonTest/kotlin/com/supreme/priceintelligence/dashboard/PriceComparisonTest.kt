@@ -1,5 +1,6 @@
 package com.supreme.priceintelligence.dashboard
 
+import com.supreme.priceintelligence.data.InventoryItem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -61,4 +62,37 @@ class PriceComparisonTest {
         assertEquals("₹12,345.50", formatIndianPrice(12_345.5))
         assertEquals("₹1,23,45,678.25", formatIndianPrice(12_345_678.25))
     }
+
+    @Test
+    fun decisionSummarySeparatesShopWinsReviewsAndMissingPrices() {
+        val cards = listOf(
+            productCard(id = 1, name = "Shop winner", shopPrice = 900.0, amazonPrice = 1_000.0),
+            productCard(id = 2, name = "Needs review", shopPrice = 2_000.0, amazonPrice = 1_500.0),
+            productCard(id = 3, name = "Not checked", shopPrice = 500.0, amazonPrice = null)
+        )
+
+        val summary = cards.buildDecisionSummary()
+
+        assertEquals(1, summary.shopCompetitiveCount)
+        assertEquals(1, summary.onlineCheaperCount)
+        assertEquals(1, summary.unavailableCount)
+        assertEquals("Needs review", summary.biggestSavingProductName)
+        assertEquals(500.0, summary.biggestSavingAmount)
+    }
+
+    private fun productCard(
+        id: Long,
+        name: String,
+        shopPrice: Double,
+        amazonPrice: Double?
+    ): ProductCardUiState = ProductCardUiState(
+        item = InventoryItem(
+            id = id,
+            productName = name,
+            shopPrice = shopPrice,
+            amazonLastPrice = amazonPrice,
+            createdAt = 1,
+            updatedAt = 1
+        )
+    )
 }

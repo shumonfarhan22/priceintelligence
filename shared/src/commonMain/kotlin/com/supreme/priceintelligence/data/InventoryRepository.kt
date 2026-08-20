@@ -206,6 +206,10 @@ class InventoryRepository(private val dao: InventoryDao) {
         return when (sortOrder) {
             "ALPHABETICAL" -> dao.getAllAlphabeticalPaged(limit, offset)
             "RECENT" -> dao.getAllRecentPaged(limit, offset)
+            "BEST_SAVING" -> dao.getAllRanked()
+                .sortedByBestSavedSaving()
+                .drop(offset)
+                .take(limit)
             else -> dao.getAllRankedPaged(limit, offset)
         }
     }
@@ -228,6 +232,7 @@ class InventoryRepository(private val dao: InventoryDao) {
         val baseList = when (sortOrder) {
             "ALPHABETICAL" -> dao.getAll()
             "RECENT" -> dao.getAllRecent()
+            "BEST_SAVING" -> dao.getAllRanked().sortedByBestSavedSaving()
             else -> dao.getAllRanked()
         }
         val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }

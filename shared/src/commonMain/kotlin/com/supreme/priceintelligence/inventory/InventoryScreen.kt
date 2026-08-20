@@ -1,8 +1,11 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,6 +53,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -77,13 +89,13 @@ fun InventoryScreen(
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
 
-    var isEditorOpen by remember {
+    var isEditorOpen by rememberSaveable {
         mutableStateOf(false)
     }
-    var isDataSafetyOpen by remember {
+    var isDataSafetyOpen by rememberSaveable {
         mutableStateOf(false)
     }
-    var isScannerOpen by remember {
+    var isScannerOpen by rememberSaveable {
         mutableStateOf(false)
     }
     var pendingBackupJson by remember {
@@ -207,12 +219,26 @@ fun InventoryScreen(
                 isDataSafetyOpen = true
             },
             onAddProduct = {
+                viewModel.clearSelection()
                 viewModel.clearForm()
                 isEditorOpen = true
             }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        if (state.isSelectionMode) {
+            InventorySelectionBar(
+                selectedCount = state.selectedItemIds.size,
+                isAllSelected = visibleProducts.isNotEmpty() &&
+                    visibleProducts.all { item -> item.id in state.selectedItemIds },
+                onSelectAll = viewModel::selectAllVisible,
+                onClear = viewModel::clearSelection,
+                onDelete = viewModel::queueSelectedForDelete
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+        }
 
         state.statusMessage?.let { message ->
             InventoryStatusMessage(
@@ -299,6 +325,11 @@ fun InventoryScreen(
                             InventoryProductRow(
                                 item = item,
                                 isHighlighted = item.id == state.highlightedItemId,
+                                isSelected = item.id in state.selectedItemIds,
+                                isSelectionMode = state.isSelectionMode,
+                                onToggleSelection = {
+                                    viewModel.toggleSelection(item.id)
+                                },
                                 onEdit = {
                                     viewModel.startEditing(item)
                                     isEditorOpen = true
@@ -389,7 +420,7 @@ private fun InventoryTitleRow(
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = "Inventory",
+            text = "Supreme Inventory",
             color = MaterialTheme.colorScheme.onBackground,
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold
@@ -455,66 +486,73 @@ private fun InventoryTitleRow(
 }
 
 @Composable
-private fun DataSafetyDialog(
-    onBackup: () -> Unit,
-    onRestore: () -> Unit,
-    onDismiss: () -> Unit
+private fun InventorySelectionBar(
+    selectedCount: Int,
+    isAllSelected: Boolean,
+    onSelectAll: () -> Unit,
+    onClear: () -> Unit,
+    onDelete: () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(22.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                liveRegion = LiveRegionMode.Polite
+            },
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.primary
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Protect your inventory",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
+            Text(
+                text = if (selectedCount == 1) "1 product selected" else "$selectedCount products selected",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
 
-                Text(
-                    text = "Save your products, saved prices, and price history before changing phones or reinstalling the app.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
+            Text(
+                text = "Long-press a product to start, then tap more products.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = if (isAllSelected) onClear else onSelectAll,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (isAllSelected) "Deselect all" else "Select shown")
+                }
 
                 Button(
-                    onClick = onBackup,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(14.dp)
+                    onClick = onDelete,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    Text("Save backup", fontWeight = FontWeight.Bold)
+                    Text("Delete selected", fontWeight = FontWeight.Bold)
                 }
+            }
 
-                OutlinedButton(
-                    onClick = onRestore,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text("Restore from backup", fontWeight = FontWeight.Bold)
-                }
-
-                Text(
-                    text = "Restore only adds missing products. It never deletes or replaces products already on this device.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("Close")
-                }
+            TextButton(
+                onClick = onClear,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Cancel selection")
             }
         }
     }
@@ -538,7 +576,11 @@ private fun InventoryStatusMessage(
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                liveRegion = LiveRegionMode.Polite
+            },
         color = backgroundColor,
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -604,6 +646,10 @@ private fun InventoryGroupHeader(
             .fillMaxWidth()
             .clip(groupShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .semantics {
+                role = Role.Button
+                stateDescription = if (isExpanded) "Expanded" else "Collapsed"
+            }
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -646,15 +692,18 @@ private fun InventoryGroupHeader(
 private fun InventoryProductRow(
     item: InventoryItem,
     isHighlighted: Boolean,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onToggleSelection: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val cardShape = RoundedCornerShape(16.dp)
 
-    val cardColor = if (isHighlighted) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surface
+    val cardColor = when {
+        isSelected -> MaterialTheme.colorScheme.primaryContainer
+        isHighlighted -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surface
     }
 
     Column(
@@ -662,9 +711,26 @@ private fun InventoryProductRow(
             .fillMaxWidth()
             .clip(cardShape)
             .background(cardColor)
+            .semantics {
+                selected = isSelected
+                role = Role.Checkbox
+                contentDescription = buildString {
+                    append(item.productName)
+                    append(", shop price ")
+                    append(displayPrice(item.shopPrice))
+                    if (isSelected) append(", selected")
+                    append(". Long press to select.")
+                }
+            }
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) onToggleSelection() else onEdit()
+                },
+                onLongClick = onToggleSelection
+            )
             .border(
                 width = 1.dp,
-                color = if (isHighlighted) {
+                color = if (isHighlighted || isSelected) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.outline
@@ -718,257 +784,52 @@ private fun InventoryProductRow(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                onClick = onEdit,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
+        if (isSelectionMode) {
+            Text(
+                text = if (isSelected) "Selected • tap to remove" else "Tap to select",
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Edit",
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Button(
-                onClick = onDelete,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Text(
-                    text = "Delete",
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-
-@Composable
-private fun ProductEditorDialog(
-    form: InventoryFormState,
-    statusMessage: String?,
-    statusIsError: Boolean,
-    onProductNameChanged: (String) -> Unit,
-    onShopPriceChanged: (String) -> Unit,
-    onBarcodeChanged: (String) -> Unit,
-    onScanBarcode: () -> Unit,
-    onAmazonUrlChanged: (String) -> Unit,
-    onFlipkartUrlChanged: (String) -> Unit,
-    onSave: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val focusManager = LocalFocusManager.current
-    val priceFocusRequester = remember { FocusRequester() }
-    val barcodeFocusRequester = remember { FocusRequester() }
-    val amazonFocusRequester = remember { FocusRequester() }
-    val flipkartFocusRequester = remember { FocusRequester() }
-
-    Dialog(
-        onDismissRequest = onDismiss
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.90f)
-                .imePadding(),
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(22.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Text(
-                    text = if (form.isEditing) {
-                        "Edit product"
-                    } else {
-                        "Add product"
-                    },
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-
-                Text(
-                    text = "Only the product name and shop price are required.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
-
-                OutlinedTextField(
-                    value = form.productName,
-                    onValueChange = onProductNameChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("Product name")
-                    },
-                    placeholder = {
-                        Text("Example: Samsung Galaxy S25")
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { priceFocusRequester.requestFocus() }
-                    ),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = form.shopPrice,
-                    onValueChange = onShopPriceChanged,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(priceFocusRequester),
-                    label = {
-                        Text("Your shop price")
-                    },
-                    placeholder = {
-                        Text("Example: 49999")
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Decimal,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { barcodeFocusRequester.requestFocus() }
-                    ),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = form.barcode,
-                    onValueChange = onBarcodeChanged,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(barcodeFocusRequester),
-                    label = {
-                        Text("Barcode — optional")
-                    },
-                    placeholder = {
-                        Text("Type the barcode number")
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { amazonFocusRequester.requestFocus() }
-                    ),
-                    trailingIcon = {
-                        TextButton(onClick = onScanBarcode) {
-                            Text("Scan")
-                        }
-                    },
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = form.amazonUrl,
-                    onValueChange = onAmazonUrlChanged,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(amazonFocusRequester),
-                    label = {
-                        Text("Amazon link — optional")
-                    },
-                    placeholder = {
-                        Text("https://amazon.in/...")
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { flipkartFocusRequester.requestFocus() }
-                    ),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = form.flipkartUrl,
-                    onValueChange = onFlipkartUrlChanged,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(flipkartFocusRequester),
-                    label = {
-                        Text("Flipkart link — optional")
-                    },
-                    placeholder = {
-                        Text("https://flipkart.com/...")
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = { focusManager.clearFocus() }
-                    ),
-                    singleLine = true
-                )
-
-                statusMessage?.let { message ->
+                OutlinedButton(
+                    onClick = onEdit,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
                     Text(
-                        text = message,
-                        color = if (statusIsError) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Edit",
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                Button(
+                    onClick = onDelete,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text("Cancel")
-                    }
-
-                    Button(
-                        onClick = onSave,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text(
-                            text = if (form.isEditing) {
-                                "Save changes"
-                            } else {
-                                "Save product"
-                            },
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        text = "Delete",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
     }
 }
+
 
 private fun displayPrice(price: Double): String {
     if (!price.isFinite()) return "Price unavailable"

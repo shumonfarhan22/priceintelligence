@@ -35,6 +35,26 @@ The KMP project currently includes:
 
 ## Latest verification evidence
 
+The `codex/professional-ui-decision-tools` milestone branch passed this local Windows gate on 20 August 2026:
+
+```powershell
+.\gradlew.bat :shared:testAndroidHostTest :androidApp:lintDebug :androidApp:assembleDebug :androidApp:assembleRelease
+```
+
+Evidence from the current run:
+
+- Build successful.
+- 42 automated tests passed with zero failures or skips.
+- Android lint completed with zero issues after aligning the target SDK to API 37.
+- Debug APK built.
+- Minified release APK built.
+
+This branch adds the professional Supreme Dark app shell, proper Dashboard/Inventory navigation icons, a page-scoped decision snapshot, Best online saving sort, Inventory long-press multi-selection, bulk delete through the existing Undo flow, accessibility announcements/state descriptions, safer recreation state, and a separate Inventory dialog file.
+
+The current branch has not yet been physically tested on Android or iPhone. It remains unmerged and untagged.
+
+### Previous completed checkpoint
+
 Application commit `8f443a5` passed this local Windows gate:
 
 ```powershell
@@ -65,17 +85,17 @@ Automated evidence does not replace physical-device evidence.
 
 ## Current checkpoint state
 
-Application commit `8f443a5` still requires physical Android verification before the next iPhone checkpoint tag is created.
+Branch `codex/professional-ui-decision-tools` requires physical Android verification before the next iPhone checkpoint tag is created.
 
 The expected Android checks are:
 
-1. Existing inventory survives the database upgrade.
-2. Launch stays dark without a white flash.
-3. Dashboard product Details shows Price history.
-4. A successful price check appears in saved history.
-5. Add/Edit Next and Done keyboard behavior works.
-6. Dashboard and Inventory search keyboards can be dismissed.
-7. Add, edit, individual delete, and Undo still work.
+1. Existing inventory and price history still appear after installing the branch build.
+2. The Supreme Dark background, header, connection status, and icon-based bottom navigation look correct.
+3. The Dashboard decision snapshot matches the visible products and clearly says it may use saved prices.
+4. `Best online saving` puts the largest positive saved online gap first.
+5. Long-press starts Inventory selection; selecting more products, Select shown, Deselect all, bulk Delete, and Undo work.
+6. Add, edit, search, barcode scan, individual delete, product details, retailer links, and price refresh still work.
+7. Rotating or briefly backgrounding the app keeps the current destination and useful screen state without a crash.
 
 The exact confirmation expected from the user is:
 
@@ -90,9 +110,9 @@ After that confirmation, the local continuation should:
 
 Do not create the tag before physical Android confirmation.
 
-## Next large milestone prepared for Cloud
+## Current large milestone implemented on branch
 
-Cloud may prepare the following work on a separate `codex/` branch. It must remain unmerged and untagged for later review and physical Android verification.
+The following work is implemented on `codex/professional-ui-decision-tools`. It must remain unmerged and untagged until physical Android verification.
 
 ### Comparison decision tools
 

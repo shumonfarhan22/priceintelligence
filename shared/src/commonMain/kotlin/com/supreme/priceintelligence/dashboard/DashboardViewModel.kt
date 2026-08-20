@@ -32,7 +32,7 @@ data class ProductCardUiState(
     val flipkartResult: ScrapeResult? = null
 )
 
-enum class SortOrder { MOST_VIEWED, ALPHABETICAL, RECENT }
+enum class SortOrder { MOST_VIEWED, BEST_SAVING, ALPHABETICAL, RECENT }
 
 enum class BloomState { SUCCESS, ERROR, WARNING, NONE }
 
