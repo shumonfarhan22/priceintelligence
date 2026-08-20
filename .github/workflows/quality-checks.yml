@@ -21,6 +21,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
