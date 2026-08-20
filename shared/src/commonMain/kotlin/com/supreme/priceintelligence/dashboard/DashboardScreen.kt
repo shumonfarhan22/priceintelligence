@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,7 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +58,7 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
+    val focusManager = LocalFocusManager.current
     var showSortMenu by remember { mutableStateOf(false) }
 
     Column(
@@ -99,6 +104,15 @@ fun DashboardScreen(
                 Text("Search product name, barcode, or link")
             },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                imeAction = ImeAction.Search
+            ),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    viewModel.onSearchSubmitted(state.searchQuery)
+                    focusManager.clearFocus()
+                }
+            ),
             trailingIcon = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically
@@ -108,6 +122,7 @@ fun DashboardScreen(
                             onClick = {
                                 viewModel.onSearchQueryChanged("")
                                 viewModel.onSearchSubmitted("")
+                                focusManager.clearFocus()
                             }
                         ) {
                             Text("Clear")
@@ -117,6 +132,7 @@ fun DashboardScreen(
                     TextButton(
                         onClick = {
                             viewModel.onSearchSubmitted(state.searchQuery)
+                            focusManager.clearFocus()
                         }
                     ) {
                         Text("Search")
@@ -151,6 +167,7 @@ fun DashboardScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     viewModel.onSearchSubmitted(suggestion)
+                                    focusManager.clearFocus()
                                 }
                                 .padding(horizontal = 14.dp, vertical = 10.dp)
                         )
