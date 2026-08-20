@@ -33,11 +33,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room3.RoomDatabase
+import com.supreme.priceintelligence.dashboard.DashboardScreen
+import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.data.AppDatabase
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.getRoomDatabase
@@ -45,6 +46,7 @@ import com.supreme.priceintelligence.inventory.InventoryScreen
 import com.supreme.priceintelligence.inventory.InventoryUndoBanner
 import com.supreme.priceintelligence.inventory.InventoryViewModel
 import com.supreme.priceintelligence.network.NetworkMonitor
+import com.supreme.priceintelligence.network.PriceScraper
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 import com.supreme.priceintelligence.resources.Res
@@ -88,18 +90,18 @@ fun App(
                 InventoryViewModel(repository)
             }
 
+            val dashboardViewModel: DashboardViewModel = viewModel {
+                DashboardViewModel(
+                    repository = repository,
+                    scraper = PriceScraper(),
+                    networkMonitor = networkMonitor
+                )
+            }
+
             val inventoryState by inventoryViewModel.uiState.collectAsState()
 
             var destination by remember {
                 mutableStateOf(AppDestination.Dashboard)
-            }
-
-            var productCount by remember {
-                mutableStateOf<Int?>(null)
-            }
-
-            LaunchedEffect(inventoryState.products) {
-                productCount = repository.getTotalCount()
             }
 
             LaunchedEffect(inventoryState.pendingDeletes) {
@@ -126,14 +128,9 @@ fun App(
                         .padding(horizontal = 20.dp)
                 ) {
                     when (destination) {
-                        AppDestination.Dashboard -> DestinationPlaceholder(
-                            title = "Dashboard",
-                            message = when (val count = productCount) {
-                                null -> "Checking your saved products..."
-                                0 -> "Your dashboard is ready.\nAdd your first product from Inventory."
-                                1 -> "1 product is saved and ready."
-                                else -> "$count products are saved and ready."
-                            }
+                        AppDestination.Dashboard -> DashboardScreen(
+                            viewModel = dashboardViewModel,
+                            modifier = Modifier.fillMaxSize()
                         )
 
                         AppDestination.Inventory -> InventoryScreen(
@@ -152,6 +149,9 @@ fun App(
                     selectedDestination = destination,
                     onDestinationSelected = { selected ->
                         destination = selected
+                        if (selected == AppDestination.Dashboard) {
+                            dashboardViewModel.refresh()
+                        }
                     }
                 )
             }
@@ -225,35 +225,6 @@ private fun AppHeader(
                 fontWeight = FontWeight.Bold
             )
         }
-    }
-}
-
-@Composable
-private fun DestinationPlaceholder(
-    title: String,
-    message: String
-) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = title,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
-
-        Spacer(modifier = Modifier.size(12.dp))
-
-        Text(
-            text = message,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 15.sp,
-            lineHeight = 22.sp,
-            textAlign = TextAlign.Center
-        )
     }
 }
 

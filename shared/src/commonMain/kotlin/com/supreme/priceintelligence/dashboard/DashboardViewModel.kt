@@ -99,6 +99,10 @@ class DashboardViewModel(
         runSearch(query)
     }
 
+    fun refresh() {
+        runSearch(_uiState.value.searchQuery)
+    }
+
     fun setSortOrder(order: SortOrder) {
         _uiState.update { it.copy(sortOrder = order) }
         runSearch(_uiState.value.searchQuery)
