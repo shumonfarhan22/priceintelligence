@@ -5,6 +5,8 @@ package com.supreme.priceintelligence.inventory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.data.InventoryBackupManager
+import com.supreme.priceintelligence.data.BackupImportResult
 import com.supreme.priceintelligence.data.InventoryRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -47,6 +49,8 @@ data class InventoryUiState(
 class InventoryViewModel(
     private val repository: InventoryRepository
 ) : ViewModel() {
+
+    private val backupManager = InventoryBackupManager(repository)
 
     private val _uiState = MutableStateFlow(InventoryUiState())
     val uiState: StateFlow<InventoryUiState> = _uiState.asStateFlow()
@@ -142,29 +146,28 @@ class InventoryViewModel(
 
     fun saveProduct(onSuccess: () -> Unit = {}) {
         val form = _uiState.value.form
-        val price = form.shopPrice.toDoubleOrNull()
-
-        if (form.productName.isBlank()) {
-            showStatus("Product name is required", isError = true)
-            return
-        }
-        if (price == null) {
-            showStatus("Enter a valid shop price", isError = true)
+        val validation = validateInventoryInput(
+            productName = form.productName,
+            shopPrice = form.shopPrice,
+            barcode = form.barcode,
+            amazonUrl = form.amazonUrl,
+            flipkartUrl = form.flipkartUrl
+        )
+        val input = validation.input
+        if (input == null) {
+            showStatus(validation.errorMessage ?: "Check the product details", isError = true)
             return
         }
 
         viewModelScope.launch {
-            val cleanAmazon = form.amazonUrl.trim().ifBlank { null }
-            val cleanFlipkart = form.flipkartUrl.trim().ifBlank { null }
-            val cleanBarcode = form.barcode.trim().ifBlank { null }
             val currentId = form.editingItem?.id ?: 0L
 
-            if (cleanAmazon != null && repository.isAmazonUrlDuplicate(cleanAmazon, currentId)) {
+            if (input.amazonUrl != null && repository.isAmazonUrlDuplicate(input.amazonUrl, currentId)) {
                 showStatus("This Amazon link is already used by another product", isError = true)
                 return@launch
             }
 
-            if (cleanFlipkart != null && repository.isFlipkartUrlDuplicate(cleanFlipkart, currentId)) {
+            if (input.flipkartUrl != null && repository.isFlipkartUrlDuplicate(input.flipkartUrl, currentId)) {
                 showStatus("This Flipkart link is already used by another product", isError = true)
                 return@launch
             }
@@ -175,27 +178,27 @@ class InventoryViewModel(
                     savedId = form.editingItem!!.id
                     repository.updateProduct(
                         form.editingItem.copy(
-                            productName = form.productName.trim(),
-                            shopPrice = price,
-                            barcode = cleanBarcode,
-                            amazonUrl = cleanAmazon,
-                            flipkartUrl = cleanFlipkart
+                            productName = input.productName,
+                            shopPrice = input.shopPrice,
+                            barcode = input.barcode,
+                            amazonUrl = input.amazonUrl,
+                            flipkartUrl = input.flipkartUrl
                         )
                     )
                     showStatus("Product updated")
                 } else {
                     savedId = repository.addProduct(
-                        name = form.productName.trim(),
-                        shopPrice = price,
-                        barcode = cleanBarcode,
-                        amazonUrl = cleanAmazon,
-                        flipkartUrl = cleanFlipkart
+                        name = input.productName,
+                        shopPrice = input.shopPrice,
+                        barcode = input.barcode,
+                        amazonUrl = input.amazonUrl,
+                        flipkartUrl = input.flipkartUrl
                     )
                     showStatus("Product added")
                 }
                 clearForm()
 
-                val brandGroup = form.productName.trim().substringBefore(" ").uppercase()
+                val brandGroup = input.productName.substringBefore(" ").uppercase()
                 _uiState.update { it.copy(
                     highlightedItemId = savedId,
                     expandedGroups = it.expandedGroups + brandGroup
@@ -243,10 +246,32 @@ class InventoryViewModel(
         _uiState.update { it.copy(statusMessage = null, statusIsError = false, statusIsInfo = false) }
     }
 
-    // --- BACKUP EXPORT / IMPORT: intentionally not ported yet ---
-    // The old versions took an android.net.Uri from Android's Storage Access
-    // Framework, which has no iOS equivalent. This gets its own dedicated
-    // expect/actual step later, same treatment as the barcode scanner.
+    suspend fun createBackupJson(): String = backupManager.createBackupJson()
+
+    suspend fun restoreBackupJson(contents: String): BackupImportResult {
+        val result = backupManager.importBackupJson(contents)
+        loadAll()
+
+        val details = buildList {
+            add("${result.addedCount} product(s) added")
+            if (result.duplicateCount > 0) add("${result.duplicateCount} duplicate(s) skipped")
+            if (result.invalidCount > 0) add("${result.invalidCount} invalid row(s) skipped")
+        }.joinToString(" • ")
+        showStatus("Restore complete: $details")
+        return result
+    }
+
+    fun reportBackupSaved() {
+        showStatus("Backup saved successfully")
+    }
+
+    fun reportBackupError(message: String) {
+        showStatus(message, isError = true)
+    }
+
+    fun reportError(message: String) {
+        showStatus(message, isError = true)
+    }
 
     private fun showStatus(message: String, isError: Boolean = false, isInfo: Boolean = false) {
         statusClearJob?.cancel()

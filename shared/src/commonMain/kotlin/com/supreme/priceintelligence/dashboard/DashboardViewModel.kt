@@ -7,11 +7,12 @@ import androidx.lifecycle.viewModelScope
 import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.network.NetworkMonitor
-import com.supreme.priceintelligence.network.PriceScraper
+import com.supreme.priceintelligence.network.PriceFetcher
 import com.supreme.priceintelligence.network.ScrapeResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,8 @@ data class DashboardUiState(
     val currentPage: Int = 1,
     val pageSize: Int = 10,
     val isLoading: Boolean = false,
+    val isRefreshingPage: Boolean = false,
+    val isConnected: Boolean = false,
     val searchDurationMs: Long = 0,
     val bloomState: BloomState = BloomState.NONE
 ) {
@@ -54,7 +57,7 @@ data class DashboardUiState(
 // in through the constructor instead, since shared code has no Application/Context.
 class DashboardViewModel(
     private val repository: InventoryRepository,
-    private val scraper: PriceScraper,
+    private val scraper: PriceFetcher,
     private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
@@ -63,6 +66,7 @@ class DashboardViewModel(
 
     private var suggestionJob: Job? = null
     private var searchJob: Job? = null
+    private var connectionFeedbackJob: Job? = null
 
     init {
         runSearch("")
@@ -73,13 +77,27 @@ class DashboardViewModel(
         viewModelScope.launch {
             networkMonitor.isConnected.collect { isConnected ->
                 if (isConnected) {
-                    _uiState.update { it.copy(bloomState = BloomState.SUCCESS) }
-                    delay(5000.milliseconds)
-                    if (_uiState.value.bloomState == BloomState.SUCCESS) {
-                        _uiState.update { it.copy(bloomState = BloomState.NONE) }
+                    _uiState.update {
+                        it.copy(
+                            isConnected = true,
+                            bloomState = BloomState.SUCCESS
+                        )
+                    }
+                    connectionFeedbackJob?.cancel()
+                    connectionFeedbackJob = viewModelScope.launch {
+                        delay(5000.milliseconds)
+                        if (_uiState.value.bloomState == BloomState.SUCCESS) {
+                            _uiState.update { it.copy(bloomState = BloomState.NONE) }
+                        }
                     }
                 } else {
-                    _uiState.update { it.copy(bloomState = BloomState.ERROR) }
+                    connectionFeedbackJob?.cancel()
+                    _uiState.update {
+                        it.copy(
+                            isConnected = false,
+                            bloomState = BloomState.ERROR
+                        )
+                    }
                 }
             }
         }
@@ -155,75 +173,126 @@ class DashboardViewModel(
     }
 
     fun refreshProduct(productId: Long) {
+        if (!_uiState.value.isConnected) {
+            _uiState.update { it.copy(bloomState = BloomState.ERROR) }
+            return
+        }
+
         viewModelScope.launch {
             repository.incrementSearchCount(productId)
             scrapeOne(productId)
         }
     }
 
-    private suspend fun scrapeOne(productId: Long) {
-        setCardRefreshing(productId)
+    fun refreshVisiblePrices() {
+        val state = _uiState.value
+        if (!state.isConnected || state.isRefreshingPage) return
 
-        val item = _uiState.value.pageItems.find { it.item.id == productId }?.item ?: return
-
-        val amazonDeferred = viewModelScope.async { scraper.fetchPrice(item.amazonUrl.orEmpty()) }
-        val flipkartDeferred = viewModelScope.async { scraper.fetchPrice(item.flipkartUrl.orEmpty()) }
-        val (amazonResult, flipkartResult) = listOf(amazonDeferred, flipkartDeferred).awaitAll()
-
-        val hasAmazonUrl = item.amazonUrl?.isNotEmpty() == true
-        val hasFlipkartUrl = item.flipkartUrl?.isNotEmpty() == true
-        if (amazonResult.price == null && flipkartResult.price == null && (hasAmazonUrl || hasFlipkartUrl)) {
-            _uiState.update { it.copy(bloomState = BloomState.WARNING) }
-            viewModelScope.launch {
-                delay(4000.milliseconds)
-                if (_uiState.value.bloomState == BloomState.WARNING) {
-                    _uiState.update { it.copy(bloomState = BloomState.NONE) }
-                }
+        val productIds = state.pageItems
+            .filter { card ->
+                !card.item.amazonUrl.isNullOrBlank() ||
+                    !card.item.flipkartUrl.isNullOrBlank()
             }
-        }
+            .map { card -> card.item.id }
 
-        // --- PRICE MEMORY BANK ---
-        val now = Clock.System.now().toEpochMilliseconds()
-        if (amazonResult.price != null) {
-            repository.updateAmazonCache(productId, amazonResult.price, now)
-        }
-        if (flipkartResult.price != null) {
-            repository.updateFlipkartCache(productId, flipkartResult.price, now)
-        }
+        if (productIds.isEmpty()) return
 
-        val newImage = amazonResult.image ?: flipkartResult.image
-        var updatedItem = item.copy(
-            amazonLastPrice = amazonResult.price ?: item.amazonLastPrice,
-            amazonLastChecked = if (amazonResult.price != null) now else item.amazonLastChecked,
-            flipkartLastPrice = flipkartResult.price ?: item.flipkartLastPrice,
-            flipkartLastChecked = if (flipkartResult.price != null) now else item.flipkartLastChecked
-        )
-        if (newImage != null && newImage != item.imageUrl) {
-            updatedItem = updatedItem.copy(imageUrl = newImage)
-            repository.updateProduct(updatedItem)
-        }
-
-        _uiState.update { state ->
-            state.copy(
-                pageItems = state.pageItems.map { card ->
-                    if (card.item.id == productId) {
-                        card.copy(
-                            item = updatedItem,
-                            isRefreshing = false,
-                            amazonResult = amazonResult,
-                            flipkartResult = flipkartResult
-                        )
-                    } else card
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshingPage = true) }
+            try {
+                // Three products at a time keeps the stores and slower phones from
+                // being flooded with up to twenty simultaneous web requests.
+                productIds.chunked(3).forEach { batch ->
+                    coroutineScope {
+                        batch.map { productId ->
+                            async { scrapeOne(productId) }
+                        }.awaitAll()
+                    }
                 }
-            )
+            } finally {
+                _uiState.update { it.copy(isRefreshingPage = false) }
+            }
         }
     }
 
-    private fun setCardRefreshing(productId: Long) {
+    private suspend fun scrapeOne(productId: Long) {
+        val item = _uiState.value.pageItems.find { it.item.id == productId }?.item ?: return
+        setCardRefreshing(productId, true)
+
+        try {
+            val (amazonResult, flipkartResult) = coroutineScope {
+                val amazonDeferred = async {
+                    item.amazonUrl
+                        ?.takeIf { url -> url.isNotBlank() }
+                        ?.let { url -> scraper.fetchPrice(url) }
+                }
+                val flipkartDeferred = async {
+                    item.flipkartUrl
+                        ?.takeIf { url -> url.isNotBlank() }
+                        ?.let { url -> scraper.fetchPrice(url) }
+                }
+                amazonDeferred.await() to flipkartDeferred.await()
+            }
+
+            val hasRetailerUrl =
+                !item.amazonUrl.isNullOrBlank() || !item.flipkartUrl.isNullOrBlank()
+            val hasLivePrice =
+                amazonResult?.price != null || flipkartResult?.price != null
+
+            if (!hasLivePrice && hasRetailerUrl) {
+                _uiState.update { it.copy(bloomState = BloomState.WARNING) }
+                viewModelScope.launch {
+                    delay(4000.milliseconds)
+                    if (_uiState.value.bloomState == BloomState.WARNING) {
+                        _uiState.update { it.copy(bloomState = BloomState.NONE) }
+                    }
+                }
+            }
+
+            val now = Clock.System.now().toEpochMilliseconds()
+            amazonResult?.price?.let { price ->
+                repository.updateAmazonCache(productId, price, now)
+            }
+            flipkartResult?.price?.let { price ->
+                repository.updateFlipkartCache(productId, price, now)
+            }
+
+            val newImage = amazonResult?.image ?: flipkartResult?.image
+            var updatedItem = item.copy(
+                amazonLastPrice = amazonResult?.price ?: item.amazonLastPrice,
+                amazonLastChecked = if (amazonResult?.price != null) now else item.amazonLastChecked,
+                flipkartLastPrice = flipkartResult?.price ?: item.flipkartLastPrice,
+                flipkartLastChecked = if (flipkartResult?.price != null) now else item.flipkartLastChecked
+            )
+            if (newImage != null && newImage != item.imageUrl) {
+                updatedItem = updatedItem.copy(imageUrl = newImage)
+                repository.updateProduct(updatedItem)
+            }
+
+            _uiState.update { state ->
+                state.copy(
+                    pageItems = state.pageItems.map { card ->
+                        if (card.item.id == productId) {
+                            card.copy(
+                                item = updatedItem,
+                                isRefreshing = false,
+                                amazonResult = amazonResult,
+                                flipkartResult = flipkartResult
+                            )
+                        } else card
+                    }
+                )
+            }
+        } finally {
+            setCardRefreshing(productId, false)
+        }
+    }
+
+    private fun setCardRefreshing(productId: Long, isRefreshing: Boolean) {
         _uiState.update { state ->
             state.copy(
                 pageItems = state.pageItems.map { card ->
-                    if (card.item.id == productId) card.copy(isRefreshing = true) else card
+                    if (card.item.id == productId) card.copy(isRefreshing = isRefreshing) else card
                 }
             )
         }

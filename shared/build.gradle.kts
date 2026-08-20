@@ -44,10 +44,11 @@ kotlin {
     
     sourceSets {
         androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core.ktx)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
             implementation(libs.squareup.okhttp)
-            implementation(libs.jsoup)
             implementation(libs.ktor.client.android)
         }
         commonMain.dependencies {
@@ -63,15 +64,18 @@ kotlin {
             implementation(libs.androidx.sqlite.bundled)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor3)
+            implementation(libs.ksoup)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.filekit.dialogs.compose)
+            implementation(libs.kscan)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.darwin)
-            implementation(libs.ksoup)
-            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.coroutines.test)
         }
     }
 }

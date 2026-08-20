@@ -60,6 +60,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.rememberUrlOpener
+import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
+import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
 import kotlin.time.Clock
@@ -74,6 +76,36 @@ fun DashboardScreen(
     val focusManager = LocalFocusManager.current
     var showSortMenu by remember { mutableStateOf(false) }
     var selectedProductId by remember { mutableStateOf<Long?>(null) }
+    var isScannerOpen by remember { mutableStateOf(false) }
+    var cameraPermissionDenied by remember { mutableStateOf(false) }
+
+    val cameraPermissionRequester = rememberCameraPermissionRequester { granted ->
+        if (granted) {
+            cameraPermissionDenied = false
+            focusManager.clearFocus()
+            isScannerOpen = true
+        } else {
+            cameraPermissionDenied = true
+        }
+    }
+
+    if (isScannerOpen) {
+        ProductBarcodeScanner(
+            modifier = Modifier.fillMaxSize(),
+            onScanned = { barcode ->
+                isScannerOpen = false
+                viewModel.onSearchSubmitted(barcode)
+            },
+            onError = {
+                isScannerOpen = false
+                cameraPermissionDenied = true
+            },
+            onCanceled = {
+                isScannerOpen = false
+            }
+        )
+        return
+    }
 
     Column(
         modifier = modifier.fillMaxSize()
@@ -101,10 +133,15 @@ fun DashboardScreen(
             }
 
             OutlinedButton(
-                onClick = viewModel::refresh,
-                enabled = !state.isLoading
+                onClick = viewModel::refreshVisiblePrices,
+                enabled = state.isConnected &&
+                    state.pageItems.any { card ->
+                        !card.item.amazonUrl.isNullOrBlank() ||
+                            !card.item.flipkartUrl.isNullOrBlank()
+                    } &&
+                    !state.isRefreshingPage
             ) {
-                Text(if (state.isLoading) "Loading" else "Refresh")
+                Text(if (state.isRefreshingPage) "Checking page" else "Check page")
             }
         }
 
@@ -188,6 +225,24 @@ fun DashboardScreen(
                     }
                 }
             }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(
+                onClick = cameraPermissionRequester::requestPermission
+            ) {
+                Text("Scan barcode")
+            }
+        }
+
+        if (cameraPermissionDenied) {
+            DashboardFeedbackBanner(
+                message = "Camera access is off. Allow it in phone settings, or type the barcode.",
+                isError = true
+            )
         }
 
         when (state.bloomState) {
@@ -492,16 +547,16 @@ private fun DashboardProductCard(
     val openUrl = rememberUrlOpener()
     val amazonPrice = card.amazonResult?.price ?: item.amazonLastPrice
     val flipkartPrice = card.flipkartResult?.price ?: item.flipkartLastPrice
+    val comparison = compareWithOnlinePrices(item.shopPrice, amazonPrice, flipkartPrice)
     val availablePrices = listOfNotNull(item.shopPrice, amazonPrice, flipkartPrice)
     val lowestPrice = availablePrices.minOrNull()
     val canRefresh = !item.amazonUrl.isNullOrBlank() || !item.flipkartUrl.isNullOrBlank()
     val onlinePrices = listOfNotNull(amazonPrice, flipkartPrice)
-    val lowestOnlinePrice = onlinePrices.minOrNull()
-    val onlineSavings = lowestOnlinePrice?.let { price ->
-        (item.shopPrice - price).takeIf { saving -> saving > 0.01 }
-    }
+    val onlineSavings = comparison.shopDifference?.takeIf { saving -> saving > 0.01 }
     val onlineIsCheaper = onlineSavings != null
     val hasOnlinePrice = onlinePrices.isNotEmpty()
+    val liveCheckAttempted = card.amazonResult != null || card.flipkartResult != null
+    val hasLivePrice = card.amazonResult?.price != null || card.flipkartResult?.price != null
     val latestCheck = maxOf(
         item.amazonLastChecked ?: 0L,
         item.flipkartLastChecked ?: 0L
@@ -562,11 +617,16 @@ private fun DashboardProductCard(
                     Text(
                         text = when {
                             card.isRefreshing -> "Checking online prices..."
-                            onlineIsCheaper -> "Online price is lower"
-                            hasOnlinePrice -> "Your shop is competitive"
+                            liveCheckAttempted && !hasLivePrice && hasOnlinePrice ->
+                                "Live check failed • showing saved prices"
+                            liveCheckAttempted && !hasLivePrice -> "Live prices unavailable"
+                            hasLivePrice && onlineIsCheaper -> "Live online price is lower"
+                            hasLivePrice -> "Live prices updated"
+                            hasOnlinePrice -> "Saved comparison available"
                             else -> "Online prices not checked"
                         },
                         color = when {
+                            liveCheckAttempted && !hasLivePrice -> MaterialTheme.colorScheme.error
                             onlineIsCheaper -> MaterialTheme.colorScheme.error
                             hasOnlinePrice -> MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -577,7 +637,7 @@ private fun DashboardProductCard(
 
                     if (!card.isRefreshing && latestCheck > 0L) {
                         Text(
-                            text = "Checked ${formatTimeAgo(latestCheck)}",
+                            text = "Saved ${formatTimeAgo(latestCheck)}",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp
                         )
@@ -639,7 +699,17 @@ private fun DashboardProductCard(
                         .padding(horizontal = 12.dp, vertical = 9.dp)
                 ) {
                     Text(
-                        text = "Attention: online is ${formatPrice(onlineSavings)} cheaper than your shop.",
+                        text = buildString {
+                            append("Online is ")
+                            append(formatIndianPrice(onlineSavings))
+                            append(" cheaper than your shop")
+                            comparison.shopDifferencePercent?.let { percent ->
+                                append(" (")
+                                append(formatPercent(percent))
+                                append(")")
+                            }
+                            append(".")
+                        },
                         color = MaterialTheme.colorScheme.error,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -653,6 +723,7 @@ private fun DashboardProductCard(
                 seller = "Your shop",
                 price = item.shopPrice,
                 isLowest = item.shopPrice == lowestPrice,
+                sourceLabel = null,
                 actionLabel = null,
                 onAction = null
             )
@@ -663,6 +734,11 @@ private fun DashboardProductCard(
                 seller = "Amazon",
                 price = amazonPrice,
                 isLowest = amazonPrice != null && amazonPrice == lowestPrice,
+                sourceLabel = when {
+                    card.amazonResult?.price != null -> "LIVE"
+                    amazonPrice != null -> "SAVED"
+                    else -> null
+                },
                 actionLabel = if (item.amazonUrl.isNullOrBlank()) null else "Open",
                 onAction = item.amazonUrl?.takeIf { it.isNotBlank() }?.let { url ->
                     { openUrl(url) }
@@ -675,6 +751,11 @@ private fun DashboardProductCard(
                 seller = "Flipkart",
                 price = flipkartPrice,
                 isLowest = flipkartPrice != null && flipkartPrice == lowestPrice,
+                sourceLabel = when {
+                    card.flipkartResult?.price != null -> "LIVE"
+                    flipkartPrice != null -> "SAVED"
+                    else -> null
+                },
                 actionLabel = if (item.flipkartUrl.isNullOrBlank()) null else "Open",
                 onAction = item.flipkartUrl?.takeIf { it.isNotBlank() }?.let { url ->
                     { openUrl(url) }
@@ -821,6 +902,7 @@ private fun DashboardProductDetailDialog(
                     price = item.shopPrice,
                     shopPrice = item.shopPrice,
                     isShopPrice = true,
+                    sourceLabel = null,
                     onOpen = null
                 )
 
@@ -831,6 +913,11 @@ private fun DashboardProductDetailDialog(
                     price = amazonPrice,
                     shopPrice = item.shopPrice,
                     isShopPrice = false,
+                    sourceLabel = when {
+                        card.amazonResult?.price != null -> "Live price"
+                        amazonPrice != null -> savedPriceLabel(item.amazonLastChecked)
+                        else -> null
+                    },
                     onOpen = item.amazonUrl?.takeIf { url -> url.isNotBlank() }?.let { url ->
                         { openUrl(url) }
                     }
@@ -843,6 +930,11 @@ private fun DashboardProductDetailDialog(
                     price = flipkartPrice,
                     shopPrice = item.shopPrice,
                     isShopPrice = false,
+                    sourceLabel = when {
+                        card.flipkartResult?.price != null -> "Live price"
+                        flipkartPrice != null -> savedPriceLabel(item.flipkartLastChecked)
+                        else -> null
+                    },
                     onOpen = item.flipkartUrl?.takeIf { url -> url.isNotBlank() }?.let { url ->
                         { openUrl(url) }
                     }
@@ -938,6 +1030,7 @@ private fun DetailPriceComparison(
     price: Double?,
     shopPrice: Double,
     isShopPrice: Boolean,
+    sourceLabel: String?,
     onOpen: (() -> Unit)?
 ) {
     val difference = if (price == null) null else shopPrice - price
@@ -977,11 +1070,20 @@ private fun DetailPriceComparison(
                 Spacer(modifier = Modifier.height(3.dp))
 
                 Text(
-                    text = price?.let(::formatPrice) ?: "Price unavailable",
+                    text = price?.let(::formatIndianPrice) ?: "Price unavailable",
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
+
+                if (sourceLabel != null) {
+                    Text(
+                        text = sourceLabel,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             if (onOpen != null) {
@@ -992,6 +1094,7 @@ private fun DetailPriceComparison(
                     Text("Open site")
                 }
             }
+
         }
 
         if (!isShopPrice) {
@@ -1016,6 +1119,7 @@ private fun PriceRow(
     seller: String,
     price: Double?,
     isLowest: Boolean,
+    sourceLabel: String?,
     actionLabel: String?,
     onAction: (() -> Unit)?
 ) {
@@ -1033,30 +1137,40 @@ private fun PriceRow(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = seller,
-            color = if (isLowest) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
+        Column(
             modifier = Modifier.weight(1f)
-        )
-
-        if (isLowest) {
+        ) {
             Text(
-                text = "LOWEST",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(end = 8.dp)
+                text = seller,
+                color = if (isLowest) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
             )
+
+            val labels = listOfNotNull(
+                sourceLabel,
+                "LOWEST".takeIf { isLowest }
+            ).joinToString(" • ")
+            if (labels.isNotEmpty()) {
+                Text(
+                    text = labels,
+                    color = if (isLowest) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
         }
 
         Text(
-            text = price?.let(::formatPrice) ?: "Not checked",
+            text = price?.let(::formatIndianPrice) ?: "Not checked",
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 14.sp,
             fontWeight = FontWeight.ExtraBold
@@ -1125,8 +1239,8 @@ private fun SortOrder.displayName(): String = when (this) {
 private fun priceDifferenceMessage(difference: Double?): String = when {
     difference == null -> "No saved online price"
     difference.absoluteValue <= 0.01 -> "Matches your shop price"
-    difference > 0.0 -> "${formatPrice(difference)} cheaper than your shop"
-    else -> "${formatPrice(difference.absoluteValue)} higher than your shop"
+    difference > 0.0 -> "${formatIndianPrice(difference)} cheaper than your shop"
+    else -> "${formatIndianPrice(difference.absoluteValue)} higher than your shop"
 }
 
 private fun formatTimeAgo(timeMs: Long): String {
@@ -1145,13 +1259,16 @@ private fun formatTimeAgo(timeMs: Long): String {
     }
 }
 
-private fun formatPrice(value: Double): String {
-    val paise = (value * 100).roundToLong()
-    val whole = paise / 100
-    val decimal = (paise % 100).absoluteValue
-    return if (decimal == 0L) {
-        "₹$whole"
+private fun savedPriceLabel(timeMs: Long?): String =
+    if (timeMs != null && timeMs > 0L) {
+        "Saved price • ${formatTimeAgo(timeMs)}"
     } else {
-        "₹$whole.${decimal.toString().padStart(2, '0')}"
+        "Saved price"
     }
+
+private fun formatPercent(value: Double): String {
+    val tenths = (value.absoluteValue * 10.0).roundToLong()
+    val whole = tenths / 10
+    val decimal = tenths % 10
+    return if (decimal == 0L) "$whole%" else "$whole.$decimal%"
 }

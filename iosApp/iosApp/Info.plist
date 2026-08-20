@@ -4,5 +4,9 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access lets you scan product barcodes into your inventory.</string>
+	<key>CFBundleDisplayName</key>
+	<string>Price Intelligence</string>
 </dict>
 </plist>

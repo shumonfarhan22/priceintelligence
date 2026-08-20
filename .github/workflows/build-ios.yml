@@ -3,13 +3,16 @@ name: Build Unsigned iOS IPA
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-ios:
     runs-on: macos-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -19,6 +22,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Run shared iPhone tests
+        run: ./gradlew :shared:iosSimulatorArm64Test
 
       - name: List available schemes (only useful if the next step fails)
         run: xcodebuild -list -project iosApp/iosApp.xcodeproj

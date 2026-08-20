@@ -33,6 +33,9 @@ class InventoryRepository(private val dao: InventoryDao) {
         dao.update(item.copy(updatedAt = Clock.System.now().toEpochMilliseconds()))
     }
 
+    suspend fun importProduct(item: InventoryItem): Long =
+        dao.insert(item.copy(id = 0))
+
     suspend fun deleteProduct(id: Long) = dao.deleteById(id)
 
     suspend fun isAmazonUrlDuplicate(url: String, excludeId: Long): Boolean =

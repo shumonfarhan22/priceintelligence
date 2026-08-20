@@ -37,6 +37,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
+import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.dialogs.FileKitDialogException
+import io.github.vinceglb.filekit.dialogs.FileKitDialogSettings
+import io.github.vinceglb.filekit.dialogs.FileKitPickerException
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
+import io.github.vinceglb.filekit.dialogs.compose.rememberFileSaverLauncher
+import io.github.vinceglb.filekit.readString
+import io.github.vinceglb.filekit.writeString
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlin.math.roundToLong
 
 @Composable
@@ -59,9 +73,103 @@ fun InventoryScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
 
     var isEditorOpen by remember {
         mutableStateOf(false)
+    }
+    var isDataSafetyOpen by remember {
+        mutableStateOf(false)
+    }
+    var isScannerOpen by remember {
+        mutableStateOf(false)
+    }
+    var pendingBackupJson by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    val backupSaver = rememberFileSaverLauncher(
+        dialogSettings = FileKitDialogSettings.createDefault(),
+        onError = { failure: FileKitDialogException ->
+            pendingBackupJson = null
+            viewModel.reportBackupError(
+                failure.message ?: "The backup file could not be saved"
+            )
+        },
+        onResult = { file: PlatformFile? ->
+            val backupJson = pendingBackupJson
+            pendingBackupJson = null
+
+            if (file != null && backupJson != null) {
+                coroutineScope.launch {
+                    try {
+                        file.writeString(backupJson)
+                        isDataSafetyOpen = false
+                        viewModel.reportBackupSaved()
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        viewModel.reportBackupError("The backup file could not be written")
+                    }
+                }
+            }
+        }
+    )
+
+    val backupPicker = rememberFilePickerLauncher(
+        type = FileKitType.File(extensions = listOf("json")),
+        onError = { failure: FileKitPickerException ->
+            viewModel.reportBackupError(
+                failure.message ?: "The backup file could not be opened"
+            )
+        },
+        onResult = { file: PlatformFile? ->
+            if (file != null) {
+                coroutineScope.launch {
+                    try {
+                        viewModel.restoreBackupJson(file.readString())
+                        isDataSafetyOpen = false
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: IllegalArgumentException) {
+                        viewModel.reportBackupError(
+                            error.message ?: "This is not a valid Price Intelligence backup"
+                        )
+                    } catch (_: Exception) {
+                        viewModel.reportBackupError("The backup file could not be restored")
+                    }
+                }
+            }
+        }
+    )
+
+    val cameraPermissionRequester = rememberCameraPermissionRequester { granted ->
+        if (granted) {
+            focusManager.clearFocus()
+            isScannerOpen = true
+        } else {
+            viewModel.reportError(
+                "Camera permission is needed to scan a barcode. You can still type it manually."
+            )
+        }
+    }
+
+    if (isScannerOpen) {
+        ProductBarcodeScanner(
+            modifier = Modifier.fillMaxSize(),
+            onScanned = { barcode ->
+                viewModel.onFormFieldChanged(barcode = barcode)
+                isScannerOpen = false
+            },
+            onError = { message ->
+                isScannerOpen = false
+                viewModel.reportError(message)
+            },
+            onCanceled = {
+                isScannerOpen = false
+            }
+        )
+        return
     }
 
     val pendingIds = state.pendingDeletes.map { item ->
@@ -93,6 +201,9 @@ fun InventoryScreen(
             isSearching = state.directoryQuery.isNotBlank(),
             isRefreshing = state.isRefreshing,
             onRefresh = viewModel::refreshInventory,
+            onDataSafety = {
+                isDataSafetyOpen = true
+            },
             onAddProduct = {
                 viewModel.clearForm()
                 isEditorOpen = true
@@ -215,6 +326,7 @@ fun InventoryScreen(
             onBarcodeChanged = { value ->
                 viewModel.onFormFieldChanged(barcode = value)
             },
+            onScanBarcode = cameraPermissionRequester::requestPermission,
             onAmazonUrlChanged = { value ->
                 viewModel.onFormFieldChanged(amazonUrl = value)
             },
@@ -232,6 +344,34 @@ fun InventoryScreen(
             }
         )
     }
+
+    if (isDataSafetyOpen) {
+        DataSafetyDialog(
+            onBackup = {
+                coroutineScope.launch {
+                    try {
+                        pendingBackupJson = viewModel.createBackupJson()
+                        backupSaver.launch(
+                            suggestedName = "price-intelligence-backup",
+                            defaultExtension = "json",
+                            allowedExtensions = setOf("json")
+                        )
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        pendingBackupJson = null
+                        viewModel.reportBackupError("The backup could not be prepared")
+                    }
+                }
+            },
+            onRestore = {
+                backupPicker.launch()
+            },
+            onDismiss = {
+                isDataSafetyOpen = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -240,6 +380,7 @@ private fun InventoryTitleRow(
     isSearching: Boolean,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
+    onDataSafety: () -> Unit,
     onAddProduct: () -> Unit
 ) {
     Column(
@@ -293,6 +434,85 @@ private fun InventoryTitleRow(
                     text = "+ Add product",
                     fontWeight = FontWeight.Bold
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = onDataSafety,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text(
+                text = "Backup & restore inventory",
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun DataSafetyDialog(
+    onBackup: () -> Unit,
+    onRestore: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(22.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Protect your inventory",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+
+                Text(
+                    text = "Save a portable backup before changing phones or reinstalling the app.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
+
+                Button(
+                    onClick = onBackup,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Save backup", fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = onRestore,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Restore from backup", fontWeight = FontWeight.Bold)
+                }
+
+                Text(
+                    text = "Restore only adds missing products. It never deletes or replaces products already on this device.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Close")
+                }
             }
         }
     }
@@ -538,6 +758,7 @@ private fun ProductEditorDialog(
     onProductNameChanged: (String) -> Unit,
     onShopPriceChanged: (String) -> Unit,
     onBarcodeChanged: (String) -> Unit,
+    onScanBarcode: () -> Unit,
     onAmazonUrlChanged: (String) -> Unit,
     onFlipkartUrlChanged: (String) -> Unit,
     onSave: () -> Unit,
@@ -620,6 +841,11 @@ private fun ProductEditorDialog(
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number
                     ),
+                    trailingIcon = {
+                        TextButton(onClick = onScanBarcode) {
+                            Text("Scan")
+                        }
+                    },
                     singleLine = true
                 )
 

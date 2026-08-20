@@ -1,24 +1,51 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# Price Intelligence
 
-* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+Price Intelligence is a Kotlin Multiplatform app for comparing a shop price with current Amazon and Flipkart prices. The same Room database, business rules, price parser, inventory screens, and Dashboard screens run on Android and iPhone.
 
-* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
+## Main features
 
-### Running the apps
+- Search by product name, barcode, Amazon link, or Flipkart link.
+- Scan product barcodes on Android and iPhone.
+- Save and edit a local product inventory.
+- Compare the shop price with live Amazon and Flipkart prices.
+- Keep the latest successful online prices available when the phone is offline.
+- Mark prices clearly as live or saved.
+- Back up inventory to a portable JSON file and merge it safely on restore.
+- Delete inventory products with a four-second Undo option.
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+## Data and privacy
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+- Inventory data stays in the app's local Room database.
+- Camera access is requested only when the user chooses to scan a barcode.
+- The app downloads only the Amazon and Flipkart product pages saved by the user.
+- Backup restore adds missing products. It does not delete or replace existing products.
+- Retailer links are validated and upgraded to HTTPS before use.
 
----
+## Project folders
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+- `shared` contains the shared database, repository, validation, price parsing, ViewModels, and Compose UI.
+- `androidApp` contains the Android entry point and Android app settings.
+- `iosApp` contains the iPhone entry point and Xcode project.
+- `shared/schemas` contains exported Room database schemas needed for safe upgrades.
+- `.github/workflows` contains Android quality checks and the unsigned iPhone IPA build.
+
+The completed original Android application is stored separately as a read-only reference. It must not be modified.
+
+## Local Android check
+
+Run this from the project folder:
+
+```powershell
+.\gradlew.bat :shared:testAndroidHostTest :androidApp:lintDebug :androidApp:assembleDebug
+```
+
+## Physical iPhone check
+
+1. Push the completed milestone to GitHub.
+2. Open the repository's Actions page.
+3. Run **Build Unsigned iOS IPA**.
+4. Download the `unsigned-ipa` artifact when the workflow finishes.
+5. Install the IPA on the physical iPhone with Sideloadly.
+6. Test search, barcode scanning, live price checks, inventory editing, backup, restore, delete, and Undo.
+
+The GitHub workflow runs the shared iPhone tests before building the IPA. This prevents creating an IPA when shared iPhone code does not compile or a shared test fails.
