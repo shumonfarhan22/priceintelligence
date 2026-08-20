@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalTime::class)
+
 package com.supreme.priceintelligence.dashboard
 
 import androidx.compose.foundation.background
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,10 +20,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,9 +53,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.supreme.priceintelligence.rememberUrlOpener
 import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 @Composable
 fun DashboardScreen(
@@ -60,6 +68,7 @@ fun DashboardScreen(
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
     var showSortMenu by remember { mutableStateOf(false) }
+    var selectedProductId by remember { mutableStateOf<Long?>(null) }
 
     Column(
         modifier = modifier.fillMaxSize()
@@ -260,6 +269,10 @@ fun DashboardScreen(
                     ) { card ->
                         DashboardProductCard(
                             card = card,
+                            onOpenDetails = {
+                                selectedProductId = card.item.id
+                                focusManager.clearFocus()
+                            },
                             onRefresh = {
                                 viewModel.refreshProduct(card.item.id)
                             }
@@ -283,6 +296,22 @@ fun DashboardScreen(
                 }
             }
         }
+    }
+
+    val selectedCard = state.pageItems.firstOrNull { card ->
+        card.item.id == selectedProductId
+    }
+
+    if (selectedCard != null) {
+        DashboardProductDetailDialog(
+            card = selectedCard,
+            onRefresh = {
+                viewModel.refreshProduct(selectedCard.item.id)
+            },
+            onDismiss = {
+                selectedProductId = null
+            }
+        )
     }
 }
 
@@ -345,6 +374,7 @@ private fun EmptyDashboardMessage(
 @Composable
 private fun DashboardProductCard(
     card: ProductCardUiState,
+    onOpenDetails: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val item = card.item
@@ -411,18 +441,29 @@ private fun DashboardProductCard(
                     }
                 }
 
-                OutlinedButton(
-                    onClick = onRefresh,
-                    enabled = canRefresh && !card.isRefreshing,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                Column(
+                    horizontalAlignment = Alignment.End
                 ) {
-                    if (card.isRefreshing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text("Check")
+                    TextButton(
+                        onClick = onOpenDetails,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                    ) {
+                        Text("Details")
+                    }
+
+                    OutlinedButton(
+                        onClick = onRefresh,
+                        enabled = canRefresh && !card.isRefreshing,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        if (card.isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Check")
+                        }
                     }
                 }
             }
@@ -471,6 +512,248 @@ private fun DashboardProductCard(
                     lineHeight = 17.sp
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun DashboardProductDetailDialog(
+    card: ProductCardUiState,
+    onRefresh: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val item = card.item
+    val openUrl = rememberUrlOpener()
+    val amazonPrice = card.amazonResult?.price ?: item.amazonLastPrice
+    val flipkartPrice = card.flipkartResult?.price ?: item.flipkartLastPrice
+    val canRefresh = !item.amazonUrl.isNullOrBlank() || !item.flipkartUrl.isNullOrBlank()
+    val latestCheck = maxOf(
+        item.amazonLastChecked ?: 0L,
+        item.flipkartLastChecked ?: 0L
+    )
+    val hasLiveResult = card.amazonResult?.price != null || card.flipkartResult?.price != null
+
+    Dialog(
+        onDismissRequest = onDismiss
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.88f),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Product details",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = item.productName,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onDismiss
+                    ) {
+                        Text("Close")
+                    }
+                }
+
+                item.barcode?.takeIf { barcode -> barcode.isNotBlank() }?.let { barcode ->
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Barcode: $barcode",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = when {
+                        card.isRefreshing -> "Checking online prices now..."
+                        hasLiveResult -> "Prices checked just now"
+                        latestCheck > 0L -> "Last checked ${formatTimeAgo(latestCheck)}"
+                        else -> "Online prices have not been checked yet"
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                DetailPriceComparison(
+                    seller = "Your shop",
+                    price = item.shopPrice,
+                    shopPrice = item.shopPrice,
+                    isShopPrice = true,
+                    onOpen = null
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                DetailPriceComparison(
+                    seller = "Amazon",
+                    price = amazonPrice,
+                    shopPrice = item.shopPrice,
+                    isShopPrice = false,
+                    onOpen = item.amazonUrl?.takeIf { url -> url.isNotBlank() }?.let { url ->
+                        { openUrl(url) }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                DetailPriceComparison(
+                    seller = "Flipkart",
+                    price = flipkartPrice,
+                    shopPrice = item.shopPrice,
+                    isShopPrice = false,
+                    onOpen = item.flipkartUrl?.takeIf { url -> url.isNotBlank() }?.let { url ->
+                        { openUrl(url) }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Button(
+                    onClick = onRefresh,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = canRefresh && !card.isRefreshing,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    if (card.isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text("Checking prices")
+                    } else {
+                        Text(
+                            if (canRefresh) {
+                                "Refresh live prices"
+                            } else {
+                                "Add a retailer link in Inventory"
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailPriceComparison(
+    seller: String,
+    price: Double?,
+    shopPrice: Double,
+    isShopPrice: Boolean,
+    onOpen: (() -> Unit)?
+) {
+    val difference = if (price == null) null else shopPrice - price
+    val onlineIsCheaper = !isShopPrice && difference != null && difference > 0.01
+    val shopIsCompetitive = !isShopPrice && difference != null && difference <= 0.01
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(
+                width = 1.dp,
+                color = when {
+                    onlineIsCheaper -> MaterialTheme.colorScheme.error
+                    shopIsCompetitive || isShopPrice -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.outline
+                },
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = seller,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Text(
+                    text = price?.let(::formatPrice) ?: "Price unavailable",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+
+            if (onOpen != null) {
+                OutlinedButton(
+                    onClick = onOpen,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)
+                ) {
+                    Text("Open site")
+                }
+            }
+        }
+
+        if (!isShopPrice) {
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = priceDifferenceMessage(difference),
+                color = when {
+                    onlineIsCheaper -> MaterialTheme.colorScheme.error
+                    shopIsCompetitive -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
@@ -584,6 +867,29 @@ private fun SortOrder.displayName(): String = when (this) {
     SortOrder.MOST_VIEWED -> "Most viewed"
     SortOrder.ALPHABETICAL -> "A to Z"
     SortOrder.RECENT -> "Recently added"
+}
+
+private fun priceDifferenceMessage(difference: Double?): String = when {
+    difference == null -> "No saved online price"
+    difference.absoluteValue <= 0.01 -> "Matches your shop price"
+    difference > 0.0 -> "${formatPrice(difference)} cheaper than your shop"
+    else -> "${formatPrice(difference.absoluteValue)} higher than your shop"
+}
+
+private fun formatTimeAgo(timeMs: Long): String {
+    val elapsedMs = (
+        Clock.System.now().toEpochMilliseconds() - timeMs
+    ).coerceAtLeast(0L)
+    val elapsedMinutes = elapsedMs / 60_000L
+    val elapsedHours = elapsedMinutes / 60L
+    val elapsedDays = elapsedHours / 24L
+
+    return when {
+        elapsedDays > 0L -> "$elapsedDays day${if (elapsedDays == 1L) "" else "s"} ago"
+        elapsedHours > 0L -> "$elapsedHours hour${if (elapsedHours == 1L) "" else "s"} ago"
+        elapsedMinutes > 0L -> "$elapsedMinutes minute${if (elapsedMinutes == 1L) "" else "s"} ago"
+        else -> "recently"
+    }
 }
 
 private fun formatPrice(value: Double): String {
