@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -116,131 +117,202 @@ fun DashboardScreen(
     Column(
         modifier = modifier.fillMaxSize()
     ) {
-        Row(
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
+            )
         ) {
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "Dashboard",
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    text = "PRICE DASHBOARD",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.1.sp
                 )
 
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Text(
-                    text = "Compare your shop price with live online prices",
+                    text = "Make every price decision with confidence",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    lineHeight = 29.sp
+                )
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                Text(
+                    text = "Compare your shop with Amazon and Flipkart using live or clearly marked saved prices.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
                 )
-            }
 
-            OutlinedButton(
-                onClick = viewModel::refreshVisiblePrices,
-                enabled = state.isConnected &&
-                    state.pageItems.any { card ->
-                        !card.item.amazonUrl.isNullOrBlank() ||
-                            !card.item.flipkartUrl.isNullOrBlank()
-                    } &&
-                    !state.isRefreshingPage
-            ) {
-                Text(if (state.isRefreshingPage) "Checking page" else "Check page")
-            }
-        }
+                Spacer(modifier = Modifier.height(14.dp))
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        OutlinedTextField(
-            value = state.searchQuery,
-            onValueChange = viewModel::onSearchQueryChanged,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = {
-                Text("Search product name, barcode, or link")
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Search
-            ),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    viewModel.onSearchSubmitted(state.searchQuery)
-                    focusManager.clearFocus()
-                }
-            ),
-            trailingIcon = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
+                Button(
+                    onClick = viewModel::refreshVisiblePrices,
+                    enabled = state.isConnected &&
+                        state.pageItems.any { card ->
+                            !card.item.amazonUrl.isNullOrBlank() ||
+                                !card.item.flipkartUrl.isNullOrBlank()
+                        } &&
+                        !state.isRefreshingPage,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
                 ) {
-                    if (state.searchQuery.isNotBlank()) {
-                        TextButton(
-                            onClick = {
-                                viewModel.onSearchQueryChanged("")
-                                viewModel.onSearchSubmitted("")
-                                focusManager.clearFocus()
-                            }
-                        ) {
-                            Text("Clear")
-                        }
-                    }
+                    if (state.isRefreshingPage) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
 
-                    TextButton(
-                        onClick = {
-                            viewModel.onSearchSubmitted(state.searchQuery)
-                            focusManager.clearFocus()
-                        }
-                    ) {
-                        Text("Search")
-                    }
-                }
-            }
-        )
+                        Spacer(modifier = Modifier.width(8.dp))
 
-        if (state.suggestions.isNotEmpty() && state.searchQuery.isNotBlank()) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(vertical = 4.dp)
-                ) {
-                    state.suggestions.forEach { suggestion ->
                         Text(
-                            text = suggestion,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.onSearchSubmitted(suggestion)
-                                    focusManager.clearFocus()
-                                }
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                            text = "Checking visible products",
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Text(
+                            text = "Check visible prices",
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
         }
 
-        Row(
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
+            )
         ) {
-            TextButton(
-                onClick = cameraPermissionRequester::requestPermission
+            Column(
+                modifier = Modifier.padding(12.dp)
             ) {
-                Text("Scan barcode")
+                OutlinedTextField(
+                    value = state.searchQuery,
+                    onValueChange = viewModel::onSearchQueryChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Find a product")
+                    },
+                    placeholder = {
+                        Text("Name, barcode, Amazon or Flipkart link")
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Search
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            viewModel.onSearchSubmitted(state.searchQuery)
+                            focusManager.clearFocus()
+                        }
+                    ),
+                    trailingIcon = {
+                        if (state.searchQuery.isNotBlank()) {
+                            TextButton(
+                                onClick = {
+                                    viewModel.onSearchQueryChanged("")
+                                    viewModel.onSearchSubmitted("")
+                                    focusManager.clearFocus()
+                                }
+                            ) {
+                                Text("Clear")
+                            }
+                        }
+                    }
+                )
+
+                if (state.suggestions.isNotEmpty() && state.searchQuery.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        state.suggestions.forEach { suggestion ->
+                            Text(
+                                text = suggestion,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(
+                                            alpha = 0.55f
+                                        )
+                                    )
+                                    .clickable {
+                                        viewModel.onSearchSubmitted(suggestion)
+                                        focusManager.clearFocus()
+                                    }
+                                    .padding(horizontal = 13.dp, vertical = 12.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = cameraPermissionRequester::requestPermission,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            text = "Scan barcode",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.onSearchSubmitted(state.searchQuery)
+                            focusManager.clearFocus()
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            text = "Search",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
 
@@ -323,7 +395,50 @@ fun DashboardScreen(
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(
+                                horizontal = 20.dp,
+                                vertical = 26.dp
+                            ),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                strokeWidth = 3.dp
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                text = "Preparing your price dashboard",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(5.dp))
+
+                            Text(
+                                text = "Loading saved products and price information.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
                 }
             }
 
@@ -457,48 +572,85 @@ private fun EmptyDashboardMessage(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
+        Surface(
             modifier = Modifier
-                .size(68.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline,
-                    shape = RoundedCornerShape(20.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = if (isSearching) "?" else "+",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.ExtraBold
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
             )
+        ) {
+            Column(
+                modifier = Modifier.padding(
+                    horizontal = 22.dp,
+                    vertical = 26.dp
+                ),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                            shape = RoundedCornerShape(20.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isSearching) "?" else "+",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = if (isSearching) "SEARCH RESULT" else "GET STARTED",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
+                )
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                Text(
+                    text = if (isSearching) {
+                        "No matches found"
+                    } else {
+                        "Your dashboard is ready"
+                    },
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = if (isSearching) {
+                        "No saved product matches “$query”. Check the spelling or try a shorter name, barcode, or retailer link."
+                    } else {
+                        "Open Inventory below and add your first product. It will appear here for shop, Amazon, and Flipkart price comparison."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = if (isSearching) "No matches found" else "Dashboard is empty",
-            color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = if (isSearching) {
-                "No saved product matches “$query”.\nTry a shorter product name or a barcode."
-            } else {
-                "Open Inventory below and add your first product.\nIt will then appear here for price comparison."
-            },
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-            textAlign = TextAlign.Center
-        )
     }
 }
 
@@ -580,6 +732,59 @@ private fun DashboardProductCard(
         item.amazonLastChecked ?: 0L,
         item.flipkartLastChecked ?: 0L
     )
+    val liveCheckFailed = liveCheckAttempted && !hasLivePrice
+    val shopIsLowest = item.shopPrice == lowestPrice
+    val shopIsCompetitive =
+        comparison.shopPosition == ShopPricePosition.LOWER ||
+            comparison.shopPosition == ShopPricePosition.MATCHED
+
+    val verdictText = when {
+        card.isRefreshing -> "Checking Amazon and Flipkart prices now..."
+
+        liveCheckFailed && hasOnlinePrice ->
+            "Live check failed • the saved comparison is still shown below."
+
+        liveCheckFailed ->
+            "Live prices are unavailable. Try checking again later."
+
+        onlineSavings != null -> buildString {
+            append("Online is ")
+            append(formatIndianPrice(onlineSavings))
+            append(" cheaper than your shop")
+            comparison.shopDifferencePercent?.let { percent ->
+                append(" (")
+                append(formatPercent(percent))
+                append(")")
+            }
+            append(".")
+        }
+
+        comparison.shopPosition == ShopPricePosition.LOWER ->
+            comparison.shopDifference?.let { difference ->
+                "Your shop is ${formatIndianPrice(difference.absoluteValue)} cheaper than the lowest online price."
+            } ?: "Your shop has the lower price."
+
+        comparison.shopPosition == ShopPricePosition.MATCHED ->
+            "Your shop matches the lowest available online price."
+
+        hasOnlinePrice ->
+            "A saved online comparison is available below."
+
+        else ->
+            "Check online prices to compare your shop with Amazon and Flipkart."
+    }
+
+    val verdictColor = when {
+        liveCheckFailed || onlineIsCheaper -> MaterialTheme.colorScheme.error
+        shopIsCompetitive -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.secondary
+    }
+
+    val verdictBackground = when {
+        liveCheckFailed || onlineIsCheaper -> MaterialTheme.colorScheme.errorContainer
+        shopIsCompetitive -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.13f)
+    }
 
     Surface(
         modifier = Modifier
@@ -593,8 +798,8 @@ private fun DashboardProductCard(
                     else -> "Online price not checked"
                 }
             },
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
             color = when {
@@ -605,7 +810,7 @@ private fun DashboardProductCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -614,7 +819,7 @@ private fun DashboardProductCard(
                 ProductImage(
                     imageUrl = item.imageUrl,
                     productName = item.productName,
-                    modifier = Modifier.size(72.dp)
+                    modifier = Modifier.size(88.dp)
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -636,6 +841,38 @@ private fun DashboardProductCard(
                             text = "Barcode: $barcode",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (shopIsLowest) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                }
+                            )
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = buildString {
+                                append("SHOP • ")
+                                append(formatIndianPrice(item.shopPrice))
+                                if (shopIsLowest) append(" • LOWEST")
+                            },
+                            color = if (shopIsLowest) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -682,15 +919,24 @@ private fun DashboardProductCard(
             ) {
                 OutlinedButton(
                     onClick = onOpenDetails,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Details")
+                    Text(
+                        text = "View details",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 Button(
                     onClick = onRefresh,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
                     enabled = canRefresh && !card.isRefreshing,
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
@@ -707,57 +953,36 @@ private fun DashboardProductCard(
                         Text("Checking")
                     } else {
                         Text(
-                            if (canRefresh) {
+                            text = if (canRefresh) {
                                 "Check prices"
                             } else {
                                 "No links"
-                            }
+                            },
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
 
-            if (onlineSavings != null) {
-                Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.errorContainer)
-                        .padding(horizontal = 12.dp, vertical = 9.dp)
-                ) {
-                    Text(
-                        text = buildString {
-                            append("Online is ")
-                            append(formatIndianPrice(onlineSavings))
-                            append(" cheaper than your shop")
-                            comparison.shopDifferencePercent?.let { percent ->
-                                append(" (")
-                                append(formatPercent(percent))
-                                append(")")
-                            }
-                            append(".")
-                        },
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(verdictBackground)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = verdictText,
+                    color = verdictColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 17.sp
+                )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            PriceRow(
-                seller = "Your shop",
-                price = item.shopPrice,
-                isLowest = item.shopPrice == lowestPrice,
-                sourceLabel = null,
-                actionLabel = null,
-                onAction = null
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             PriceRow(
                 seller = "Amazon",
@@ -828,14 +1053,17 @@ private fun DashboardProductDetailDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.88f),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.92f),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outline
@@ -856,10 +1084,11 @@ private fun DashboardProductDetailDialog(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "Product details",
+                            text = "PRICE COMPARISON",
                             color = MaterialTheme.colorScheme.primary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.1.sp
                         )
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -875,9 +1104,13 @@ private fun DashboardProductDetailDialog(
                     }
 
                     TextButton(
-                        onClick = onDismiss
+                        onClick = onDismiss,
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
-                        Text("Close")
+                        Text(
+                            text = "Close",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 
@@ -982,8 +1215,11 @@ private fun DashboardProductDetailDialog(
 
                 Button(
                     onClick = onRefresh,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 50.dp),
                     enabled = canRefresh && !card.isRefreshing,
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
@@ -1074,12 +1310,15 @@ private fun DetailPriceComparison(
     val difference = if (price == null) null else shopPrice - price
     val onlineIsCheaper = !isShopPrice && difference != null && difference > 0.01
     val shopIsCompetitive = !isShopPrice && difference != null && difference <= 0.01
+    val comparisonShape = RoundedCornerShape(18.dp)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clip(comparisonShape)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)
+            )
             .border(
                 width = 1.dp,
                 color = when {
@@ -1087,9 +1326,9 @@ private fun DetailPriceComparison(
                     shopIsCompetitive || isShopPrice -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.outline
                 },
-                shape = RoundedCornerShape(16.dp)
+                shape = comparisonShape
             )
-            .padding(14.dp)
+            .padding(15.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1127,9 +1366,14 @@ private fun DetailPriceComparison(
             if (onOpen != null) {
                 OutlinedButton(
                     onClick = onOpen,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                 ) {
-                    Text("Open site")
+                    Text(
+                        text = "Open site",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
@@ -1161,18 +1405,30 @@ private fun PriceRow(
     actionLabel: String?,
     onAction: (() -> Unit)?
 ) {
+    val priceRowShape = RoundedCornerShape(14.dp)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .heightIn(min = 64.dp)
+            .clip(priceRowShape)
             .background(
                 if (isLowest) {
                     MaterialTheme.colorScheme.primaryContainer
                 } else {
-                    MaterialTheme.colorScheme.surfaceVariant
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
                 }
             )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .border(
+                width = 1.dp,
+                color = if (isLowest) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+                } else {
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
+                },
+                shape = priceRowShape
+            )
+            .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
@@ -1219,9 +1475,13 @@ private fun PriceRow(
 
             TextButton(
                 onClick = onAction,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                modifier = Modifier.heightIn(min = 48.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
             ) {
-                Text(actionLabel)
+                Text(
+                    text = actionLabel,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
@@ -1234,36 +1494,67 @@ private fun DashboardPagination(
     onPrevious: () -> Unit,
     onNext: () -> Unit
 ) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        OutlinedButton(
-            onClick = onPrevious,
-            enabled = currentPage > 1
-        ) {
-            Text("Previous")
-        }
-
-        Text(
-            text = "Page $currentPage of $totalPages",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 14.dp)
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline
         )
-
-        Button(
-            onClick = onNext,
-            enabled = currentPage < totalPages,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Next")
+            Text(
+                text = "PAGE $currentPage OF $totalPages",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.7.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onPrevious,
+                    enabled = currentPage > 1,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 50.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        text = "Previous",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Button(
+                    onClick = onNext,
+                    enabled = currentPage < totalPages,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(
+                        text = "Next",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }

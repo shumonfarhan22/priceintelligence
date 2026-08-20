@@ -90,26 +90,39 @@ fun DashboardDecisionSummaryCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(18.dp)
         ) {
+            Text(
+                text = "PAGE PRICE POSITION",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
             Text(
                 text = "Decision snapshot",
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 17.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold
             )
 
+            Spacer(modifier = Modifier.height(3.dp))
+
             Text(
-                text = "Page $currentPage • live prices when available, otherwise saved prices",
+                text = "Page $currentPage • ${summary.livePriceProductCount} with live prices • saved prices used when needed",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 11.sp
+                fontSize = 12.sp,
+                lineHeight = 17.sp
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -117,13 +130,13 @@ fun DashboardDecisionSummaryCard(
             ) {
                 DecisionMetric(
                     value = summary.shopCompetitiveCount,
-                    label = "Shop wins",
+                    label = "Lower / match",
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
                 DecisionMetric(
                     value = summary.onlineCheaperCount,
-                    label = "Review",
+                    label = "Online lower",
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f)
                 )
@@ -135,21 +148,47 @@ fun DashboardDecisionSummaryCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            Text(
-                text = summary.recommendationText(),
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = 13.dp,
+                        vertical = 11.dp
+                    )
+                ) {
+                    Text(
+                        text = "RECOMMENDATION",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.8.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = summary.recommendationText(),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
             if (summary.livePriceProductCount < summary.comparedCount) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
-                    text = "Check prices before making a final pricing decision.",
+                    text = "Saved prices are clearly separated from live results. Check prices before making a final pricing decision.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
                 )
             }
         }

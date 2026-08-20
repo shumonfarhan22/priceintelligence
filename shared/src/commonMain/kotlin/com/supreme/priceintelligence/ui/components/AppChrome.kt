@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.resources.Res
@@ -76,11 +77,19 @@ fun SupremeAmbientBackground(content: @Composable () -> Unit) {
 }
 
 @Composable
-fun SupremeHeader(isConnected: Boolean) {
+fun SupremeHeader(
+    isConnected: Boolean,
+    horizontalPadding: Dp = 20.dp
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 14.dp),
+            .padding(
+                start = horizontalPadding,
+                end = horizontalPadding,
+                top = 10.dp,
+                bottom = 14.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
@@ -155,13 +164,17 @@ fun SupremeHeader(isConnected: Boolean) {
 @Composable
 fun SupremeBottomNavigation(
     selectedDestination: AppDestination,
+    horizontalPadding: Dp = 20.dp,
     onDestinationSelected: (AppDestination) -> Unit
 ) {
     val navigationShape = RoundedCornerShape(25.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .padding(
+                horizontal = horizontalPadding,
+                vertical = 10.dp
+            )
             .clip(navigationShape)
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
             .border(1.dp, MaterialTheme.colorScheme.outline, navigationShape)

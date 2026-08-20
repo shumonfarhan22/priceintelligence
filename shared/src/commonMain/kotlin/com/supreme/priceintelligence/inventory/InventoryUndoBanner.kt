@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.InventoryItem
@@ -28,14 +29,18 @@ import com.supreme.priceintelligence.data.InventoryItem
 fun InventoryUndoBanner(
     pendingItems: Set<InventoryItem>,
     onUndo: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 20.dp
 ) {
     if (pendingItems.isEmpty()) return
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 4.dp)
+            .padding(
+                horizontal = horizontalPadding,
+                vertical = 4.dp
+            )
             .semantics {
                 liveRegion = LiveRegionMode.Assertive
             },

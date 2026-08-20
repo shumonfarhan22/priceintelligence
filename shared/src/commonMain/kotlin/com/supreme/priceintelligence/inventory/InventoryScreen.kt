@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -252,10 +253,16 @@ fun InventoryScreen(
         OutlinedTextField(
             value = state.directoryQuery,
             onValueChange = viewModel::onDirectoryQueryChanged,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = {
-                Text("Search name, barcode, or product link")
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp),
+            label = {
+                Text("Search inventory")
             },
+            placeholder = {
+                Text("Name, barcode, Amazon or Flipkart link")
+            },
+            shape = RoundedCornerShape(16.dp),
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Done
@@ -273,7 +280,10 @@ fun InventoryScreen(
                             focusManager.clearFocus()
                         }
                     ) {
-                        Text("Clear")
+                        Text(
+                            text = "Clear",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -416,71 +426,97 @@ private fun InventoryTitleRow(
     onDataSafety: () -> Unit,
     onAddProduct: () -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
+    val countLabel = when {
+        isRefreshing -> "Refreshing your inventory..."
+        isSearching && shownProductCount == 1 -> "1 matching product"
+        isSearching -> "$shownProductCount matching products"
+        shownProductCount == 1 -> "1 saved product"
+        else -> "$shownProductCount saved products"
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline
+        )
     ) {
-        Text(
-            text = "Supreme Inventory",
-            color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
-
-        Text(
-            text = when {
-                isRefreshing -> "Refreshing your inventory..."
-                isSearching -> "$shownProductCount search result(s)"
-                else -> "$shownProductCount saved product(s)"
-            },
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 13.sp
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                onClick = onRefresh,
-                enabled = !isRefreshing,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    text = if (isRefreshing) {
-                        "Refreshing..."
-                    } else {
-                        "Refresh"
-                    },
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Button(
-                onClick = onAddProduct,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    text = "+ Add product",
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = onDataSafety,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "Backup & restore inventory",
-                fontWeight = FontWeight.Bold
+                text = "PRODUCT CATALOGUE",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.1.sp
             )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Supreme Inventory",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+
+            Text(
+                text = countLabel,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onRefresh,
+                    enabled = !isRefreshing,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        text = if (isRefreshing) "Refreshing..." else "Refresh",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Button(
+                    onClick = onAddProduct,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        text = "+ Add product",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = onDataSafety,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = "Backup & restore",
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
@@ -529,30 +565,45 @@ private fun InventorySelectionBar(
             ) {
                 OutlinedButton(
                     onClick = if (isAllSelected) onClear else onSelectAll,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (isAllSelected) "Deselect all" else "Select shown")
+                    Text(
+                        text = if (isAllSelected) "Deselect all" else "Select shown",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 Button(
                     onClick = onDelete,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("Delete selected", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Delete $selectedCount",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             TextButton(
                 onClick = onClear,
-                modifier = Modifier.align(Alignment.End)
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .heightIn(min = 48.dp)
             ) {
-                Text("Cancel selection")
+                Text(
+                    text = "Cancel selection",
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
@@ -607,28 +658,85 @@ private fun EmptyInventoryMessage(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            text = if (isSearching) {
-                "No matching products"
-            } else {
-                "Your inventory is empty"
-            },
-            color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(
+                    horizontal = 22.dp,
+                    vertical = 26.dp
+                ),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                            shape = RoundedCornerShape(20.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isSearching) "?" else "+",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
 
-        Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = if (isSearching) {
-                "Try a different name, barcode, or link."
-            } else {
-                "Press “Add product” to save your first item."
-            },
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 14.sp
-        )
+                Text(
+                    text = if (isSearching) "SEARCH RESULT" else "PRODUCT CATALOGUE",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
+                )
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                Text(
+                    text = if (isSearching) {
+                        "No matching products"
+                    } else {
+                        "Your inventory is empty"
+                    },
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = if (isSearching) {
+                        "Try a different product name, barcode, Amazon link, or Flipkart link."
+                    } else {
+                        "Press “Add product” above to save your first item and begin comparing prices."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
     }
 }
 
@@ -639,19 +747,27 @@ private fun InventoryGroupHeader(
     isExpanded: Boolean,
     onClick: () -> Unit
 ) {
-    val groupShape = RoundedCornerShape(14.dp)
+    val groupShape = RoundedCornerShape(16.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 60.dp)
             .clip(groupShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)
+            )
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline,
+                shape = groupShape
+            )
             .semantics {
                 role = Role.Button
                 stateDescription = if (isExpanded) "Expanded" else "Collapsed"
             }
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
@@ -677,9 +793,9 @@ private fun InventoryGroupHeader(
 
         Text(
             text = if (isExpanded) {
-                "Hide ▲"
+                "Collapse ▲"
             } else {
-                "Show ▼"
+                "Expand ▼"
             },
             color = MaterialTheme.colorScheme.primary,
             fontSize = 12.sp,
@@ -698,12 +814,12 @@ private fun InventoryProductRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val cardShape = RoundedCornerShape(16.dp)
+    val cardShape = RoundedCornerShape(20.dp)
 
     val cardColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer
         isHighlighted -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surface
+        else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
     }
 
     Column(
@@ -737,7 +853,7 @@ private fun InventoryProductRow(
                 },
                 shape = cardShape
             )
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
         Text(
             text = item.productName,
@@ -750,12 +866,19 @@ private fun InventoryProductRow(
 
         Spacer(modifier = Modifier.height(5.dp))
 
-        Text(
-            text = "Shop price: ${displayPrice(item.shopPrice)}",
-            color = MaterialTheme.colorScheme.primary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .padding(horizontal = 10.dp, vertical = 7.dp)
+        ) {
+            Text(
+                text = "SHOP • ${displayPrice(item.shopPrice)}",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
 
         item.barcode?.takeIf { it.isNotBlank() }?.let { barcode ->
             Spacer(modifier = Modifier.height(8.dp))
@@ -776,9 +899,10 @@ private fun InventoryProductRow(
             Spacer(modifier = Modifier.height(5.dp))
 
             Text(
-                text = "Links: ${linkedStores.joinToString()}",
+                text = "Available online: ${linkedStores.joinToString(" • ")}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
             )
         }
 
@@ -802,8 +926,10 @@ private fun InventoryProductRow(
             ) {
                 OutlinedButton(
                     onClick = onEdit,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
                         text = "Edit",
@@ -813,8 +939,10 @@ private fun InventoryProductRow(
 
                 Button(
                     onClick = onDelete,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.error
