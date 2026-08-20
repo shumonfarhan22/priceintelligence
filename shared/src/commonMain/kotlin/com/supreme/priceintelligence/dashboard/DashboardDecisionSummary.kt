@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -89,40 +90,63 @@ fun DashboardDecisionSummaryCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.22f),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.38f)
+        )
     ) {
         Column(
-            modifier = Modifier.padding(18.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = "PAGE PRICE POSITION",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "MARKET SNAPSHOT",
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
+                    )
 
-            Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
-            Text(
-                text = "Decision snapshot",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
+                    Text(
+                        text = "Page $currentPage price position",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(3.dp))
+                Surface(
+                    shape = RoundedCornerShape(50.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)
+                    )
+                ) {
+                    Text(
+                        text = "${summary.livePriceProductCount} LIVE",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 6.dp
+                        )
+                    )
+                }
+            }
 
-            Text(
-                text = "Page $currentPage • ${summary.livePriceProductCount} with live prices • saved prices used when needed",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                lineHeight = 17.sp
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(13.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -134,12 +158,14 @@ fun DashboardDecisionSummaryCard(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
+
                 DecisionMetric(
                     value = summary.onlineCheaperCount,
                     label = "Online lower",
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f)
                 )
+
                 DecisionMetric(
                     value = summary.unavailableCount,
                     label = "No price",
@@ -148,12 +174,12 @@ fun DashboardDecisionSummaryCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(13.dp))
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.58f)
             ) {
                 Column(
                     modifier = Modifier.padding(
@@ -162,9 +188,9 @@ fun DashboardDecisionSummaryCard(
                     )
                 ) {
                     Text(
-                        text = "RECOMMENDATION",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 10.sp,
+                        text = "DECISION NOTE",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.8.sp
                     )
@@ -185,7 +211,7 @@ fun DashboardDecisionSummaryCard(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Saved prices are clearly separated from live results. Check prices before making a final pricing decision.",
+                    text = "Some comparisons use clearly marked saved prices. Check prices before making a final decision.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 17.sp

@@ -52,11 +52,11 @@ internal fun DataSafetyDialog(
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(0.92f),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
             shape = RoundedCornerShape(26.dp),
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.46f)
             )
         ) {
             Column(
@@ -64,39 +64,81 @@ internal fun DataSafetyDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Protect your inventory",
+                    text = "DATA SAFETY",
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
+                )
+
+                Text(
+                    text = "Portable backup",
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    fontWeight = FontWeight.Black
                 )
+
                 Text(
-                    text = "Save your products, saved prices, and price history before changing phones or reinstalling the app.",
+                    text = "Protect your products, saved prices, and complete price history before changing phones or reinstalling the app.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
                 )
+
                 Button(
                     onClick = onBackup,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 50.dp),
-                    shape = RoundedCornerShape(14.dp)
+                        .heightIn(min = 52.dp),
+                    shape = RoundedCornerShape(15.dp)
                 ) {
-                    Text("Save backup", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Save a new backup",
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 }
+
                 OutlinedButton(
                     onClick = onRestore,
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(14.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp),
+                    shape = RoundedCornerShape(15.dp)
                 ) {
-                    Text("Restore from backup", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Restore from a backup",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                Text(
-                    text = "Restore only adds missing products. It never deletes or replaces products already on this device.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                    Text("Close")
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+                    )
+                ) {
+                    Text(
+                        text = "SAFE MERGE • Restore only adds missing products and history. It never deletes or replaces products already on this device.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .heightIn(min = 48.dp)
+                ) {
+                    Text(
+                        text = "Close",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -134,11 +176,11 @@ internal fun ProductEditorDialog(
                 .fillMaxWidth(0.94f)
                 .fillMaxHeight(0.92f)
                 .imePadding(),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.985f),
             shape = RoundedCornerShape(28.dp),
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)
             )
         ) {
             Column(
@@ -148,34 +190,60 @@ internal fun ProductEditorDialog(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text(
-                    text = if (form.isEditing) {
-                        "UPDATE INVENTORY"
-                    } else {
-                        "NEW INVENTORY PRODUCT"
-                    },
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.1.sp
-                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(15.dp)
+                    ) {
+                        Text(
+                            text = if (form.isEditing) {
+                                "UPDATE INVENTORY"
+                            } else {
+                                "NEW INVENTORY PRODUCT"
+                            },
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.1.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = if (form.isEditing) {
+                                "Edit product"
+                            } else {
+                                "Add product"
+                            },
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "Product name and shop price are required. Barcode and retailer links are optional.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp
+                        )
+                    }
+                }
 
                 Text(
-                    text = if (form.isEditing) {
-                        "Edit product"
-                    } else {
-                        "Add product"
-                    },
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 25.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-
-                Text(
-                    text = "Product name and shop price are required. Barcode and retailer links are optional.",
+                    text = "PRODUCT DETAILS",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.9.sp
                 )
                 OutlinedTextField(
                     value = form.productName,
@@ -219,6 +287,14 @@ internal fun ProductEditorDialog(
                     },
                     singleLine = true
                 )
+                Text(
+                    text = "RETAILER LINKS",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.9.sp
+                )
+
                 OutlinedTextField(
                     value = form.amazonUrl,
                     onValueChange = onAmazonUrlChanged,
@@ -248,16 +324,30 @@ internal fun ProductEditorDialog(
                     singleLine = true
                 )
                 statusMessage?.let { message ->
-                    Text(
-                        text = message,
-                        color = if (statusIsError) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    val statusColor = if (statusIsError) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = statusColor.copy(alpha = 0.10f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = statusColor.copy(alpha = 0.42f)
+                        )
+                    ) {
+                        Text(
+                            text = message,
+                            color = statusColor,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(

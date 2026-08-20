@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -250,44 +251,68 @@ fun InventoryScreen(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        OutlinedTextField(
-            value = state.directoryQuery,
-            onValueChange = viewModel::onDirectoryQueryChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp),
-            label = {
-                Text("Search inventory")
-            },
-            placeholder = {
-                Text("Name, barcode, Amazon or Flipkart link")
-            },
-            shape = RoundedCornerShape(16.dp),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Done
-            ),
-            keyboardActions = KeyboardActions(
-                onDone = {
-                    focusManager.clearFocus()
-                }
-            ),
-            trailingIcon = {
-                if (state.directoryQuery.isNotBlank()) {
-                    TextButton(
-                        onClick = {
-                            viewModel.onDirectoryQueryChanged("")
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp)
+            ) {
+                Text(
+                    text = "SEARCH CATALOGUE",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.9.sp
+                )
+
+                Spacer(modifier = Modifier.height(7.dp))
+
+                OutlinedTextField(
+                    value = state.directoryQuery,
+                    onValueChange = viewModel::onDirectoryQueryChanged,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp),
+                    label = {
+                        Text("Find a saved product")
+                    },
+                    placeholder = {
+                        Text("Name, barcode, Amazon or Flipkart link")
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
                             focusManager.clearFocus()
                         }
-                    ) {
-                        Text(
-                            text = "Clear",
-                            fontWeight = FontWeight.Bold
-                        )
+                    ),
+                    trailingIcon = {
+                        if (state.directoryQuery.isNotBlank()) {
+                            TextButton(
+                                onClick = {
+                                    viewModel.onDirectoryQueryChanged("")
+                                    focusManager.clearFocus()
+                                }
+                            ) {
+                                Text(
+                                    text = "Clear",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
-                }
+                )
             }
-        )
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -427,7 +452,7 @@ private fun InventoryTitleRow(
     onAddProduct: () -> Unit
 ) {
     val countLabel = when {
-        isRefreshing -> "Refreshing your inventory..."
+        isRefreshing -> "Refreshing your inventory…"
         isSearching && shownProductCount == 1 -> "1 matching product"
         isSearching -> "$shownProductCount matching products"
         shownProductCount == 1 -> "1 saved product"
@@ -437,39 +462,67 @@ private fun InventoryTitleRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outline
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(15.dp)
         ) {
-            Text(
-                text = "PRODUCT CATALOGUE",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.1.sp
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "SUPREME CATALOGUE",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.1.sp
+                    )
 
-            Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
-            Text(
-                text = "Supreme Inventory",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
+                    Text(
+                        text = "Inventory",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 22.sp,
+                        lineHeight = 27.sp,
+                        fontWeight = FontWeight.Black
+                    )
 
-            Text(
-                text = countLabel,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp
-            )
+                    Text(
+                        text = countLabel,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Button(
+                    onClick = onAddProduct,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(
+                        horizontal = 14.dp,
+                        vertical = 0.dp
+                    )
+                ) {
+                    Text(
+                        text = "Add product",
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -484,38 +537,23 @@ private fun InventoryTitleRow(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = if (isRefreshing) "Refreshing..." else "Refresh",
+                        text = if (isRefreshing) "Refreshing…" else "Refresh",
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Button(
-                    onClick = onAddProduct,
+                OutlinedButton(
+                    onClick = onDataSafety,
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = "+ Add product",
+                        text = "Backup & restore",
                         fontWeight = FontWeight.Bold
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedButton(
-                onClick = onDataSafety,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    text = "Backup & restore",
-                    fontWeight = FontWeight.Bold
-                )
             }
         }
     }
@@ -535,28 +573,60 @@ private fun InventorySelectionBar(
             .semantics {
                 liveRegion = LiveRegionMode.Polite
             },
-        color = MaterialTheme.colorScheme.primaryContainer,
-        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.34f),
+        shape = RoundedCornerShape(18.dp),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f)
         )
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Text(
-                text = if (selectedCount == 1) "1 product selected" else "$selectedCount products selected",
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "SELECTION MODE",
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.9.sp
+                    )
+
+                    Text(
+                        text = if (selectedCount == 1) {
+                            "1 product selected"
+                        } else {
+                            "$selectedCount products selected"
+                        },
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                TextButton(
+                    onClick = onClear,
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text(
+                        text = "Cancel",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             Text(
-                text = "Long-press a product to start, then tap more products.",
+                text = "Tap products to add or remove them from this selection.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 11.sp
+                fontSize = 11.sp,
+                lineHeight = 16.sp
             )
 
             Row(
@@ -568,10 +638,14 @@ private fun InventorySelectionBar(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(13.dp)
                 ) {
                     Text(
-                        text = if (isAllSelected) "Deselect all" else "Select shown",
+                        text = if (isAllSelected) {
+                            "Deselect all"
+                        } else {
+                            "Select shown"
+                        },
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -581,7 +655,7 @@ private fun InventorySelectionBar(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(13.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.error
@@ -589,21 +663,9 @@ private fun InventorySelectionBar(
                 ) {
                     Text(
                         text = "Delete $selectedCount",
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
-            }
-
-            TextButton(
-                onClick = onClear,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .heightIn(min = 48.dp)
-            ) {
-                Text(
-                    text = "Cancel selection",
-                    fontWeight = FontWeight.Bold
-                )
             }
         }
     }
@@ -632,8 +694,12 @@ private fun InventoryStatusMessage(
             .semantics {
                 liveRegion = LiveRegionMode.Polite
             },
-        color = backgroundColor,
-        shape = RoundedCornerShape(12.dp)
+        color = backgroundColor.copy(alpha = 0.92f),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = textColor.copy(alpha = 0.42f)
+        )
     ) {
         Text(
             text = message,
@@ -747,19 +813,27 @@ private fun InventoryGroupHeader(
     isExpanded: Boolean,
     onClick: () -> Unit
 ) {
-    val groupShape = RoundedCornerShape(16.dp)
+    val groupShape = RoundedCornerShape(18.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 60.dp)
+            .heightIn(min = 68.dp)
             .clip(groupShape)
             .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)
+                if (isExpanded) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.07f)
+                } else {
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
+                }
             )
             .border(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline,
+                color = if (isExpanded) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant
+                },
                 shape = groupShape
             )
             .semantics {
@@ -767,9 +841,31 @@ private fun InventoryGroupHeader(
                 stateDescription = if (isExpanded) "Expanded" else "Collapsed"
             }
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.42f),
+                    shape = RoundedCornerShape(13.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = brandName.take(1),
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Black
+            )
+        }
+
+        Spacer(modifier = Modifier.width(11.dp))
+
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -782,25 +878,39 @@ private fun InventoryGroupHeader(
 
             Text(
                 text = if (productCount == 1) {
-                    "1 product"
+                    "1 saved product"
                 } else {
-                    "$productCount products"
+                    "$productCount saved products"
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp
             )
         }
 
-        Text(
-            text = if (isExpanded) {
-                "Collapse ▲"
+        Surface(
+            shape = RoundedCornerShape(50.dp),
+            color = if (isExpanded) {
+                MaterialTheme.colorScheme.primaryContainer
             } else {
-                "Expand ▼"
-            },
-            color = MaterialTheme.colorScheme.primary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
-        )
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f)
+            }
+        ) {
+            Text(
+                text = if (isExpanded) "CLOSE" else "OPEN",
+                color = if (isExpanded) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                fontSize = 9.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.6.sp,
+                modifier = Modifier.padding(
+                    horizontal = 10.dp,
+                    vertical = 7.dp
+                )
+            )
+        }
     }
 }
 
@@ -814,12 +924,20 @@ private fun InventoryProductRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(22.dp)
+    val amazonLinked = !item.amazonUrl.isNullOrBlank()
+    val flipkartLinked = !item.flipkartUrl.isNullOrBlank()
 
     val cardColor = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer
-        isHighlighted -> MaterialTheme.colorScheme.primaryContainer
+        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.82f)
+        isHighlighted -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.54f)
         else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+    }
+
+    val borderColor = if (isHighlighted || isSelected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
     }
 
     Column(
@@ -828,97 +946,214 @@ private fun InventoryProductRow(
             .clip(cardShape)
             .background(cardColor)
             .semantics {
-                selected = isSelected
-                role = Role.Checkbox
+                if (isSelectionMode) {
+                    selected = isSelected
+                    role = Role.Checkbox
+                }
+
                 contentDescription = buildString {
                     append(item.productName)
                     append(", shop price ")
                     append(displayPrice(item.shopPrice))
-                    if (isSelected) append(", selected")
-                    append(". Long press to select.")
+
+                    if (isSelected) {
+                        append(", selected")
+                    }
+
+                    if (isSelectionMode) {
+                        append(". Tap to change selection.")
+                    } else {
+                        append(". Tap to edit. Long press to select.")
+                    }
                 }
             }
             .combinedClickable(
                 onClick = {
-                    if (isSelectionMode) onToggleSelection() else onEdit()
+                    if (isSelectionMode) {
+                        onToggleSelection()
+                    } else {
+                        onEdit()
+                    }
                 },
                 onLongClick = onToggleSelection
             )
             .border(
                 width = 1.dp,
-                color = if (isHighlighted || isSelected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
+                color = borderColor,
                 shape = cardShape
             )
-            .padding(16.dp)
+            .padding(15.dp)
     ) {
-        Text(
-            text = item.productName,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(5.dp))
-
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(horizontal = 10.dp, vertical = 7.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
         ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "CATALOGUE PRODUCT",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.7.sp
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Text(
+                    text = item.productName,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 17.sp,
+                    lineHeight = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (isSelected) {
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(50.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.52f)
+                    )
+                ) {
+                    Text(
+                        text = "SELECTED",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(
+                            horizontal = 9.dp,
+                            vertical = 6.dp
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(11.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(15.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.46f),
+                    shape = RoundedCornerShape(15.dp)
+                )
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "YOUR SHOP PRICE",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.7.sp
+                )
+
+                Text(
+                    text = displayPrice(item.shopPrice),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+
             Text(
-                text = "SHOP • ${displayPrice(item.shopPrice)}",
+                text = "LOCAL",
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = 14.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.ExtraBold
             )
         }
 
         item.barcode?.takeIf { it.isNotBlank() }?.let { barcode ->
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(9.dp))
 
             Text(
-                text = "Barcode: $barcode",
+                text = "Barcode • $barcode",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
 
-        val linkedStores = buildList {
-            if (!item.amazonUrl.isNullOrBlank()) add("Amazon")
-            if (!item.flipkartUrl.isNullOrBlank()) add("Flipkart")
-        }
+        Spacer(modifier = Modifier.height(11.dp))
 
-        if (linkedStores.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(5.dp))
+        Text(
+            text = "RETAILER LINKS",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 0.7.sp
+        )
 
-            Text(
-                text = "Available online: ${linkedStores.joinToString(" • ")}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            InventoryRetailerBadge(
+                name = "Amazon",
+                isLinked = amazonLinked,
+                accent = Color(0xFFFFA41C),
+                modifier = Modifier.weight(1f)
+            )
+
+            InventoryRetailerBadge(
+                name = "Flipkart",
+                isLinked = flipkartLinked,
+                accent = Color(0xFF2874F0),
+                modifier = Modifier.weight(1f)
             )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         if (isSelectionMode) {
-            Text(
-                text = if (isSelected) "Selected • tap to remove" else "Tap to select",
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(13.dp),
                 color = if (isSelected) {
-                    MaterialTheme.colorScheme.primary
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
+                }
+            ) {
+                Text(
+                    text = if (isSelected) {
+                        "Selected • tap this card to remove it"
+                    } else {
+                        "Tap this card to add it to the selection"
+                    },
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(
+                        horizontal = 12.dp,
+                        vertical = 10.dp
+                    )
+                )
+            }
         } else {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -932,7 +1167,7 @@ private fun InventoryProductRow(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = "Edit",
+                        text = "Edit product",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -954,6 +1189,58 @@ private fun InventoryProductRow(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun InventoryRetailerBadge(
+    name: String,
+    isLinked: Boolean,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(13.dp),
+        color = if (isLinked) {
+            accent.copy(alpha = 0.10f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+        },
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = if (isLinked) {
+                accent.copy(alpha = 0.46f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = 10.dp,
+                vertical = 9.dp
+            )
+        ) {
+            Text(
+                text = name,
+                color = if (isLinked) {
+                    accent
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+
+            Text(
+                text = if (isLinked) "LINKED" else "NOT LINKED",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.4.sp
+            )
         }
     }
 }

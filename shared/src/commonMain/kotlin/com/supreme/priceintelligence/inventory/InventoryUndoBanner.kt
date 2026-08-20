@@ -44,9 +44,13 @@ fun InventoryUndoBanner(
             .semantics {
                 liveRegion = LiveRegionMode.Assertive
             },
-        color = MaterialTheme.colorScheme.error,
-        contentColor = MaterialTheme.colorScheme.onError,
-        shape = RoundedCornerShape(16.dp)
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.96f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(18.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.error.copy(alpha = 0.55f)
+        )
     ) {
         Row(
             modifier = Modifier.padding(
@@ -90,7 +94,7 @@ fun InventoryUndoBanner(
             TextButton(
                 onClick = onUndo,
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onError
+                    contentColor = MaterialTheme.colorScheme.error
                 )
             ) {
                 Text(

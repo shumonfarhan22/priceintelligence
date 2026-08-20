@@ -3,14 +3,21 @@ package com.supreme.priceintelligence.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 
 private val AppColorScheme = darkColorScheme(
     primary = Brand,
     onPrimary = Bg,
     primaryContainer = BrandLight,
-    onPrimaryContainer = Brand,
+    onPrimaryContainer = BrandStrong,
     secondary = Accent,
     onSecondary = TextPrimary,
+    secondaryContainer = AccentBg,
+    onSecondaryContainer = Accent,
+    tertiary = Warning,
+    onTertiary = Bg,
+    tertiaryContainer = WarningBg,
+    onTertiaryContainer = Warning,
     background = Bg,
     onBackground = TextPrimary,
     surface = Surface,
@@ -22,6 +29,9 @@ private val AppColorScheme = darkColorScheme(
     errorContainer = DangerBg,
     onErrorContainer = Danger,
     outline = SurfaceAlt,
+    outlineVariant = OutlineSoft,
+    scrim = Color.Black,
+    surfaceTint = Color.Transparent
 )
 
 /**

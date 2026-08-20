@@ -2,6 +2,7 @@
 
 package com.supreme.priceintelligence.dashboard
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -67,8 +68,12 @@ import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.rememberUrlOpener
 import com.supreme.priceintelligence.data.PriceHistoryEntry
+import com.supreme.priceintelligence.resources.Res
+import com.supreme.priceintelligence.resources.logo_amazon
+import com.supreme.priceintelligence.resources.logo_flipkart
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
+import org.jetbrains.compose.resources.painterResource
 import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
 import kotlin.time.Clock
@@ -120,79 +125,136 @@ fun DashboardScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.32f)
             )
         ) {
             Column(
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(15.dp)
             ) {
-                Text(
-                    text = "PRICE DASHBOARD",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.1.sp
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Make every price decision with confidence",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    lineHeight = 29.sp
-                )
-
-                Spacer(modifier = Modifier.height(5.dp))
-
-                Text(
-                    text = "Compare your shop with Amazon and Flipkart using live or clearly marked saved prices.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Button(
-                    onClick = viewModel::refreshVisiblePrices,
-                    enabled = state.isConnected &&
-                        state.pageItems.any { card ->
-                            !card.item.amazonUrl.isNullOrBlank() ||
-                                !card.item.flipkartUrl.isNullOrBlank()
-                        } &&
-                        !state.isRefreshingPage,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (state.isRefreshingPage) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "SUPREME DASHBOARD",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.1.sp
                         )
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.height(3.dp))
 
                         Text(
-                            text = "Checking visible products",
-                            fontWeight = FontWeight.Bold
+                            text = "Price overview",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 22.sp,
+                            lineHeight = 27.sp,
+                            fontWeight = FontWeight.Black
                         )
-                    } else {
+
                         Text(
-                            text = "Check visible prices",
-                            fontWeight = FontWeight.Bold
+                            text = "Shop • Amazon • Flipkart",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Button(
+                        onClick = viewModel::refreshVisiblePrices,
+                        enabled = state.isConnected &&
+                            state.pageItems.any { card ->
+                                !card.item.amazonUrl.isNullOrBlank() ||
+                                    !card.item.flipkartUrl.isNullOrBlank()
+                            } &&
+                            !state.isRefreshingPage,
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(
+                            horizontal = 14.dp,
+                            vertical = 0.dp
+                        ),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        if (state.isRefreshingPage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+
+                            Spacer(modifier = Modifier.width(7.dp))
+
+                            Text(
+                                text = "Checking",
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                text = "Check all",
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(
+                            if (state.isConnected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.09f)
+                            } else {
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.09f)
+                            }
+                        )
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (state.isConnected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                }
+                            )
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = if (state.isConnected) {
+                            "Ready for live retailer checks"
+                        } else {
+                            "Offline mode • saved prices remain available"
+                        },
+                        color = if (state.isConnected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -202,15 +264,25 @@ fun DashboardScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.outlineVariant
             )
         ) {
             Column(
                 modifier = Modifier.padding(12.dp)
             ) {
+                Text(
+                    text = "FIND A PRODUCT",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.9.sp
+                )
+
+                Spacer(modifier = Modifier.height(7.dp))
+
                 OutlinedTextField(
                     value = state.searchQuery,
                     onValueChange = viewModel::onSearchQueryChanged,
@@ -339,53 +411,85 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = when {
-                    state.isLoading -> "Loading products..."
-                    state.totalMatchCount == 1 -> "1 product"
-                    else -> "${state.totalMatchCount} products"
-                },
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
             )
-
-            Box {
-                TextButton(
-                    onClick = {
-                        showSortMenu = true
-                    }
+        ) {
+            Row(
+                modifier = Modifier.padding(
+                    start = 13.dp,
+                    end = 6.dp,
+                    top = 5.dp,
+                    bottom = 5.dp
+                ),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text("Sort: ${state.sortOrder.displayName()}")
+                    Text(
+                        text = "CATALOGUE RESULTS",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.8.sp
+                    )
+
+                    Text(
+                        text = when {
+                            state.isLoading -> "Loading products…"
+                            state.totalMatchCount == 1 -> "1 product found"
+                            else -> "${state.totalMatchCount} products found"
+                        },
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
-                DropdownMenu(
-                    expanded = showSortMenu,
-                    onDismissRequest = {
-                        showSortMenu = false
-                    }
-                ) {
-                    SortOrder.entries.forEach { order ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(order.displayName())
-                            },
-                            onClick = {
-                                showSortMenu = false
-                                viewModel.setSortOrder(order)
-                            }
+                Box {
+                    TextButton(
+                        onClick = {
+                            showSortMenu = true
+                        },
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) {
+                        Text(
+                            text = state.sortOrder.displayName(),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.ExtraBold
                         )
+                    }
+
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = {
+                            showSortMenu = false
+                        }
+                    ) {
+                        SortOrder.entries.forEach { order ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(order.displayName())
+                                },
+                                onClick = {
+                                    showSortMenu = false
+                                    viewModel.setSortOrder(order)
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         when {
             state.isLoading && state.pageItems.isEmpty() -> {
@@ -531,33 +635,50 @@ private fun DashboardFeedbackBanner(
     message: String,
     isError: Boolean
 ) {
-    Box(
+    val statusColor = if (isError) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.tertiary
+    }
+
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (isError) {
-                    MaterialTheme.colorScheme.errorContainer
-                } else {
-                    Color(0xFF4A3510)
-                }
-            )
             .semantics {
                 liveRegion = LiveRegionMode.Polite
-            }
-            .padding(horizontal = 13.dp, vertical = 10.dp)
-    ) {
-        Text(
-            text = message,
-            color = if (isError) {
-                MaterialTheme.colorScheme.error
-            } else {
-                Color(0xFFFBBF24)
             },
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
+        shape = RoundedCornerShape(15.dp),
+        color = statusColor.copy(alpha = 0.11f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = statusColor.copy(alpha = 0.44f)
         )
+    ) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = 13.dp,
+                vertical = 10.dp
+            )
+        ) {
+            Text(
+                text = if (isError) "ATTENTION" else "PRICE CHECK NOTICE",
+                color = statusColor,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.8.sp
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = message,
+                color = statusColor,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -786,6 +907,17 @@ private fun DashboardProductCard(
         else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.13f)
     }
 
+    val cardSurfaceColor = when {
+        liveCheckFailed || onlineIsCheaper ->
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.24f)
+
+        shopIsCompetitive ->
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
+
+        else ->
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -798,15 +930,11 @@ private fun DashboardProductCard(
                     else -> "Online price not checked"
                 }
             },
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        shape = RoundedCornerShape(24.dp),
+        color = cardSurfaceColor,
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = when {
-                onlineIsCheaper -> MaterialTheme.colorScheme.error
-                hasOnlinePrice -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.outline
-            }
+            color = verdictColor.copy(alpha = 0.62f)
         )
     ) {
         Column(
@@ -819,7 +947,7 @@ private fun DashboardProductCard(
                 ProductImage(
                     imageUrl = item.imageUrl,
                     productName = item.productName,
-                    modifier = Modifier.size(88.dp)
+                    modifier = Modifier.size(96.dp)
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -830,8 +958,9 @@ private fun DashboardProductCard(
                     Text(
                         text = item.productName,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -850,15 +979,24 @@ private fun DashboardProductCard(
 
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(
                                 if (shopIsLowest) {
                                     MaterialTheme.colorScheme.primaryContainer
                                 } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
                                 }
                             )
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .border(
+                                width = 1.dp,
+                                color = if (shopIsLowest) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.48f)
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
                     ) {
                         Text(
                             text = buildString {
@@ -966,13 +1104,28 @@ private fun DashboardProductCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(15.dp))
                     .background(verdictBackground)
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .border(
+                        width = 1.dp,
+                        color = verdictColor.copy(alpha = 0.42f),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                    .padding(horizontal = 13.dp, vertical = 11.dp)
             ) {
+                Text(
+                    text = "PRICE POSITION",
+                    color = verdictColor,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.8.sp
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
                 Text(
                     text = verdictText,
                     color = verdictColor,
@@ -1063,10 +1216,10 @@ private fun DashboardProductDetailDialog(
                 .fillMaxWidth(0.94f)
                 .fillMaxHeight(0.92f),
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.985f),
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)
             )
         ) {
             Column(
@@ -1126,51 +1279,137 @@ private fun DashboardProductDetailDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
-                    text = when {
-                        card.isRefreshing -> "Checking online prices now..."
-                        hasLiveResult -> "Prices checked just now"
-                        latestCheck > 0L -> "Last checked ${formatTimeAgo(latestCheck)}"
-                        else -> "Online prices have not been checked yet"
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(13.dp),
+                    color = if (hasLiveResult) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.09f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
                     },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                ProductImage(
-                    imageUrl = item.imageUrl,
-                    productName = item.productName,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(190.dp),
-                    onClick = {
-                        showZoomedImage = true
-                    }
-                )
-
-                if (!item.imageUrl.isNullOrBlank()) {
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = if (hasLiveResult) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant
+                        }
+                    )
+                ) {
                     Text(
-                        text = "Tap the image to enlarge it",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = when {
+                            card.isRefreshing -> "CHECKING • Requesting live retailer prices now"
+                            hasLiveResult -> "LIVE • Prices checked during this session"
+                            latestCheck > 0L -> "SAVED • Last checked ${formatTimeAgo(latestCheck)}"
+                            else -> "NOT CHECKED • No online price check has been saved"
+                        },
+                        color = if (hasLiveResult) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                         fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 5.dp)
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(
+                            horizontal = 12.dp,
+                            vertical = 9.dp
+                        )
                     )
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                DetailPriceComparison(
-                    seller = "Your shop",
-                    price = item.shopPrice,
-                    shopPrice = item.shopPrice,
-                    isShopPrice = true,
-                    sourceLabel = null,
-                    onOpen = null
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(190.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ProductImage(
+                        imageUrl = item.imageUrl,
+                        productName = item.productName,
+                        modifier = Modifier
+                            .weight(0.48f)
+                            .fillMaxHeight(),
+                        onClick = {
+                            showZoomedImage = true
+                        }
+                    )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        modifier = Modifier
+                            .weight(0.52f)
+                            .fillMaxHeight(),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.52f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "YOUR SHOP",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 0.8.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(5.dp))
+
+                                Text(
+                                    text = formatIndianPrice(item.shopPrice),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 22.sp,
+                                    lineHeight = 27.sp,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    text = "Saved local price",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(50.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.11f)
+                            ) {
+                                Text(
+                                    text = if (!item.imageUrl.isNullOrBlank()) {
+                                        "Tap image to enlarge"
+                                    } else {
+                                        "Product overview"
+                                    },
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 9.sp,
+                                    lineHeight = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(
+                                        horizontal = 9.dp,
+                                        vertical = 6.dp
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 DetailPriceComparison(
                     seller = "Amazon",
@@ -1308,90 +1547,161 @@ private fun DetailPriceComparison(
     onOpen: (() -> Unit)?
 ) {
     val difference = if (price == null) null else shopPrice - price
-    val onlineIsCheaper = !isShopPrice && difference != null && difference > 0.01
-    val shopIsCompetitive = !isShopPrice && difference != null && difference <= 0.01
+    val onlineIsCheaper =
+        !isShopPrice && difference != null && difference > 0.01
+    val shopIsCompetitive =
+        !isShopPrice && difference != null && difference <= 0.01
     val comparisonShape = RoundedCornerShape(18.dp)
+
+    val retailerAccent = when (seller) {
+        "Amazon" -> Color(0xFFFFA41C)
+        "Flipkart" -> Color(0xFF2874F0)
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    val retailerLogo = when (seller) {
+        "Amazon" -> Res.drawable.logo_amazon
+        "Flipkart" -> Res.drawable.logo_flipkart
+        else -> null
+    }
+
+    val borderColor = when {
+        onlineIsCheaper -> MaterialTheme.colorScheme.error
+        shopIsCompetitive || isShopPrice -> MaterialTheme.colorScheme.primary
+        price != null -> retailerAccent.copy(alpha = 0.60f)
+        else -> MaterialTheme.colorScheme.outlineVariant
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(comparisonShape)
             .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)
+                if (price != null) {
+                    retailerAccent.copy(alpha = 0.08f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
+                }
             )
             .border(
                 width = 1.dp,
-                color = when {
-                    onlineIsCheaper -> MaterialTheme.colorScheme.error
-                    shopIsCompetitive || isShopPrice -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.outline
-                },
+                color = borderColor,
                 shape = comparisonShape
             )
-            .padding(15.dp)
+            .padding(13.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (retailerLogo != null) {
+                Image(
+                    painter = painterResource(retailerLogo),
+                    contentDescription = "$seller logo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(width = 76.dp, height = 34.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF8FAFC))
+                        .padding(horizontal = 5.dp, vertical = 6.dp)
+                )
+
+                Spacer(modifier = Modifier.width(10.dp))
+            }
+
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = seller,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = price?.let(::formatIndianPrice) ?: "Price unavailable",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-
-                if (sourceLabel != null) {
+                if (retailerLogo == null) {
                     Text(
-                        text = sourceLabel,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
+                        text = seller,
+                        color = retailerAccent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
+
+                Text(
+                    text = price?.let(::formatIndianPrice) ?: "Unavailable",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1
+                )
+
+                Text(
+                    text = sourceLabel ?: if (price == null) {
+                        "Price unavailable"
+                    } else {
+                        "Saved price"
+                    },
+                    color = if (sourceLabel?.startsWith("Live") == true) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             if (onOpen != null) {
+                Spacer(modifier = Modifier.width(6.dp))
+
                 OutlinedButton(
                     onClick = onOpen,
                     modifier = Modifier.heightIn(min = 48.dp),
                     shape = RoundedCornerShape(14.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    contentPadding = PaddingValues(
+                        horizontal = 11.dp,
+                        vertical = 4.dp
+                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = retailerAccent
+                    )
                 ) {
                     Text(
-                        text = "Open site",
-                        fontWeight = FontWeight.Bold
+                        text = "Open",
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
             }
-
         }
 
         if (!isShopPrice) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = priceDifferenceMessage(difference),
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
                 color = when {
-                    onlineIsCheaper -> MaterialTheme.colorScheme.error
-                    shopIsCompetitive -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+                    onlineIsCheaper ->
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.09f)
+
+                    shopIsCompetitive ->
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.09f)
+
+                    else ->
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.42f)
+                }
+            ) {
+                Text(
+                    text = priceDifferenceMessage(difference),
+                    color = when {
+                        onlineIsCheaper -> MaterialTheme.colorScheme.error
+                        shopIsCompetitive -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(
+                        horizontal = 11.dp,
+                        vertical = 8.dp
+                    )
+                )
+            }
         }
     }
 }
@@ -1405,82 +1715,112 @@ private fun PriceRow(
     actionLabel: String?,
     onAction: (() -> Unit)?
 ) {
-    val priceRowShape = RoundedCornerShape(14.dp)
+    val priceRowShape = RoundedCornerShape(16.dp)
+    val retailerAccent = when (seller) {
+        "Amazon" -> Color(0xFFFFA41C)
+        "Flipkart" -> Color(0xFF2874F0)
+        else -> MaterialTheme.colorScheme.secondary
+    }
+    val retailerLogo = when (seller) {
+        "Amazon" -> Res.drawable.logo_amazon
+        "Flipkart" -> Res.drawable.logo_flipkart
+        else -> null
+    }
+    val availabilityLabel = sourceLabel ?: if (price == null) {
+        "UNAVAILABLE"
+    } else {
+        "SAVED"
+    }
+    val labels = listOfNotNull(
+        availabilityLabel,
+        "LOWEST".takeIf { isLowest }
+    ).joinToString(" • ")
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 64.dp)
+            .heightIn(min = 72.dp)
             .clip(priceRowShape)
             .background(
                 if (isLowest) {
                     MaterialTheme.colorScheme.primaryContainer
                 } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
                 }
             )
             .border(
                 width = 1.dp,
                 color = if (isLowest) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.62f)
                 } else {
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
+                    retailerAccent.copy(alpha = 0.42f)
                 },
                 shape = priceRowShape
             )
-            .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            .padding(
+                start = 9.dp,
+                end = 5.dp,
+                top = 9.dp,
+                bottom = 9.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (retailerLogo != null) {
+            Image(
+                painter = painterResource(retailerLogo),
+                contentDescription = "$seller logo",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .size(width = 72.dp, height = 32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF8FAFC))
+                    .padding(horizontal = 5.dp, vertical = 6.dp)
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+        }
+
         Column(
             modifier = Modifier.weight(1f)
         ) {
             Text(
-                text = seller,
-                color = if (isLowest) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
+                text = price?.let(::formatIndianPrice) ?: "Unavailable",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1
             )
 
-            val labels = listOfNotNull(
-                sourceLabel,
-                "LOWEST".takeIf { isLowest }
-            ).joinToString(" • ")
-            if (labels.isNotEmpty()) {
-                Text(
-                    text = labels,
-                    color = if (isLowest) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-            }
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = labels,
+                color = when {
+                    isLowest -> MaterialTheme.colorScheme.primary
+                    price == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                    else -> retailerAccent
+                },
+                fontSize = 9.sp,
+                lineHeight = 13.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
         }
 
-        Text(
-            text = price?.let(::formatIndianPrice) ?: "Not checked",
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
-
         if (actionLabel != null && onAction != null) {
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             TextButton(
                 onClick = onAction,
                 modifier = Modifier.heightIn(min = 48.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                contentPadding = PaddingValues(
+                    horizontal = 9.dp,
+                    vertical = 0.dp
+                )
             ) {
                 Text(
                     text = actionLabel,
-                    fontWeight = FontWeight.Bold
+                    color = retailerAccent,
+                    fontWeight = FontWeight.ExtraBold
                 )
             }
         }
