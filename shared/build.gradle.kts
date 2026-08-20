@@ -48,6 +48,7 @@ kotlin {
             implementation(libs.compose.uiTooling)
             implementation(libs.squareup.okhttp)
             implementation(libs.jsoup)
+            implementation(libs.ktor.client.android)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -60,6 +61,8 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             api(libs.androidx.room3.runtime)
             implementation(libs.androidx.sqlite.bundled)
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor3)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.core)

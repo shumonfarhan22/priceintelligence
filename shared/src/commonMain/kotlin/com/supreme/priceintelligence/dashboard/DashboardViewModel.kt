@@ -192,9 +192,14 @@ class DashboardViewModel(
         }
 
         val newImage = amazonResult.image ?: flipkartResult.image
-        var updatedItem = item
+        var updatedItem = item.copy(
+            amazonLastPrice = amazonResult.price ?: item.amazonLastPrice,
+            amazonLastChecked = if (amazonResult.price != null) now else item.amazonLastChecked,
+            flipkartLastPrice = flipkartResult.price ?: item.flipkartLastPrice,
+            flipkartLastChecked = if (flipkartResult.price != null) now else item.flipkartLastChecked
+        )
         if (newImage != null && newImage != item.imageUrl) {
-            updatedItem = item.copy(imageUrl = newImage)
+            updatedItem = updatedItem.copy(imageUrl = newImage)
             repository.updateProduct(updatedItem)
         }
 

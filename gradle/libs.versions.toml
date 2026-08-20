@@ -21,6 +21,7 @@ jsoup = "1.23.1"
 ktor = "3.5.2"
 ksoup = "0.2.6"
 kotlinxSerializationJson = "1.11.0"
+coil = "3.5.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -47,8 +48,11 @@ squareup-okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhtt
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
 ksoup = { module = "com.fleeksoft.ksoup:ksoup", version.ref = "ksoup" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

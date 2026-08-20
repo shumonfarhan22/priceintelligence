@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalTime::class)
+@file:OptIn(ExperimentalTime::class, ExperimentalMaterial3Api::class)
 
 package com.supreme.priceintelligence.dashboard
 
@@ -31,6 +31,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -54,6 +57,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.rememberUrlOpener
 import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
@@ -185,6 +190,20 @@ fun DashboardScreen(
             }
         }
 
+        when (state.bloomState) {
+            BloomState.ERROR -> DashboardFeedbackBanner(
+                message = "No internet connection. Saved prices are still available.",
+                isError = true
+            )
+
+            BloomState.WARNING -> DashboardFeedbackBanner(
+                message = "The online stores did not return a price. Please try again.",
+                isError = false
+            )
+
+            else -> Unit
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         Row(
@@ -256,41 +275,47 @@ fun DashboardScreen(
             }
 
             else -> {
-                LazyColumn(
+                androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                    isRefreshing = state.isLoading,
+                    onRefresh = viewModel::refresh,
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .fillMaxWidth()
                 ) {
-                    items(
-                        items = state.pageItems,
-                        key = { card -> card.item.id }
-                    ) { card ->
-                        DashboardProductCard(
-                            card = card,
-                            onOpenDetails = {
-                                selectedProductId = card.item.id
-                                focusManager.clearFocus()
-                            },
-                            onRefresh = {
-                                viewModel.refreshProduct(card.item.id)
-                            }
-                        )
-                    }
-
-                    if (state.totalPages > 1) {
-                        item(key = "pagination") {
-                            DashboardPagination(
-                                currentPage = state.currentPage,
-                                totalPages = state.totalPages,
-                                onPrevious = {
-                                    viewModel.goToPage(state.currentPage - 1)
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(
+                            items = state.pageItems,
+                            key = { card -> card.item.id }
+                        ) { card ->
+                            DashboardProductCard(
+                                card = card,
+                                onOpenDetails = {
+                                    selectedProductId = card.item.id
+                                    focusManager.clearFocus()
                                 },
-                                onNext = {
-                                    viewModel.goToPage(state.currentPage + 1)
+                                onRefresh = {
+                                    viewModel.refreshProduct(card.item.id)
                                 }
                             )
+                        }
+
+                        if (state.totalPages > 1) {
+                            item(key = "pagination") {
+                                DashboardPagination(
+                                    currentPage = state.currentPage,
+                                    totalPages = state.totalPages,
+                                    onPrevious = {
+                                        viewModel.goToPage(state.currentPage - 1)
+                                    },
+                                    onNext = {
+                                        viewModel.goToPage(state.currentPage + 1)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -311,6 +336,38 @@ fun DashboardScreen(
             onDismiss = {
                 selectedProductId = null
             }
+        )
+    }
+}
+
+@Composable
+private fun DashboardFeedbackBanner(
+    message: String,
+    isError: Boolean
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isError) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    Color(0xFF4A3510)
+                }
+            )
+            .padding(horizontal = 13.dp, vertical = 10.dp)
+    ) {
+        Text(
+            text = message,
+            color = if (isError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                Color(0xFFFBBF24)
+            },
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }
@@ -372,6 +429,60 @@ private fun EmptyDashboardMessage(
 }
 
 @Composable
+private fun ProductImage(
+    imageUrl: String?,
+    productName: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    var imageLoaded by remember(imageUrl) {
+        mutableStateOf(false)
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFF1F5F9))
+            .clickable(
+                enabled = imageLoaded && onClick != null,
+                onClick = {
+                    onClick?.invoke()
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!imageLoaded) {
+            Text(
+                text = productName.trim().firstOrNull()?.uppercase() ?: "P",
+                color = Color(0xFF475569),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
+
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = productName,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(7.dp),
+                contentScale = ContentScale.Fit,
+                onLoading = {
+                    imageLoaded = false
+                },
+                onSuccess = {
+                    imageLoaded = true
+                },
+                onError = {
+                    imageLoaded = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
 private fun DashboardProductCard(
     card: ProductCardUiState,
     onOpenDetails: () -> Unit,
@@ -384,6 +495,17 @@ private fun DashboardProductCard(
     val availablePrices = listOfNotNull(item.shopPrice, amazonPrice, flipkartPrice)
     val lowestPrice = availablePrices.minOrNull()
     val canRefresh = !item.amazonUrl.isNullOrBlank() || !item.flipkartUrl.isNullOrBlank()
+    val onlinePrices = listOfNotNull(amazonPrice, flipkartPrice)
+    val lowestOnlinePrice = onlinePrices.minOrNull()
+    val onlineSavings = lowestOnlinePrice?.let { price ->
+        (item.shopPrice - price).takeIf { saving -> saving > 0.01 }
+    }
+    val onlineIsCheaper = onlineSavings != null
+    val hasOnlinePrice = onlinePrices.isNotEmpty()
+    val latestCheck = maxOf(
+        item.amazonLastChecked ?: 0L,
+        item.flipkartLastChecked ?: 0L
+    )
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -391,7 +513,11 @@ private fun DashboardProductCard(
         color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outline
+            color = when {
+                onlineIsCheaper -> MaterialTheme.colorScheme.error
+                hasOnlinePrice -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.outline
+            }
         )
     ) {
         Column(
@@ -399,22 +525,13 @@ private fun DashboardProductCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = item.productName.trim().firstOrNull()?.uppercase() ?: "P",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                }
+                ProductImage(
+                    imageUrl = item.imageUrl,
+                    productName = item.productName,
+                    modifier = Modifier.size(72.dp)
+                )
 
                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -439,32 +556,94 @@ private fun DashboardProductCard(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(7.dp))
+
+                    Text(
+                        text = when {
+                            card.isRefreshing -> "Checking online prices..."
+                            onlineIsCheaper -> "Online price is lower"
+                            hasOnlinePrice -> "Your shop is competitive"
+                            else -> "Online prices not checked"
+                        },
+                        color = when {
+                            onlineIsCheaper -> MaterialTheme.colorScheme.error
+                            hasOnlinePrice -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    if (!card.isRefreshing && latestCheck > 0L) {
+                        Text(
+                            text = "Checked ${formatTimeAgo(latestCheck)}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onOpenDetails,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Details")
                 }
 
-                Column(
-                    horizontalAlignment = Alignment.End
+                Button(
+                    onClick = onRefresh,
+                    modifier = Modifier.weight(1f),
+                    enabled = canRefresh && !card.isRefreshing,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
                 ) {
-                    TextButton(
-                        onClick = onOpenDetails,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                    ) {
-                        Text("Details")
-                    }
+                    if (card.isRefreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
 
-                    OutlinedButton(
-                        onClick = onRefresh,
-                        enabled = canRefresh && !card.isRefreshing,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        if (card.isRefreshing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("Check")
-                        }
+                        Spacer(modifier = Modifier.width(7.dp))
+
+                        Text("Checking")
+                    } else {
+                        Text(
+                            if (canRefresh) {
+                                "Check prices"
+                            } else {
+                                "No links"
+                            }
+                        )
                     }
+                }
+            }
+
+            if (onlineSavings != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                ) {
+                    Text(
+                        text = "Attention: online is ${formatPrice(onlineSavings)} cheaper than your shop.",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
@@ -532,6 +711,9 @@ private fun DashboardProductDetailDialog(
         item.flipkartLastChecked ?: 0L
     )
     val hasLiveResult = card.amazonResult?.price != null || card.flipkartResult?.price != null
+    var showZoomedImage by remember(item.imageUrl) {
+        mutableStateOf(false)
+    }
 
     Dialog(
         onDismissRequest = onDismiss
@@ -610,6 +792,28 @@ private fun DashboardProductDetailDialog(
                     fontSize = 12.sp
                 )
 
+                Spacer(modifier = Modifier.height(14.dp))
+
+                ProductImage(
+                    imageUrl = item.imageUrl,
+                    productName = item.productName,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(190.dp),
+                    onClick = {
+                        showZoomedImage = true
+                    }
+                )
+
+                if (!item.imageUrl.isNullOrBlank()) {
+                    Text(
+                        text = "Tap the image to enlarge it",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 5.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(18.dp))
 
                 DetailPriceComparison(
@@ -674,6 +878,55 @@ private fun DashboardProductDetailDialog(
                         )
                     }
                 }
+            }
+        }
+    }
+
+    if (showZoomedImage && !item.imageUrl.isNullOrBlank()) {
+        ZoomedProductImageDialog(
+            imageUrl = item.imageUrl,
+            productName = item.productName,
+            onDismiss = {
+                showZoomedImage = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun ZoomedProductImageDialog(
+    imageUrl: String,
+    productName: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.94f))
+                .padding(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = productName,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopEnd),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Text("Close")
             }
         }
     }
