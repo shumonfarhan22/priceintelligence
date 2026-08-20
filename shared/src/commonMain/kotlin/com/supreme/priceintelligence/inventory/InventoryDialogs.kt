@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 internal fun DataSafetyDialog(
@@ -42,11 +44,20 @@ internal fun DataSafetyDialog(
     onRestore: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(22.dp)
+            modifier = Modifier.fillMaxWidth(0.92f),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            shape = RoundedCornerShape(26.dp),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
+            )
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -65,7 +76,9 @@ internal fun DataSafetyDialog(
                 )
                 Button(
                     onClick = onBackup,
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 50.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("Save backup", fontWeight = FontWeight.Bold)
@@ -110,33 +123,67 @@ internal fun ProductEditorDialog(
     val amazonFocusRequester = remember { FocusRequester() }
     val flipkartFocusRequester = remember { FocusRequester() }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
         Surface(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.90f).imePadding(),
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(22.dp)
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.92f)
+                .imePadding(),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            shape = RoundedCornerShape(28.dp),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline
+            )
         ) {
             Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = if (form.isEditing) "Edit product" else "Add product",
+                    text = if (form.isEditing) {
+                        "UPDATE INVENTORY"
+                    } else {
+                        "NEW INVENTORY PRODUCT"
+                    },
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.1.sp
+                )
+
+                Text(
+                    text = if (form.isEditing) {
+                        "Edit product"
+                    } else {
+                        "Add product"
+                    },
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 24.sp,
+                    fontSize = 25.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
+
                 Text(
-                    text = "Only the product name and shop price are required.",
+                    text = "Product name and shop price are required. Barcode and retailer links are optional.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
                 )
                 OutlinedTextField(
                     value = form.productName,
                     onValueChange = onProductNameChanged,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Product name") },
-                    placeholder = { Text("Example: Samsung Galaxy S25") },
+                    placeholder = { Text("Example: Prestige 3 Liters Cooker") },
+                    shape = RoundedCornerShape(14.dp),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { priceFocusRequester.requestFocus() }),
                     singleLine = true
@@ -146,7 +193,8 @@ internal fun ProductEditorDialog(
                     onValueChange = onShopPriceChanged,
                     modifier = Modifier.fillMaxWidth().focusRequester(priceFocusRequester),
                     label = { Text("Your shop price") },
-                    placeholder = { Text("Example: 49999") },
+                    placeholder = { Text("Example: 1500") },
+                    shape = RoundedCornerShape(14.dp),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Decimal,
                         imeAction = ImeAction.Next
@@ -160,6 +208,7 @@ internal fun ProductEditorDialog(
                     modifier = Modifier.fillMaxWidth().focusRequester(barcodeFocusRequester),
                     label = { Text("Barcode — optional") },
                     placeholder = { Text("Type the barcode number") },
+                    shape = RoundedCornerShape(14.dp),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
@@ -176,6 +225,7 @@ internal fun ProductEditorDialog(
                     modifier = Modifier.fillMaxWidth().focusRequester(amazonFocusRequester),
                     label = { Text("Amazon link — optional") },
                     placeholder = { Text("https://amazon.in/...") },
+                    shape = RoundedCornerShape(14.dp),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
                         imeAction = ImeAction.Next
@@ -189,6 +239,7 @@ internal fun ProductEditorDialog(
                     modifier = Modifier.fillMaxWidth().focusRequester(flipkartFocusRequester),
                     label = { Text("Flipkart link — optional") },
                     placeholder = { Text("https://flipkart.com/...") },
+                    shape = RoundedCornerShape(14.dp),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
                         imeAction = ImeAction.Done
@@ -215,14 +266,18 @@ internal fun ProductEditorDialog(
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(50.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 50.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text("Cancel")
                     }
                     Button(
                         onClick = onSave,
-                        modifier = Modifier.weight(1f).height(50.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 50.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text(

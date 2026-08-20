@@ -1,6 +1,7 @@
 package com.supreme.priceintelligence
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -87,46 +88,61 @@ fun App(
             }
 
             SupremeAmbientBackground {
-                Column(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
                         .safeContentPadding()
                 ) {
-                    SupremeHeader(isConnected = isConnected)
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                    ) {
-                        when (destination) {
-                            AppDestination.Dashboard -> DashboardScreen(
-                                viewModel = dashboardViewModel,
-                                modifier = Modifier.fillMaxSize()
-                            )
-
-                            AppDestination.Inventory -> InventoryScreen(
-                                viewModel = inventoryViewModel,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+                    val horizontalPadding = when {
+                        maxWidth < 380.dp -> 14.dp
+                        maxWidth < 410.dp -> 18.dp
+                        else -> 20.dp
                     }
 
-                    InventoryUndoBanner(
-                        pendingItems = inventoryState.pendingDeletes,
-                        onUndo = inventoryViewModel::cancelDelete
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        SupremeHeader(
+                            isConnected = isConnected,
+                            horizontalPadding = horizontalPadding
+                        )
 
-                    SupremeBottomNavigation(
-                        selectedDestination = destination,
-                        onDestinationSelected = { selected ->
-                            destinationName = selected.name
-                            if (selected == AppDestination.Dashboard) {
-                                dashboardViewModel.refresh()
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(horizontal = horizontalPadding)
+                        ) {
+                            when (destination) {
+                                AppDestination.Dashboard -> DashboardScreen(
+                                    viewModel = dashboardViewModel,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+
+                                AppDestination.Inventory -> InventoryScreen(
+                                    viewModel = inventoryViewModel,
+                                    modifier = Modifier.fillMaxSize()
+                                )
                             }
                         }
-                    )
+
+                        InventoryUndoBanner(
+                            pendingItems = inventoryState.pendingDeletes,
+                            onUndo = inventoryViewModel::cancelDelete,
+                            horizontalPadding = horizontalPadding
+                        )
+
+                        SupremeBottomNavigation(
+                            selectedDestination = destination,
+                            horizontalPadding = horizontalPadding,
+                            onDestinationSelected = { selected ->
+                                destinationName = selected.name
+                                if (selected == AppDestination.Dashboard) {
+                                    dashboardViewModel.refresh()
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
