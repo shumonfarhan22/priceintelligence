@@ -32,6 +32,14 @@ Price Intelligence is a Kotlin Multiplatform app for comparing a shop price with
 
 The completed original Android application is stored separately as a read-only reference. It must not be modified.
 
+## Agent and Cloud handoff
+
+- `AGENTS.md` contains permanent implementation, safety, milestone, and verification rules.
+- `docs/ORIGINAL_ANDROID_REFERENCE.md` records the original Android app's visual language and behavior for environments that cannot access the separate read-only project.
+- `docs/PROJECT_STATUS.md` records completed work, verification evidence, the current physical-device checkpoint, and the next large milestone.
+
+Cloud tasks must read those files first, work on a separate `codex/` branch, and leave merging and iPhone checkpoint tagging for Android-verified milestones.
+
 ## Local Android check
 
 Run this from the project folder:
