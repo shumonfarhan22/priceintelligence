@@ -346,7 +346,7 @@ fun OriginalDashboardScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(
-                    top = 4.dp,
+                    top = 0.dp,
                     bottom = 190.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(0.dp)

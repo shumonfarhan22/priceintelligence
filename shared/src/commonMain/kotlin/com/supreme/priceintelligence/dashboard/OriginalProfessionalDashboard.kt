@@ -96,9 +96,9 @@ internal fun ProfessionalDashboardBranding(
     }
 
     val headerHeight = if (compact) {
-        52.dp
+        48.dp
     } else {
-        64.dp
+        56.dp
     }
 
     Row(

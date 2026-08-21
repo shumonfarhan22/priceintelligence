@@ -530,7 +530,7 @@ private fun OriginalInventoryHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp),
+                .height(52.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onClearSelection) {
