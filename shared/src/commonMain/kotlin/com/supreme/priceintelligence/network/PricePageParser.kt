@@ -18,13 +18,78 @@ internal object PricePageParser {
     private val json = Json { ignoreUnknownKeys = true }
     private val nonPriceCharacters = Regex("[^\\d.]")
 
+    // Pages that challenge automated visitors (captcha, "unusual traffic",
+    // etc.) are usually short. A normal product page that happens to mention
+    // one of these words (e.g. "robot vacuum") is much longer, so the length
+    // check keeps this from misfiring on ordinary pages.
+    private val blockPageMarkers = listOf(
+        "captcha",
+        "robot check",
+        "enter the characters you see below",
+        "unusual traffic",
+        "automated access",
+        "access denied",
+        "are you a human"
+    )
+    private const val BLOCK_PAGE_MAX_BODY_LENGTH = 600
+
     fun parse(html: String, url: String): ScrapeResult {
         if (html.isBlank()) return ScrapeResult()
 
         val document = Ksoup.parse(html = html, baseUri = url)
+
+        if (looksLikeBlockPage(document)) {
+            return ScrapeResult(blocked = true)
+        }
+
         val structuredResult = extractStructuredData(document)
-        return extractHtmlFallback(document, url, structuredResult)
+        val metaResult = extractMetaTagFallback(document, structuredResult)
+        return extractHtmlFallback(document, url, metaResult)
     }
+
+    private fun looksLikeBlockPage(document: Document): Boolean {
+        val title = document.title().lowercase()
+        if (blockPageMarkers.any { marker -> title.contains(marker) }) return true
+
+        val bodyText = document.body()?.text()?.lowercase().orEmpty()
+        if (bodyText.length > BLOCK_PAGE_MAX_BODY_LENGTH) return false
+
+        return blockPageMarkers.any { marker -> bodyText.contains(marker) }
+    }
+
+    // Many storefronts expose these tags for link-preview and price-comparison
+    // tools, independent of their visual CSS class names. Those class names
+    // (used in extractHtmlFallback below) change often; these tags change
+    // rarely, so they make a good middle layer between structured data and
+    // the raw CSS fallback.
+    private fun extractMetaTagFallback(
+        document: Document,
+        existing: ScrapeResult
+    ): ScrapeResult {
+        var price = existing.price
+        var image = existing.image
+
+        if (price == null) {
+            price = (
+                metaContent(document, "product:price:amount")
+                    ?: metaContent(document, "og:price:amount")
+                    ?: document.selectFirst("[itemprop=price]")?.let { element ->
+                        element.attr("content").ifBlank { element.text() }
+                    }
+                )?.toPriceOrNull()
+        }
+
+        if (image == null) {
+            image = metaContent(document, "og:image")
+        }
+
+        return ScrapeResult(price = price, image = image)
+    }
+
+    private fun metaContent(document: Document, property: String): String? =
+        document.selectFirst("meta[property=$property], meta[name=$property]")
+            ?.attr("content")
+            ?.ifBlank { null }
 
     private fun extractStructuredData(document: Document): ScrapeResult {
         var image: String? = null

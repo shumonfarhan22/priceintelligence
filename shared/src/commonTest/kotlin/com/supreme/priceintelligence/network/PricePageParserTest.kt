@@ -87,6 +87,44 @@ class PricePageParserTest {
     }
 
     @Test
+    fun flagsBlockedWhenPageIsACaptchaChallenge() {
+        val html = """
+            <html><head><title>Robot Check</title></head>
+            <body>Enter the characters you see below</body></html>
+        """.trimIndent()
+
+        val result = PricePageParser.parse(html, "https://www.amazon.in/product/2")
+
+        assertEquals(true, result.blocked)
+        assertNull(result.price)
+    }
+
+    @Test
+    fun doesNotFlagBlockedForAnOrdinaryLongPageMentioningRobot() {
+        val longBody = "This robot vacuum cleaner review page. ".repeat(40)
+        val html = "<html><body>$longBody</body></html>"
+
+        val result = PricePageParser.parse(html, "https://example.com/review")
+
+        assertEquals(false, result.blocked)
+    }
+
+    @Test
+    fun usesMetaTagFallbackWhenStructuredDataAndKnownSelectorsAreMissing() {
+        val html = """
+            <html><head>
+              <meta property="product:price:amount" content="4,499.00" />
+              <meta property="og:image" content="https://images.example/meta.jpg" />
+            </head><body>No matching CSS selector on this page</body></html>
+        """.trimIndent()
+
+        val result = PricePageParser.parse(html, "https://www.amazon.in/product/3")
+
+        assertEquals(4499.0, result.price)
+        assertEquals("https://images.example/meta.jpg", result.image)
+    }
+
+    @Test
     fun returnsEmptyResultForBlankOrUnrecognizedPage() {
         assertEquals(ScrapeResult(), PricePageParser.parse("", "https://www.amazon.in/product"))
 
