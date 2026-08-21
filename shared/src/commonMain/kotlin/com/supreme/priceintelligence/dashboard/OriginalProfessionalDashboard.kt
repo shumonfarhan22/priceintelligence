@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.isImeVisible
+
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -551,8 +551,6 @@ internal fun ProfessionalDashboardSearchOverlay(
     onDismissFocus: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val keyboardVisible = WindowInsets.isImeVisible
-
     val keyboardBottom =
         WindowInsets.ime
             .asPaddingValues()
@@ -564,8 +562,10 @@ internal fun ProfessionalDashboardSearchOverlay(
             .calculateBottomPadding()
 
     val keyboardClearance = (
-            keyboardBottom - systemNavigationBottom
-            ).coerceAtLeast(0.dp)
+        keyboardBottom - systemNavigationBottom
+    ).coerceAtLeast(0.dp)
+
+    val keyboardVisible = keyboardClearance > 0.dp
 
     val restingSearchBarBottom =
         91.dp +
