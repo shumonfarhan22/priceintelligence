@@ -36,15 +36,15 @@ class InventoryInputValidatorTest {
     @Test
     fun rejectsInvalidAndNonPositivePrices() {
         assertEquals(
-            "Enter a valid shop price",
+            "Enter a valid selling price",
             validateInventoryInput("Phone", "one hundred", "", "", "").errorMessage
         )
         assertEquals(
-            "Shop price must be greater than zero",
+            "Selling price must be greater than zero",
             validateInventoryInput("Phone", "0", "", "", "").errorMessage
         )
         assertEquals(
-            "Shop price must be greater than zero",
+            "Selling price must be greater than zero",
             validateInventoryInput("Phone", "-5", "", "", "").errorMessage
         )
     }

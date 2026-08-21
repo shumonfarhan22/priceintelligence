@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -59,6 +60,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
@@ -83,6 +86,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -109,11 +113,13 @@ fun OriginalInventoryScreen(
     viewModel: InventoryViewModel,
     advancedModeEnabled: Boolean,
     onAdvancedModeChanged: (Boolean) -> Unit,
+    bottomBannerHeight: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
+    val inventoryListState = rememberLazyListState()
 
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
@@ -213,9 +219,21 @@ fun OriginalInventoryScreen(
         .map { item -> item.id }
         .toSet()
 
-    val visibleProducts = state.products.filterNot { item ->
-        item.id in pendingIds
-    }
+    val visibleProducts = state.products
+        .filterNot { item ->
+            item.id in pendingIds
+        }
+        .let { products ->
+            val highlightedId = state.highlightedItemId
+
+            if (highlightedId == null) {
+                products
+            } else {
+                products.sortedByDescending { item ->
+                    item.id == highlightedId
+                }
+            }
+        }
 
     val groupedProducts = visibleProducts
         .groupBy { item ->
@@ -226,7 +244,37 @@ fun OriginalInventoryScreen(
                 .ifBlank { "OTHER" }
         }
         .toList()
-        .sortedBy { group -> group.first }
+        .sortedWith(
+            compareBy<Pair<String, List<InventoryItem>>> { group ->
+                if (
+                    group.second.any { item ->
+                        item.id == state.highlightedItemId
+                    }
+                ) {
+                    0
+                } else {
+                    1
+                }
+            }.thenBy { group ->
+                group.first
+            }
+        )
+
+    LaunchedEffect(
+        state.highlightedItemId,
+        visibleProducts.size
+    ) {
+        if (
+            state.highlightedItemId != null &&
+            visibleProducts.isNotEmpty()
+        ) {
+            inventoryListState.animateScrollToItem(0)
+        } else if (
+            inventoryListState.firstVisibleItemIndex <= 1
+        ) {
+            inventoryListState.scrollToItem(0)
+        }
+    }
 
     Box(
         modifier = modifier.fillMaxSize()
@@ -282,57 +330,16 @@ fun OriginalInventoryScreen(
                 onDeleteSelected = viewModel::queueSelectedForDelete
             )
 
-            state.statusMessage?.let { message ->
-                CompactInventoryStatus(
-                    message = message,
-                    isError = state.statusIsError
-                )
-
-                Spacer(modifier = Modifier.height(7.dp))
-            }
-
-            OutlinedTextField(
+            ProfessionalInventorySearchField(
                 value = state.directoryQuery,
                 onValueChange = viewModel::onDirectoryQueryChanged,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(53.dp),
-                placeholder = {
-                    Text("Search inventory")
+                onClear = {
+                    viewModel.onDirectoryQueryChanged("")
+                    focusManager.clearFocus()
                 },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                trailingIcon = {
-                    if (state.directoryQuery.isNotBlank()) {
-                        IconButton(
-                            onClick = {
-                                viewModel.onDirectoryQueryChanged("")
-                                focusManager.clearFocus()
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Clear inventory search",
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-                    }
-                },
-                shape = RoundedCornerShape(14.dp),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        focusManager.clearFocus()
-                    }
-                )
+                onDone = {
+                    focusManager.clearFocus()
+                }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -344,11 +351,18 @@ fun OriginalInventoryScreen(
                 )
             } else {
                 LazyColumn(
+                    state = inventoryListState,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 78.dp),
-                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                    contentPadding = PaddingValues(
+                        bottom = if (state.isSelectionMode) {
+                            104.dp + bottomBannerHeight
+                        } else {
+                            168.dp + bottomBannerHeight
+                        }
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     groupedProducts.forEach { group ->
                         val groupName = group.first
@@ -358,7 +372,7 @@ fun OriginalInventoryScreen(
                                     groupName in state.expandedGroups
 
                         item(key = "group:$groupName") {
-                            OriginalInventoryGroupHeader(
+                            ProfessionalInventoryGroupHeader(
                                 groupName = groupName,
                                 productCount = products.size,
                                 expanded = expanded,
@@ -373,7 +387,7 @@ fun OriginalInventoryScreen(
                                 items = products,
                                 key = { item -> "product:${item.id}" }
                             ) { item ->
-                                OriginalInventoryProductRow(
+                                ProfessionalInventoryProductRow(
                                     item = item,
                                     selected =
                                         item.id in state.selectedItemIds,
@@ -398,6 +412,26 @@ fun OriginalInventoryScreen(
             }
         }
 
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.background.copy(
+                                alpha = 0.35f
+                            ),
+                            MaterialTheme.colorScheme.background.copy(
+                                alpha = 0.78f
+                            )
+                        )
+                    )
+                )
+        )
+
         if (!state.isSelectionMode) {
             FloatingActionButton(
                 onClick = {
@@ -407,8 +441,13 @@ fun OriginalInventoryScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 14.dp, bottom = 14.dp),
-                shape = CircleShape,
+                    .padding(
+                        end = 14.dp,
+                        bottom =
+                            96.dp +
+                                bottomBannerHeight
+                    ),
+                shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
@@ -428,6 +467,9 @@ fun OriginalInventoryScreen(
             statusIsError = state.statusIsError,
             onProductNameChanged = { value ->
                 viewModel.onFormFieldChanged(productName = value)
+            },
+            onPurchaseCostChanged = { value ->
+                viewModel.onFormFieldChanged(purchaseCost = value)
             },
             onShopPriceChanged = { value ->
                 viewModel.onFormFieldChanged(shopPrice = value)

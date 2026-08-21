@@ -123,7 +123,17 @@ class DashboardViewModel(
     }
 
     fun refresh() {
-        runSearch(_uiState.value.searchQuery)
+        runSearch(
+            query = _uiState.value.searchQuery,
+            showLoadingIndicator = true
+        )
+    }
+
+    fun refreshSilently() {
+        runSearch(
+            query = _uiState.value.searchQuery,
+            showLoadingIndicator = false
+        )
     }
 
     fun setSortOrder(order: SortOrder) {
@@ -131,11 +141,20 @@ class DashboardViewModel(
         runSearch(_uiState.value.searchQuery)
     }
 
-    private fun runSearch(query: String) {
+    private fun runSearch(
+        query: String,
+        showLoadingIndicator: Boolean = true
+    ) {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            val startTime = Clock.System.now().toEpochMilliseconds()
+            if (showLoadingIndicator) {
+                _uiState.update {
+                    it.copy(isLoading = true)
+                }
+            }
+
+            val startTime =
+                Clock.System.now().toEpochMilliseconds()
             val count = repository.getSearchCount(query)
             _uiState.update {
                 it.copy(

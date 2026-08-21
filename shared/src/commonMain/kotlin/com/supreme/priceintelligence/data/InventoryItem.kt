@@ -30,6 +30,9 @@ data class InventoryItem(
     @ColumnInfo(name = "shop_price")
     val shopPrice: Double,
 
+    @ColumnInfo(name = "purchase_cost")
+    val purchaseCost: Double? = null,
+
     @ColumnInfo(name = "pricebuddy_product_id")
     val pricebuddyProductId: Long? = null,
 

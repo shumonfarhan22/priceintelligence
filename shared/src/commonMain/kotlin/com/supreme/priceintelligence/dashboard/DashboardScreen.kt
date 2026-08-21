@@ -1208,7 +1208,8 @@ private fun DashboardProductDetailDialog(
 
                 PriceHistorySection(
                     entries = priceHistory,
-                    isLoading = isHistoryLoading
+                    isLoading = isHistoryLoading,
+                    shopPrice = item.shopPrice
                 )
 
                 Spacer(modifier = Modifier.height(18.dp))

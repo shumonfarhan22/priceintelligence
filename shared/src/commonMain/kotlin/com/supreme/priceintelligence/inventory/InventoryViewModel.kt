@@ -22,6 +22,7 @@ import kotlin.time.Duration.Companion.milliseconds
 data class InventoryFormState(
     val editingItem: InventoryItem? = null,
     val productName: String = "",
+    val purchaseCost: String = "",
     val shopPrice: String = "",
     val barcode: String = "",
     val amazonUrl: String = "",
@@ -144,6 +145,7 @@ class InventoryViewModel(
 
     fun onFormFieldChanged(
         productName: String? = null,
+        purchaseCost: String? = null,
         shopPrice: String? = null,
         barcode: String? = null,
         amazonUrl: String? = null,
@@ -153,6 +155,8 @@ class InventoryViewModel(
             state.copy(
                 form = state.form.copy(
                     productName = productName ?: state.form.productName,
+                    purchaseCost =
+                        purchaseCost ?: state.form.purchaseCost,
                     shopPrice = shopPrice ?: state.form.shopPrice,
                     barcode = barcode ?: state.form.barcode,
                     amazonUrl = amazonUrl ?: state.form.amazonUrl,
@@ -169,6 +173,8 @@ class InventoryViewModel(
                 form = InventoryFormState(
                     editingItem = item,
                     productName = item.productName,
+                    purchaseCost =
+                        item.purchaseCost?.toString().orEmpty(),
                     shopPrice = item.shopPrice.toString(),
                     barcode = item.barcode.orEmpty(),
                     amazonUrl = item.amazonUrl.orEmpty(),
@@ -183,6 +189,7 @@ class InventoryViewModel(
             state.copy(
                 form = state.form.copy(
                     productName = "",
+                    purchaseCost = "",
                     shopPrice = "",
                     barcode = "",
                     amazonUrl = "",
@@ -203,7 +210,8 @@ class InventoryViewModel(
             shopPrice = form.shopPrice,
             barcode = form.barcode,
             amazonUrl = form.amazonUrl,
-            flipkartUrl = form.flipkartUrl
+            flipkartUrl = form.flipkartUrl,
+            purchaseCost = form.purchaseCost
         )
         val input = validation.input
         if (input == null) {
@@ -232,6 +240,7 @@ class InventoryViewModel(
                         form.editingItem.copy(
                             productName = input.productName,
                             shopPrice = input.shopPrice,
+                            purchaseCost = input.purchaseCost,
                             barcode = input.barcode,
                             amazonUrl = input.amazonUrl,
                             flipkartUrl = input.flipkartUrl
@@ -242,6 +251,7 @@ class InventoryViewModel(
                     savedId = repository.addProduct(
                         name = input.productName,
                         shopPrice = input.shopPrice,
+                        purchaseCost = input.purchaseCost,
                         barcode = input.barcode,
                         amazonUrl = input.amazonUrl,
                         flipkartUrl = input.flipkartUrl
@@ -315,7 +325,10 @@ class InventoryViewModel(
             if (result.duplicateCount > 0) add("${result.duplicateCount} duplicate(s) skipped")
             if (result.invalidCount > 0) add("${result.invalidCount} invalid row(s) skipped")
         }.joinToString(" • ")
-        showStatus("Restore complete: $details")
+        showStatus(
+            message = "Restore complete: $details",
+            isInfo = result.addedCount == 0
+        )
         return result
     }
 

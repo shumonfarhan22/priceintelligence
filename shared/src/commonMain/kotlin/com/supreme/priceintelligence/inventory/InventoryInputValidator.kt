@@ -6,6 +6,7 @@ import com.supreme.priceintelligence.network.normalizeRetailerUrl
 internal data class ValidatedInventoryInput(
     val productName: String,
     val shopPrice: Double,
+    val purchaseCost: Double?,
     val barcode: String?,
     val amazonUrl: String?,
     val flipkartUrl: String?
@@ -21,7 +22,8 @@ internal fun validateInventoryInput(
     shopPrice: String,
     barcode: String,
     amazonUrl: String,
-    flipkartUrl: String
+    flipkartUrl: String,
+    purchaseCost: String = ""
 ): InventoryInputValidation {
     val cleanName = productName.trim()
     if (cleanName.isEmpty()) {
@@ -29,10 +31,33 @@ internal fun validateInventoryInput(
     }
 
     val cleanPrice = shopPrice.trim().toDoubleOrNull()
-        ?: return InventoryInputValidation(errorMessage = "Enter a valid shop price")
+        ?: return InventoryInputValidation(
+            errorMessage = "Enter a valid selling price"
+        )
 
     if (!cleanPrice.isFinite() || cleanPrice <= 0.0) {
-        return InventoryInputValidation(errorMessage = "Shop price must be greater than zero")
+        return InventoryInputValidation(
+            errorMessage = "Selling price must be greater than zero"
+        )
+    }
+
+    val purchaseCostText = purchaseCost.trim()
+    val cleanPurchaseCost = if (purchaseCostText.isEmpty()) {
+        null
+    } else {
+        purchaseCostText.toDoubleOrNull()
+            ?: return InventoryInputValidation(
+                errorMessage = "Enter a valid purchase cost"
+            )
+    }
+
+    if (
+        cleanPurchaseCost != null &&
+        (!cleanPurchaseCost.isFinite() || cleanPurchaseCost <= 0.0)
+    ) {
+        return InventoryInputValidation(
+            errorMessage = "Purchase cost must be greater than zero"
+        )
     }
 
     val rawAmazon = amazonUrl.trim().ifBlank { null }
@@ -55,6 +80,7 @@ internal fun validateInventoryInput(
         input = ValidatedInventoryInput(
             productName = cleanName,
             shopPrice = cleanPrice,
+            purchaseCost = cleanPurchaseCost,
             barcode = barcode.trim().ifBlank { null },
             amazonUrl = cleanAmazon,
             flipkartUrl = cleanFlipkart

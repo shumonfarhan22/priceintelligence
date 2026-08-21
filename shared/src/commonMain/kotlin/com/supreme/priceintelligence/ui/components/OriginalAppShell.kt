@@ -1,5 +1,9 @@
 package com.supreme.priceintelligence.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -29,6 +33,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,13 +54,62 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
+
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun OriginalAppBackground(
     isConnected: Boolean,
     content: @Composable () -> Unit
 ) {
+
+
+    var networkPulseVisible by remember {
+        mutableStateOf(true)
+    }
+
+    LaunchedEffect(isConnected) {
+        networkPulseVisible = true
+        delay(2400.milliseconds)
+        networkPulseVisible = false
+    }
+
+    val networkPulseColor by animateColorAsState(
+        targetValue = if (isConnected) {
+            Color(0xFF10B981)
+        } else {
+            Color(0xFFEF4444)
+        },
+        animationSpec = tween(
+            durationMillis = 450,
+            easing = FastOutSlowInEasing
+        ),
+        label = "networkPulseColor"
+    )
+
+    val networkPulseAlpha by animateFloatAsState(
+        targetValue = if (networkPulseVisible) {
+            if (isConnected) {
+                0.065f
+            } else {
+                0.085f
+            }
+        } else {
+            0f
+        },
+        animationSpec = tween(
+            durationMillis = if (networkPulseVisible) {
+                500
+            } else {
+                1400
+            },
+            easing = FastOutSlowInEasing
+        ),
+        label = "networkPulseAlpha"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -60,29 +118,35 @@ fun OriginalAppBackground(
         Canvas(
             modifier = Modifier.fillMaxSize()
         ) {
-            val center = Offset(
-                x = size.width * 0.82f,
-                y = size.height * 0.08f
+            val logoGlowCenter = Offset(
+                x = size.width * 0.14f,
+                y = size.height * 0.09f
             )
-            val radius = size.minDimension * 0.58f
-            val glowColor = if (isConnected) {
-                Color(0x1C10B981)
-            } else {
-                Color(0x28EF4444)
-            }
 
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        glowColor,
-                        Color.Transparent
+
+
+            if (networkPulseAlpha > 0f) {
+                val networkGlowRadius =
+                    size.minDimension * 0.58f
+
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            networkPulseColor.copy(
+                                alpha = networkPulseAlpha
+                            ),
+                            networkPulseColor.copy(
+                                alpha = networkPulseAlpha * 0.18f
+                            ),
+                            Color.Transparent
+                        ),
+                        center = logoGlowCenter,
+                        radius = networkGlowRadius
                     ),
-                    center = center,
-                    radius = radius
-                ),
-                radius = radius,
-                center = center
-            )
+                    radius = networkGlowRadius,
+                    center = logoGlowCenter
+                )
+            }
         }
 
         content()
@@ -188,7 +252,8 @@ fun OriginalBottomNavigation(
     selectedDestination: AppDestination,
     onDestinationSelected: (AppDestination) -> Unit,
     modifier: Modifier = Modifier,
-    horizontalPadding: Dp = 16.dp
+    horizontalPadding: Dp = 16.dp,
+    enabled: Boolean = true
 ) {
     val navigationShape = RoundedCornerShape(12.dp)
 
@@ -198,7 +263,7 @@ fun OriginalBottomNavigation(
             .padding(
                 start = horizontalPadding,
                 end = horizontalPadding,
-                bottom = 16.dp
+                bottom = 8.dp
             )
             .height(72.dp)
             .clip(navigationShape)
@@ -215,6 +280,7 @@ fun OriginalBottomNavigation(
             OriginalNavigationItem(
                 destination = destination,
                 selected = destination == selectedDestination,
+                enabled = enabled,
                 onClick = {
                     onDestinationSelected(destination)
                 },
@@ -237,6 +303,7 @@ fun OriginalBottomNavigation(
 private fun OriginalNavigationItem(
     destination: AppDestination,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -251,6 +318,7 @@ private fun OriginalNavigationItem(
             .fillMaxHeight()
             .selectable(
                 selected = selected,
+                enabled = enabled,
                 onClick = onClick,
                 role = Role.Tab
             )

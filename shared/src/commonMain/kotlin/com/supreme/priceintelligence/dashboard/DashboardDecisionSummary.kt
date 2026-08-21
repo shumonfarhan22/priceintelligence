@@ -28,45 +28,69 @@ data class DashboardDecisionSummary(
     val unavailableCount: Int,
     val livePriceProductCount: Int,
     val biggestSavingProductName: String? = null,
-    val biggestSavingAmount: Double? = null
+    val biggestSavingAmount: Double? = null,
+    val priorityOnlinePrice: Double? = null,
+    val priorityPurchaseCost: Double? = null
 )
 
-fun List<ProductCardUiState>.buildDecisionSummary(): DashboardDecisionSummary {
+fun List<ProductCardUiState>.buildDecisionSummary():
+        DashboardDecisionSummary {
     var onlineCheaperCount = 0
     var shopCompetitiveCount = 0
     var unavailableCount = 0
     var livePriceProductCount = 0
     var biggestSavingProductName: String? = null
     var biggestSavingAmount: Double? = null
+    var priorityOnlinePrice: Double? = null
+    var priorityPurchaseCost: Double? = null
 
     forEach { card ->
-        val amazonPrice = card.amazonResult?.price ?: card.item.amazonLastPrice
-        val flipkartPrice = card.flipkartResult?.price ?: card.item.flipkartLastPrice
+        val amazonPrice =
+            card.amazonResult?.price ?: card.item.amazonLastPrice
+        val flipkartPrice =
+            card.flipkartResult?.price ?: card.item.flipkartLastPrice
+
         val comparison = compareWithOnlinePrices(
             shopPrice = card.item.shopPrice,
             amazonPrice = amazonPrice,
             flipkartPrice = flipkartPrice
         )
 
-        if (card.amazonResult?.price != null || card.flipkartResult?.price != null) {
+        if (
+            card.amazonResult?.price != null ||
+            card.flipkartResult?.price != null
+        ) {
             livePriceProductCount += 1
         }
 
         when (comparison.shopPosition) {
             ShopPricePosition.HIGHER -> {
                 onlineCheaperCount += 1
-                val saving = comparison.shopDifference
-                if (saving != null && saving > (biggestSavingAmount ?: 0.0)) {
-                    biggestSavingAmount = saving
-                    biggestSavingProductName = card.item.productName
+                val gap = comparison.shopDifference
+
+                if (
+                    gap != null &&
+                    gap > (biggestSavingAmount ?: 0.0)
+                ) {
+                    biggestSavingAmount = gap
+                    biggestSavingProductName =
+                        card.item.productName
+                    priorityOnlinePrice =
+                        comparison.onlineLowestPrice
+                    priorityPurchaseCost =
+                        card.item.purchaseCost
                 }
             }
 
             ShopPricePosition.LOWER,
-            ShopPricePosition.MATCHED -> shopCompetitiveCount += 1
+            ShopPricePosition.MATCHED -> {
+                shopCompetitiveCount += 1
+            }
 
             ShopPricePosition.NO_ONLINE_PRICE,
-            ShopPricePosition.INVALID_SHOP_PRICE -> unavailableCount += 1
+            ShopPricePosition.INVALID_SHOP_PRICE -> {
+                unavailableCount += 1
+            }
         }
     }
 
@@ -77,10 +101,11 @@ fun List<ProductCardUiState>.buildDecisionSummary(): DashboardDecisionSummary {
         unavailableCount = unavailableCount,
         livePriceProductCount = livePriceProductCount,
         biggestSavingProductName = biggestSavingProductName,
-        biggestSavingAmount = biggestSavingAmount
+        biggestSavingAmount = biggestSavingAmount,
+        priorityOnlinePrice = priorityOnlinePrice,
+        priorityPurchaseCost = priorityPurchaseCost
     )
 }
-
 @Composable
 fun DashboardDecisionSummaryCard(
     summary: DashboardDecisionSummary,
@@ -89,15 +114,18 @@ fun DashboardDecisionSummaryCard(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White.copy(alpha = 0.04f),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color.White.copy(alpha = 0.10f)
+        )
     ) {
         Column(
             modifier = Modifier.padding(18.dp)
         ) {
             Text(
-                text = "PAGE PRICE POSITION",
+                text = "RETAIL PRICE POSITION • PAGE $currentPage",
                 color = MaterialTheme.colorScheme.primary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -107,7 +135,7 @@ fun DashboardDecisionSummaryCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Decision snapshot",
+                text = "Competitive position",
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold
@@ -116,7 +144,9 @@ fun DashboardDecisionSummaryCard(
             Spacer(modifier = Modifier.height(3.dp))
 
             Text(
-                text = "Page $currentPage • ${summary.livePriceProductCount} with live prices • saved prices used when needed",
+                text =
+                    "${summary.comparedCount} products on this page • " +
+                        "${summary.livePriceProductCount} checked live",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 lineHeight = 17.sp
@@ -130,19 +160,19 @@ fun DashboardDecisionSummaryCard(
             ) {
                 DecisionMetric(
                     value = summary.shopCompetitiveCount,
-                    label = "Lower / match",
+                    label = "Competitive",
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
                 DecisionMetric(
                     value = summary.onlineCheaperCount,
-                    label = "Online lower",
+                    label = "Review price",
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f)
                 )
                 DecisionMetric(
                     value = summary.unavailableCount,
-                    label = "No price",
+                    label = "Need check",
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
                 )
@@ -153,7 +183,13 @@ fun DashboardDecisionSummaryCard(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                color = Color.White.copy(alpha = 0.035f),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(
+                        alpha = 0.22f
+                    )
+                )
             ) {
                 Column(
                     modifier = Modifier.padding(
@@ -162,7 +198,7 @@ fun DashboardDecisionSummaryCard(
                     )
                 ) {
                     Text(
-                        text = "RECOMMENDATION",
+                        text = "RETAILER ACTION",
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -185,7 +221,9 @@ fun DashboardDecisionSummaryCard(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Saved prices are clearly separated from live results. Check prices before making a final pricing decision.",
+                    text =
+                        "Some results use saved prices. Open a product " +
+                            "and refresh it before changing its selling price.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 17.sp
@@ -223,10 +261,57 @@ private fun DecisionMetric(
     }
 }
 
-private fun DashboardDecisionSummary.recommendationText(): String = when {
-    biggestSavingProductName != null && biggestSavingAmount != null ->
-        "$biggestSavingProductName has the largest online gap: ${formatIndianPrice(biggestSavingAmount)}."
+private fun DashboardDecisionSummary.recommendationText(): String {
+    val productName = biggestSavingProductName
+    val priceGap = biggestSavingAmount
+    val onlinePrice = priorityOnlinePrice
+    val purchaseCost = priorityPurchaseCost?.takeIf { cost ->
+        cost.isFinite() && cost > 0.0
+    }
 
-    shopCompetitiveCount > 0 -> "Your shop is competitive for every product with a usable online price."
-    else -> "No usable online comparison is available on this page yet."
+    if (
+        productName != null &&
+        priceGap != null &&
+        onlinePrice != null
+    ) {
+        if (purchaseCost == null) {
+            return "Review $productName. Online is " +
+                    "${formatIndianPrice(priceGap)} below your " +
+                    "selling price. Add the purchase cost before " +
+                    "considering a price match."
+        }
+
+        if (onlinePrice <= purchaseCost + 0.01) {
+            return "Protect your margin on $productName. The " +
+                    "online price ${formatIndianPrice(onlinePrice)} " +
+                    "is at or below your purchase cost " +
+                    "${formatIndianPrice(purchaseCost)}. Do not match " +
+                    "without reviewing supplier cost or creating a bundle."
+        }
+
+        val matchedGrossProfit = onlinePrice - purchaseCost
+        val matchedMarginPercent =
+            matchedGrossProfit / onlinePrice * 100.0
+
+        return "Review $productName. Online is " +
+                "${formatIndianPrice(priceGap)} below your selling " +
+                "price. Matching it would leave estimated gross profit " +
+                "${formatIndianPrice(matchedGrossProfit)} " +
+                "(${formatPercent(matchedMarginPercent)} margin) " +
+                "before tax and other business costs."
+    }
+
+    if (shopCompetitiveCount > 0 && unavailableCount == 0) {
+        return "Your selling price is best or matched for every " +
+                "product with an available comparison."
+    }
+
+    if (shopCompetitiveCount > 0) {
+        return "Your selling prices are competitive where online " +
+                "prices are available. Check unavailable products " +
+                "individually when needed."
+    }
+
+    return "No reliable online comparison is available. Open a " +
+            "product and check its price before taking action."
 }

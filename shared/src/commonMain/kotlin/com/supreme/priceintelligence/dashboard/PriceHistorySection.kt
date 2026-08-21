@@ -1,11 +1,16 @@
 package com.supreme.priceintelligence.dashboard
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -15,22 +20,63 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.PriceHistoryEntry
 import com.supreme.priceintelligence.data.PriceRetailer
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 @Composable
 internal fun PriceHistorySection(
     entries: List<PriceHistoryEntry>,
-    isLoading: Boolean
+    isLoading: Boolean,
+    shopPrice: Double
 ) {
+    val displayEntries = entries
+        .asSequence()
+        .filter { entry ->
+            entry.retailer in PriceRetailer.entries.map { it.name } &&
+                entry.price.isFinite() &&
+                entry.price > 0.0 &&
+                entry.checkedAt > 0L
+        }
+        .sortedWith(
+            compareBy<PriceHistoryEntry> { entry ->
+                entry.checkedAt
+            }.thenBy { entry ->
+                entry.id
+            }
+        )
+        .distinctBy { entry ->
+            Triple(
+                entry.retailer,
+                (entry.checkedAt + 19_800_000L) / 86_400_000L,
+                (entry.price * 100.0 + 0.5).toLong()
+            )
+        }
+        .toList()
+
     val summaries = PriceRetailer.entries.mapNotNull { retailer ->
-        summarizePriceHistory(entries, retailer)
+        summarizePriceHistory(displayEntries, retailer)
     }
 
     Column(
@@ -45,7 +91,9 @@ internal fun PriceHistorySection(
         )
 
         Text(
-            text = "Each successful online check is saved on this device. The newest 60 checks per retailer are kept.",
+            text =
+                "Shows the last 30 days. Up to 60 successful checks " +
+                    "per retailer are kept on this device.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             lineHeight = 17.sp
@@ -55,7 +103,11 @@ internal fun PriceHistorySection(
             isLoading -> LoadingPriceHistory()
             summaries.isEmpty() -> EmptyPriceHistory()
             else -> summaries.forEach { summary ->
-                RetailerPriceHistoryCard(summary)
+                RetailerPriceHistoryCard(
+                    summary = summary,
+                    entries = displayEntries,
+                    shopPrice = shopPrice
+                )
             }
         }
     }
@@ -87,8 +139,12 @@ private fun LoadingPriceHistory() {
 private fun EmptyPriceHistory() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(14.dp)
+        color = Color.White.copy(alpha = 0.04f),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color.White.copy(alpha = 0.08f)
+        )
     ) {
         Text(
             text = "History will appear after the first successful price check.",
@@ -101,7 +157,9 @@ private fun EmptyPriceHistory() {
 
 @Composable
 private fun RetailerPriceHistoryCard(
-    summary: RetailerPriceHistorySummary
+    summary: RetailerPriceHistorySummary,
+    entries: List<PriceHistoryEntry>,
+    shopPrice: Double
 ) {
     val retailerName = when (summary.retailer) {
         PriceRetailer.AMAZON -> "Amazon"
@@ -117,11 +175,11 @@ private fun RetailerPriceHistoryCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = Color.White.copy(alpha = 0.04f),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outline
+            color = Color.White.copy(alpha = 0.09f)
         )
     ) {
         Column(
@@ -174,17 +232,11 @@ private fun RetailerPriceHistoryCard(
                 fontWeight = FontWeight.Bold
             )
 
-            if (summary.recentPrices.size > 1) {
-                Text(
-                    text = "Recent: " + summary.recentPrices
-                        .asReversed()
-                        .joinToString(" → ") { price -> formatIndianPrice(price) },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            PriceHistoryLineGraph(
+                entries = entries,
+                retailer = summary.retailer,
+                shopPrice = shopPrice
+            )
 
             Text(
                 text = "Latest saved ${formatTimeAgo(summary.latestCheckedAt)}",
@@ -195,7 +247,382 @@ private fun RetailerPriceHistoryCard(
     }
 }
 
-private fun movementDescription(summary: RetailerPriceHistorySummary): String =
+@Composable
+private fun PriceHistoryLineGraph(
+    entries: List<PriceHistoryEntry>,
+    retailer: PriceRetailer,
+    shopPrice: Double
+) {
+    val points = entries
+        .asSequence()
+        .filter { entry ->
+            entry.retailer == retailer.name &&
+                entry.price.isFinite() &&
+                entry.price > 0.0 &&
+                entry.checkedAt > 0L
+        }
+        .sortedWith(
+            compareBy<PriceHistoryEntry> { entry ->
+                entry.checkedAt
+            }.thenBy { entry ->
+                entry.id
+            }
+        )
+        .toList()
+
+    if (points.isEmpty()) {
+        return
+    }
+
+    var selectedPoint by remember(points) {
+        mutableStateOf<PriceHistoryEntry?>(null)
+    }
+
+    val retailerName = when (retailer) {
+        PriceRetailer.AMAZON -> "Amazon"
+        PriceRetailer.FLIPKART -> "Flipkart"
+    }
+
+    val lineColor = when (retailer) {
+        PriceRetailer.AMAZON -> Color(0xFFFF9900)
+        PriceRetailer.FLIPKART -> Color(0xFF2874F0)
+    }
+
+    val gridColor =
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.34f)
+
+    val shopLineColor =
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+
+    val validShopPrice =
+        shopPrice.takeIf { price ->
+            price.isFinite() && price > 0.0
+        }
+
+    val latestPrice = points.last().price
+
+    val graphDescription =
+        "$retailerName price history with ${points.size} saved checks. " +
+            "Latest price ${formatIndianPrice(latestPrice)}."
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black.copy(alpha = 0.16f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.06f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .pointerInput(points) {
+                    detectTapGestures { tapPosition ->
+                        val horizontalInset = 10.dp.toPx()
+                        val graphWidth = (
+                            size.width.toFloat() -
+                                horizontalInset * 2f
+                            ).coerceAtLeast(1f)
+
+                        val firstTimestamp =
+                            points.first().checkedAt
+
+                        val timestampRange = (
+                            points.last().checkedAt -
+                                firstTimestamp
+                            ).coerceAtLeast(1L)
+
+                        selectedPoint = points.minByOrNull { entry ->
+                            val pointX =
+                                if (points.size == 1) {
+                                    horizontalInset +
+                                        graphWidth / 2f
+                                } else {
+                                    val fraction = (
+                                        (
+                                            entry.checkedAt -
+                                                firstTimestamp
+                                            ).toDouble() /
+                                            timestampRange.toDouble()
+                                        ).toFloat()
+
+                                    horizontalInset +
+                                        graphWidth * fraction
+                                }
+
+                            kotlin.math.abs(
+                                pointX - tapPosition.x
+                            )
+                        }
+                    }
+                }
+                .semantics {
+                    contentDescription =
+                        "$graphDescription Tap the graph to inspect a saved price."
+                }
+        ) {
+            val horizontalInset = 10.dp.toPx()
+            val verticalInset = 12.dp.toPx()
+
+            val graphWidth =
+                (size.width - horizontalInset * 2f)
+                    .coerceAtLeast(1f)
+
+            val graphHeight =
+                (size.height - verticalInset * 2f)
+                    .coerceAtLeast(1f)
+
+            val displayedPrices = buildList {
+                points.forEach { entry ->
+                    add(entry.price)
+                }
+                validShopPrice?.let { price ->
+                    add(price)
+                }
+            }
+
+            val rawMinimum = displayedPrices.minOrNull() ?: latestPrice
+            val rawMaximum = displayedPrices.maxOrNull() ?: latestPrice
+            val rawRange = rawMaximum - rawMinimum
+
+            val pricePadding = maxOf(
+                rawRange * 0.12,
+                rawMaximum * 0.01,
+                1.0
+            )
+
+            val chartMinimum =
+                (rawMinimum - pricePadding).coerceAtLeast(0.0)
+
+            val chartMaximum =
+                rawMaximum + pricePadding
+
+            val chartRange =
+                (chartMaximum - chartMinimum).coerceAtLeast(1.0)
+
+            val firstTimestamp = points.first().checkedAt
+            val lastTimestamp = points.last().checkedAt
+            val timestampRange =
+                (lastTimestamp - firstTimestamp).coerceAtLeast(1L)
+
+            fun xPosition(entry: PriceHistoryEntry): Float {
+                if (points.size == 1) {
+                    return horizontalInset + graphWidth / 2f
+                }
+
+                val fraction = (
+                    (entry.checkedAt - firstTimestamp).toDouble() /
+                        timestampRange.toDouble()
+                    ).toFloat()
+
+                return horizontalInset + graphWidth * fraction
+            }
+
+            fun yPosition(price: Double): Float {
+                val fraction = (
+                    (price - chartMinimum) / chartRange
+                    ).toFloat()
+
+                return verticalInset +
+                    graphHeight * (1f - fraction)
+            }
+
+            repeat(3) { index ->
+                val y =
+                    verticalInset +
+                        graphHeight * index.toFloat() / 2f
+
+                drawLine(
+                    color = gridColor,
+                    start = Offset(horizontalInset, y),
+                    end = Offset(
+                        horizontalInset + graphWidth,
+                        y
+                    ),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+
+            validShopPrice?.let { price ->
+                val y = yPosition(price)
+
+                drawLine(
+                    color = shopLineColor,
+                    start = Offset(horizontalInset, y),
+                    end = Offset(
+                        horizontalInset + graphWidth,
+                        y
+                    ),
+                    strokeWidth = 1.5.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(
+                        intervals = floatArrayOf(
+                            7.dp.toPx(),
+                            5.dp.toPx()
+                        )
+                    )
+                )
+            }
+
+            val linePath = Path()
+
+            points.forEachIndexed { index, entry ->
+                val x = xPosition(entry)
+                val y = yPosition(entry.price)
+
+                if (index == 0) {
+                    linePath.moveTo(x, y)
+                } else {
+                    linePath.lineTo(x, y)
+                }
+            }
+
+            drawPath(
+                path = linePath,
+                color = lineColor,
+                style = Stroke(
+                    width = 3.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            )
+
+            points.forEach { entry ->
+                drawCircle(
+                    color = lineColor,
+                    radius = 3.5.dp.toPx(),
+                    center = Offset(
+                        x = xPosition(entry),
+                        y = yPosition(entry.price)
+                    )
+                )
+            }
+
+            selectedPoint?.let { entry ->
+                val selectedCenter = Offset(
+                    x = xPosition(entry),
+                    y = yPosition(entry.price)
+                )
+
+                drawCircle(
+                    color = Color.White,
+                    radius = 8.dp.toPx(),
+                    center = selectedCenter
+                )
+
+                drawCircle(
+                    color = lineColor,
+                    radius = 5.dp.toPx(),
+                    center = selectedCenter
+                )
+            }
+        }
+
+        selectedPoint?.let { entry ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                color = lineColor.copy(alpha = 0.14f),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = lineColor.copy(alpha = 0.55f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(
+                        horizontal = 12.dp,
+                        vertical = 9.dp
+                    ),
+                    horizontalArrangement =
+                        Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text =
+                                "Saved on ${formatHistoryDate(entry.checkedAt)}",
+                            color =
+                                MaterialTheme.colorScheme.onSurface,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            text = formatTimeAgo(entry.checkedAt),
+                            color =
+                                MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 10.sp
+                        )
+                    }
+
+                    Text(
+                        text = formatIndianPrice(entry.price),
+                        color = lineColor,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "OLDER",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = "LATEST",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        validShopPrice?.let { price ->
+            Text(
+                text =
+                    "Dashed line: Supreme price " +
+                        formatIndianPrice(price),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp
+            )
+        }
+
+        if (points.size == 1) {
+            Text(
+                text = "One check saved. The trend line will appear after another successful check.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp,
+                lineHeight = 14.sp
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTime::class)
+private fun formatHistoryDate(timestamp: Long): String {
+    val indiaTime = Instant
+        .fromEpochMilliseconds(timestamp + 19_800_000L)
+        .toString()
+    val date = indiaTime.substringBefore('T')
+    val time = indiaTime.substringAfter('T').take(5)
+
+    return date + " at " + time + " IST"
+}
+
+private fun movementDescription(
+    summary: RetailerPriceHistorySummary
+): String =
     when (summary.movement) {
         PriceMovement.LOWER -> buildMovementDescription("Down", summary)
         PriceMovement.HIGHER -> buildMovementDescription("Up", summary)

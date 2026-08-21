@@ -24,6 +24,7 @@ private data class BackupProduct(
     val productName: String = "",
     val barcode: String? = null,
     val shopPrice: Double = 0.0,
+    val purchaseCost: Double? = null,
     val pricebuddyProductId: Long? = null,
     val amazonUrl: String? = null,
     val flipkartUrl: String? = null,
@@ -163,7 +164,12 @@ private fun InventoryItem.toBackupProduct(
 ) = BackupProduct(
     productName = productName,
     barcode = barcode,
-    shopPrice = shopPrice.takeIf { it.isFinite() && it > 0.0 } ?: 0.0,
+    shopPrice = shopPrice.takeIf {
+        it.isFinite() && it > 0.0
+    } ?: 0.0,
+    purchaseCost = purchaseCost?.takeIf {
+        it.isFinite() && it > 0.0
+    },
     pricebuddyProductId = pricebuddyProductId,
     amazonUrl = amazonUrl,
     flipkartUrl = flipkartUrl,
@@ -226,6 +232,9 @@ private fun BackupProduct.toInventoryItemOrNull(): InventoryItem? {
         productName = cleanName,
         barcode = barcode?.trim()?.ifBlank { null },
         shopPrice = shopPrice,
+        purchaseCost = purchaseCost?.takeIf {
+            it.isFinite() && it > 0.0
+        },
         pricebuddyProductId = pricebuddyProductId,
         amazonUrl = normalizeRetailerUrl(amazonUrl, Retailer.AMAZON),
         flipkartUrl = normalizeRetailerUrl(flipkartUrl, Retailer.FLIPKART),

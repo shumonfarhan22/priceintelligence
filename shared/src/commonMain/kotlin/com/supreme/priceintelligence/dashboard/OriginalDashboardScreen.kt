@@ -2,6 +2,13 @@
 
 package com.supreme.priceintelligence.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,17 +18,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,6 +68,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +80,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -76,6 +91,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -87,15 +103,21 @@ import com.supreme.priceintelligence.resources.logo_amazon
 import com.supreme.priceintelligence.resources.logo_flipkart
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
+import com.supreme.priceintelligence.ui.components.OriginalBannerKind
+import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.absoluteValue
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun OriginalDashboardScreen(
     viewModel: DashboardViewModel,
     modifier: Modifier = Modifier,
-    advancedModeEnabled: Boolean = false
+    advancedModeEnabled: Boolean = false,
+    bottomBannerHeight: Dp = 0.dp
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
@@ -106,12 +128,178 @@ fun OriginalDashboardScreen(
     var selectedProductId by rememberSaveable { mutableStateOf<Long?>(null) }
     var cameraPermissionDenied by rememberSaveable { mutableStateOf(false) }
 
+    var showNetworkBanner by remember {
+        mutableStateOf(false)
+    }
+    var networkMessage by remember {
+        mutableStateOf("")
+    }
+    var networkBannerKind by remember {
+        mutableStateOf(OriginalBannerKind.WARNING)
+    }
+    var measuredNetworkBannerHeight by remember {
+        mutableStateOf(0.dp)
+    }
+
+    val density = LocalDensity.current
+
+    val keyboardBottom =
+        WindowInsets.ime
+            .asPaddingValues()
+            .calculateBottomPadding()
+
+    val systemNavigationBottom =
+        WindowInsets.navigationBars
+            .asPaddingValues()
+            .calculateBottomPadding()
+
+    val keyboardClearance = (
+        keyboardBottom - systemNavigationBottom
+    ).coerceAtLeast(0.dp)
+
+    val floatingBannerBottom = maxOf(
+        91.dp,
+        keyboardClearance + 8.dp
+    )
+
+    val networkBannerClearance by animateDpAsState(
+        targetValue = if (showNetworkBanner) {
+            measuredNetworkBannerHeight + 8.dp
+        } else {
+            0.dp
+        },
+        animationSpec = tween(durationMillis = 180),
+        label = "networkBannerClearance"
+    )
+
+    val dashboardListState = rememberLazyListState()
+    var compactDashboardHeaderVisible by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    val headerTransitionThresholdPx = with(density) {
+        20.dp.roundToPx()
+    }
+
+    val headerHideThresholdPx = with(density) {
+        24.dp.roundToPx()
+    }
+
+    LaunchedEffect(
+        dashboardListState,
+        headerTransitionThresholdPx,
+        headerHideThresholdPx
+    ) {
+        var previousIndex =
+            dashboardListState.firstVisibleItemIndex
+        var previousOffset =
+            dashboardListState.firstVisibleItemScrollOffset
+        var downwardTravelPx = 0
+
+        snapshotFlow {
+            dashboardListState.firstVisibleItemIndex to
+                    dashboardListState.firstVisibleItemScrollOffset
+        }.collect { position ->
+            val currentIndex = position.first
+            val currentOffset = position.second
+
+            val atTop =
+                currentIndex == 0 &&
+                        currentOffset == 0
+
+            val scrollingUp =
+                currentIndex < previousIndex ||
+                        (
+                                currentIndex == previousIndex &&
+                                        currentOffset < previousOffset
+                                )
+
+            val scrollingDown =
+                currentIndex > previousIndex ||
+                        (
+                                currentIndex == previousIndex &&
+                                        currentOffset > previousOffset
+                                )
+
+            when {
+                atTop -> {
+                    compactDashboardHeaderVisible = false
+                    downwardTravelPx = 0
+                }
+
+                currentIndex == 0 &&
+                        currentOffset >= headerTransitionThresholdPx -> {
+                    compactDashboardHeaderVisible = true
+                    downwardTravelPx = 0
+                }
+
+                scrollingUp -> {
+                    compactDashboardHeaderVisible = true
+                    downwardTravelPx = 0
+                }
+
+                scrollingDown -> {
+                    val downwardDelta = when {
+                        currentIndex > previousIndex ->
+                            headerHideThresholdPx
+
+                        currentIndex == previousIndex ->
+                            (currentOffset - previousOffset)
+                                .coerceAtLeast(0)
+
+                        else ->
+                            0
+                    }
+
+                    downwardTravelPx += downwardDelta
+
+                    if (
+                        downwardTravelPx >=
+                        headerHideThresholdPx
+                    ) {
+                        compactDashboardHeaderVisible = false
+                        downwardTravelPx = 0
+                    }
+                }
+            }
+
+            previousIndex = currentIndex
+            previousOffset = currentOffset
+        }
+    }
+
+
     LaunchedEffect(advancedModeEnabled, state.sortOrder) {
         if (
             !advancedModeEnabled &&
             state.sortOrder == SortOrder.BEST_SAVING
         ) {
             viewModel.setSortOrder(SortOrder.MOST_VIEWED)
+        }
+    }
+
+    LaunchedEffect(state.bloomState) {
+        when (state.bloomState) {
+            BloomState.ERROR -> {
+                networkMessage = "No internet connection"
+                networkBannerKind = OriginalBannerKind.ERROR
+                showNetworkBanner = true
+                delay(5000.milliseconds)
+                showNetworkBanner = false
+            }
+
+            BloomState.WARNING -> {
+                networkMessage = "Slow or unstable connection"
+                networkBannerKind = OriginalBannerKind.WARNING
+                showNetworkBanner = true
+                delay(5000.milliseconds)
+                showNetworkBanner = false
+            }
+
+            BloomState.SUCCESS,
+            BloomState.NONE -> {
+                showNetworkBanner = false
+            }
         }
     }
 
@@ -153,38 +341,34 @@ fun OriginalDashboardScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = dashboardListState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(
                     top = 4.dp,
-                    bottom = 76.dp
+                    bottom = 190.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(9.dp)
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                if (
-                    cameraPermissionDenied ||
-                    state.bloomState == BloomState.ERROR ||
-                    state.bloomState == BloomState.WARNING
-                ) {
+                item(key = "branding") {
+                    ProfessionalDashboardBranding(
+                        compact = false
+                    )
+                }
+
+                if (cameraPermissionDenied) {
                     item(key = "feedback") {
                         CompactDashboardFeedback(
-                            message = when {
-                                cameraPermissionDenied ->
-                                    "Camera unavailable • enter the barcode manually"
-
-                                state.bloomState == BloomState.ERROR ->
-                                    "Offline • saved prices available"
-
-                                else ->
-                                    "Live prices unavailable • try again"
-                            },
-                            isError = cameraPermissionDenied ||
-                                    state.bloomState == BloomState.ERROR
+                            message =
+                                "Camera unavailable • enter the barcode manually",
+                            isError = true
                         )
                     }
                 }
 
                 item(key = "results") {
-                    DashboardResultsRow(
+                    ProfessionalDashboardResultsRow(
                         state = state,
                         advancedModeEnabled = advancedModeEnabled,
                         sortMenuOpen = sortMenuOpen,
@@ -223,9 +407,12 @@ fun OriginalDashboardScreen(
                     else -> {
                         items(
                             items = state.pageItems,
-                            key = { card -> card.item.id }
+                            key = { card -> card.item.id },
+                            contentType = {
+                                "dashboard-product-card"
+                            }
                         ) { card ->
-                            OriginalProductCard(
+                            ProfessionalDashboardProductCard(
                                 card = card,
                                 onClick = {
                                     selectedProductId = card.item.id
@@ -258,128 +445,93 @@ fun OriginalDashboardScreen(
             }
         }
 
-        if (searchFocused) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 64.dp)
-                    .background(Color.Black.copy(alpha = 0.58f))
-                    .clickable {
-                        searchFocused = false
-                        focusManager.clearFocus()
-                    }
+        AnimatedVisibility(
+            visible = compactDashboardHeaderVisible,
+            modifier = Modifier.align(Alignment.TopCenter),
+            enter = fadeIn(
+                animationSpec = tween(durationMillis = 120)
+            ),
+            exit = fadeOut(
+                animationSpec = tween(durationMillis = 90)
             )
-        }
-
-        if (
-            searchFocused &&
-            state.suggestions.isNotEmpty() &&
-            state.searchQuery.isNotBlank()
         ) {
             Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(bottom = 69.dp)
-                    .heightIn(max = 220.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF151A20),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline
-                )
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFF0B0F14).copy(alpha = 0.98f),
+                shadowElevation = 4.dp
             ) {
-                LazyColumn(
-                    contentPadding = PaddingValues(vertical = 5.dp)
+                Box(
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 ) {
-                    items(state.suggestions) { suggestion ->
-                        Text(
-                            text = suggestion,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.onSearchSubmitted(suggestion)
-                                    searchFocused = false
-                                    focusManager.clearFocus()
-                                }
-                                .padding(horizontal = 14.dp, vertical = 12.dp)
-                        )
-                    }
+                    ProfessionalDashboardBranding(
+                        compact = true
+                    )
                 }
             }
         }
 
-        OutlinedTextField(
-            value = state.searchQuery,
-            onValueChange = viewModel::onSearchQueryChanged,
+        AnimatedVisibility(
+            visible = showNetworkBanner,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .imePadding()
-                .padding(bottom = 7.dp)
-                .height(58.dp)
-                .onFocusChanged { focusState ->
-                    searchFocused = focusState.isFocused
-                },
-            placeholder = {
-                Text(
-                    text = "Search products",
-                    maxLines = 1
-                )
-            },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = null
-                )
-            },
-            trailingIcon = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (state.searchQuery.isNotBlank()) {
-                        IconButton(
-                            onClick = {
-                                viewModel.onSearchQueryChanged("")
-                                viewModel.onSearchSubmitted("")
-                                searchFocused = false
-                                focusManager.clearFocus()
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Clear search"
-                            )
-                        }
-                    }
-
-                    IconButton(
-                        onClick = permissionRequester::requestPermission
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.CameraAlt,
-                            contentDescription = "Scan barcode",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                .padding(
+                    bottom =
+                        floatingBannerBottom +
+                            bottomBannerHeight
+                ),
+            enter = fadeIn() + slideInVertically(
+                initialOffsetY = { height ->
+                    height / 2
                 }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(16.dp),
-            keyboardOptions = KeyboardOptions(
-                imeAction = ImeAction.Search
             ),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    viewModel.onSearchSubmitted(state.searchQuery)
-                    searchFocused = false
-                    focusManager.clearFocus()
+            exit = fadeOut() + slideOutVertically(
+                targetOffsetY = { height ->
+                    height / 2
                 }
             )
+        ) {
+            OriginalStatusBanner(
+                message = networkMessage,
+                kind = networkBannerKind,
+                onDismiss = {
+                    showNetworkBanner = false
+                },
+                modifier = Modifier.onSizeChanged { size ->
+                    measuredNetworkBannerHeight =
+                        with(density) {
+                            size.height.toDp()
+                        }
+                },
+                horizontalPadding = 16.dp
+            )
+        }
+
+        ProfessionalDashboardSearchOverlay(
+            query = state.searchQuery,
+            suggestions = state.suggestions,
+            isFocused = searchFocused,
+            bottomBannerHeight = bottomBannerHeight,
+            additionalBannerHeight = networkBannerClearance,
+            onQueryChange = { query ->
+                viewModel.onSearchQueryChanged(query)
+
+                if (query.isBlank()) {
+                    viewModel.onSearchSubmitted("")
+                }
+            },
+            onSubmit = { query ->
+                viewModel.onSearchSubmitted(query)
+                searchFocused = false
+                focusManager.clearFocus()
+            },
+            onScanClick = permissionRequester::requestPermission,
+            onFocusChange = { focused ->
+                searchFocused = focused
+            },
+            onDismissFocus = {
+                searchFocused = false
+                focusManager.clearFocus()
+            }
         )
     }
 
@@ -388,8 +540,9 @@ fun OriginalDashboardScreen(
     }
 
     if (selectedCard != null) {
-        OriginalProductDetailDialog(
+        OriginalProfessionalProductDetailDialog(
             card = selectedCard,
+            networkState = state.bloomState,
             advancedModeEnabled = advancedModeEnabled,
             isHistoryLoading =
                 selectedCard.item.id in state.historyLoadingProductIds,
@@ -1108,7 +1261,8 @@ private fun OriginalProductDetailDialog(
 
                     PriceHistorySection(
                         entries = priceHistory,
-                        isLoading = isHistoryLoading
+                        isLoading = isHistoryLoading,
+                        shopPrice = item.shopPrice
                     )
                 }
             }

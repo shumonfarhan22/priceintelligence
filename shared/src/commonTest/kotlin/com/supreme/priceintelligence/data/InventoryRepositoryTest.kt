@@ -260,6 +260,12 @@ internal class FakeInventoryDao(vararg initialItems: InventoryItem) : InventoryD
             .sortedWith(compareByDescending<PriceHistoryEntry> { it.checkedAt }.thenByDescending { it.id })
             .take(limit)
 
+    override suspend fun deletePriceHistoryOlderThan(cutoffTimestamp: Long) {
+        priceHistory.removeAll { entry ->
+            entry.checkedAt < cutoffTimestamp
+        }
+    }
+
     override suspend fun trimPriceHistory(itemId: Long, retailer: String, keepCount: Int) {
         val keepIds = priceHistory
             .filter { it.inventoryItemId == itemId && it.retailer == retailer }

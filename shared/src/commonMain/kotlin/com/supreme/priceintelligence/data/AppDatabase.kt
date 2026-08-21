@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 
 @Database(
     entities = [InventoryItem::class, PriceHistoryEntry::class],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -106,12 +106,28 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+// Version 5 adds an optional retailer purchase cost. Existing products keep
+// NULL because their purchase cost is not known.
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "ALTER TABLE inventory ADD COLUMN purchase_cost REAL"
+        )
+    }
+}
+
+
 // Takes the platform-specific builder (which only knows WHERE the db file lives)
 // and applies the configuration that's identical everywhere — migrations, the
 // driver, and the coroutine context queries run on.
 fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
     return builder
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5
+        )
         .setDriver(BundledSQLiteDriver())
         .setQueryCoroutineContext(Dispatchers.Default)
         .build()

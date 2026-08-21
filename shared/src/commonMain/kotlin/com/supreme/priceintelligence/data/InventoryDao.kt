@@ -69,6 +69,12 @@ interface InventoryDao {
 
     @Query(
         "DELETE FROM price_history " +
+            "WHERE checked_at < :cutoffTimestamp"
+    )
+    suspend fun deletePriceHistoryOlderThan(cutoffTimestamp: Long)
+
+    @Query(
+        "DELETE FROM price_history " +
             "WHERE inventory_item_id = :itemId AND retailer = :retailer " +
             "AND id NOT IN (" +
             "SELECT id FROM price_history " +

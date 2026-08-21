@@ -5,12 +5,25 @@ package com.supreme.priceintelligence.data
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
+private const val PRICE_HISTORY_RETENTION_MILLIS =
+    30L * 24L * 60L * 60L * 1000L
+
+private const val INDIA_UTC_OFFSET_MILLIS = 19_800_000L
+private const val CALENDAR_DAY_MILLIS = 86_400_000L
+
+private fun priceHistoryDayKey(timestamp: Long): Long =
+    (timestamp + INDIA_UTC_OFFSET_MILLIS) / CALENDAR_DAY_MILLIS
+
+private fun priceHistoryPriceKey(price: Double): Long =
+    kotlin.math.floor(price * 100.0 + 0.5).toLong()
+
 @Suppress("SpellCheckingInspection")
 class InventoryRepository(private val dao: InventoryDao) {
 
     suspend fun addProduct(
         name: String,
         shopPrice: Double,
+        purchaseCost: Double? = null,
         barcode: String? = null,
         amazonUrl: String? = null,
         flipkartUrl: String? = null,
@@ -21,6 +34,7 @@ class InventoryRepository(private val dao: InventoryDao) {
                 productName = name,
                 barcode = barcode,
                 shopPrice = shopPrice,
+                purchaseCost = purchaseCost,
                 amazonUrl = amazonUrl,
                 flipkartUrl = flipkartUrl,
                 createdAt = now,
@@ -130,24 +144,50 @@ class InventoryRepository(private val dao: InventoryDao) {
         if (dao.getById(itemId) == null) return false
 
         return try {
-            when (retailer) {
-                PriceRetailer.AMAZON -> dao.updateAmazonCache(itemId, price, checkedAt)
-                PriceRetailer.FLIPKART -> dao.updateFlipkartCache(itemId, price, checkedAt)
+            dao.deletePriceHistoryOlderThan(
+                cutoffTimestamp = (
+                    checkedAt - PRICE_HISTORY_RETENTION_MILLIS
+                ).coerceAtLeast(0L)
+            )
+
+            val samePriceAlreadySavedToday = dao.getPriceHistory(
+                itemId = itemId,
+                limit =
+                    MAX_PRICE_HISTORY_PER_RETAILER *
+                        PriceRetailer.entries.size
+            ).any { entry ->
+                entry.retailer == retailer.name &&
+                    priceHistoryDayKey(entry.checkedAt) ==
+                    priceHistoryDayKey(checkedAt) &&
+                    priceHistoryPriceKey(entry.price) ==
+                    priceHistoryPriceKey(price)
             }
 
-            dao.insertPriceHistory(
-                PriceHistoryEntry(
-                    inventoryItemId = itemId,
-                    retailer = retailer.name,
-                    price = price,
-                    checkedAt = checkedAt
+            when (retailer) {
+                PriceRetailer.AMAZON ->
+                    dao.updateAmazonCache(itemId, price, checkedAt)
+
+                PriceRetailer.FLIPKART ->
+                    dao.updateFlipkartCache(itemId, price, checkedAt)
+            }
+
+            if (!samePriceAlreadySavedToday) {
+                dao.insertPriceHistory(
+                    PriceHistoryEntry(
+                        inventoryItemId = itemId,
+                        retailer = retailer.name,
+                        price = price,
+                        checkedAt = checkedAt
+                    )
                 )
-            )
-            dao.trimPriceHistory(
-                itemId = itemId,
-                retailer = retailer.name,
-                keepCount = MAX_PRICE_HISTORY_PER_RETAILER
-            )
+
+                dao.trimPriceHistory(
+                    itemId = itemId,
+                    retailer = retailer.name,
+                    keepCount = MAX_PRICE_HISTORY_PER_RETAILER
+                )
+            }
+
             true
         } catch (error: androidx.sqlite.SQLiteException) {
             // A product can be deleted while its slower network request is in
@@ -163,7 +203,7 @@ class InventoryRepository(private val dao: InventoryDao) {
     ) {
         if (itemId <= 0L) return
 
-        entries
+        val validEntries = entries
             .asSequence()
             .filter { entry ->
                 entry.retailer in PriceRetailer.entries.map { it.name } &&
@@ -172,6 +212,32 @@ class InventoryRepository(private val dao: InventoryDao) {
                     entry.checkedAt > 0L
             }
             .sortedBy { it.checkedAt }
+            .distinctBy { entry ->
+                Triple(
+                    entry.retailer,
+                    priceHistoryDayKey(entry.checkedAt),
+                    priceHistoryPriceKey(entry.price)
+                )
+            }
+            .toList()
+
+        val newestImportedTimestamp =
+            validEntries.maxOfOrNull { entry ->
+                entry.checkedAt
+            }
+
+        val importedHistoryCutoff =
+            newestImportedTimestamp?.let { newest ->
+                (
+                    newest - PRICE_HISTORY_RETENTION_MILLIS
+                ).coerceAtLeast(0L)
+            } ?: 0L
+
+        validEntries
+            .asSequence()
+            .filter { entry ->
+                entry.checkedAt >= importedHistoryCutoff
+            }
             .forEach { entry ->
                 dao.insertPriceHistory(
                     entry.copy(
