@@ -285,7 +285,7 @@ internal fun ProfessionalInventoryProductRow(
                 shape = RoundedCornerShape(12.dp)
             )
     ) {
-        if (!selectionMode) {
+        if (!selectionMode && swipeProgress > 0f) {
             IconButton(
                 onClick = {
                     coroutineScope.launch {
