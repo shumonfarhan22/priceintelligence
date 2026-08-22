@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -134,10 +135,21 @@ fun List<InventoryItem>.buildDecisionSummary(
 @Composable
 fun DashboardDecisionSummaryCard(
     summary: DashboardDecisionSummary,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    collapseSignal: Boolean = false
 ) {
     var isBreakdownExpanded by remember { mutableStateOf(false) }
     var isPriorityListExpanded by remember { mutableStateOf(false) }
+
+    // Lets the caller fold this card shut once the user has scrolled well
+    // past it, so it doesn't sit expanded — and taking up space — if they
+    // scroll back near the top later.
+    LaunchedEffect(collapseSignal) {
+        if (collapseSignal) {
+            isBreakdownExpanded = false
+            isPriorityListExpanded = false
+        }
+    }
 
     val competitiveColor = MaterialTheme.colorScheme.primary
     val reviewColor = MaterialTheme.colorScheme.error

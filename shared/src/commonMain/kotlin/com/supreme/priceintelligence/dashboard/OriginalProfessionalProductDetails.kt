@@ -34,6 +34,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
@@ -91,6 +93,10 @@ internal fun OriginalProfessionalProductDetailDialog(
     val item = card.item
     val openUrl = rememberUrlOpener()
     var imageViewerOpen by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var isPriceHistoryExpanded by rememberSaveable {
         mutableStateOf(false)
     }
 
@@ -678,32 +684,61 @@ internal fun OriginalProfessionalProductDetailDialog(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    isPriceHistoryExpanded = !isPriceHistoryExpanded
+                                }
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.History,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                    text = "Advanced price information",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
                             Icon(
-                                imageVector = Icons.Rounded.History,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
+                                imageVector = if (isPriceHistoryExpanded) {
+                                    Icons.Rounded.ExpandLess
+                                } else {
+                                    Icons.Rounded.ExpandMore
+                                },
+                                contentDescription = if (isPriceHistoryExpanded) {
+                                    "Collapse"
+                                } else {
+                                    "Expand"
+                                },
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Text(
-                                text = "Advanced price information",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        if (isPriceHistoryExpanded) {
+                            Spacer(modifier = Modifier.height(10.dp))
 
-                        PriceHistorySection(
-                            entries = priceHistory,
-                            isLoading = isHistoryLoading,
-                            shopPrice = item.shopPrice
-                        )
+                            PriceHistorySection(
+                                entries = priceHistory,
+                                isLoading = isHistoryLoading,
+                                shopPrice = item.shopPrice
+                            )
+                        }
                     }
                     }
                 }
