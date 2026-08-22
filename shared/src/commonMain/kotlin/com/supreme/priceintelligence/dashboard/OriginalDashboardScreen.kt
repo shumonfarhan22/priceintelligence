@@ -164,7 +164,7 @@ fun OriginalDashboardScreen(
 
     val networkBannerClearance by animateDpAsState(
         targetValue = if (showNetworkBanner) {
-            measuredNetworkBannerHeight + 8.dp
+            measuredNetworkBannerHeight + 20.dp
         } else {
             0.dp
         },

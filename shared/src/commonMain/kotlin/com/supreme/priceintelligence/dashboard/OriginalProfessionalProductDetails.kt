@@ -187,6 +187,8 @@ internal fun OriginalProfessionalProductDetailDialog(
     val flipkartLivePrice = validDetailPrice(card.flipkartResult?.price)
     val amazonSavedPrice = validDetailPrice(item.amazonLastPrice)
     val flipkartSavedPrice = validDetailPrice(item.flipkartLastPrice)
+    val amazonBlocked = card.amazonResult?.blocked == true
+    val flipkartBlocked = card.flipkartResult?.blocked == true
 
     val amazonPrice = amazonLivePrice ?: amazonSavedPrice
     val flipkartPrice = flipkartLivePrice ?: flipkartSavedPrice
@@ -199,8 +201,12 @@ internal fun OriginalProfessionalProductDetailDialog(
         onlinePrice < item.shopPrice - 0.01
     }
 
+    val hasLiveComparison =
+        amazonLivePrice != null || flipkartLivePrice != null
+
     val detailScrollState = rememberScrollState()
-    val showDetailBloom = detailScrollState.value == 0
+    val showDetailBloom =
+        detailScrollState.value == 0 && hasLiveComparison
 
     val glowPrimary by animateColorAsState(
         targetValue = when {
@@ -544,6 +550,7 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 livePrice = amazonLivePrice,
                                 savedPrice = amazonSavedPrice,
                                 isLoading = card.isRefreshing,
+                                isBlocked = amazonBlocked,
                                 needsLightLogoBackground = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -555,6 +562,7 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 livePrice = flipkartLivePrice,
                                 savedPrice = flipkartSavedPrice,
                                 isLoading = card.isRefreshing,
+                                isBlocked = flipkartBlocked,
                                 needsLightLogoBackground = false,
                                 modifier = Modifier.weight(1f)
                             )
@@ -769,6 +777,7 @@ private fun ProfessionalRetailerPriceCard(
     livePrice: Double?,
     savedPrice: Double?,
     isLoading: Boolean,
+    isBlocked: Boolean = false,
     needsLightLogoBackground: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -792,6 +801,9 @@ private fun ProfessionalRetailerPriceCard(
     }
 
     val differenceText = when {
+        difference == null && isBlocked ->
+            if (isLoading) "Checking…" else "$retailerName blocked this check"
+
         difference == null ->
             if (isLoading) "Checking…" else "Price unavailable"
 

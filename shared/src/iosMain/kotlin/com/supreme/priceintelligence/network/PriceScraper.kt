@@ -14,6 +14,14 @@ import kotlin.time.Duration.Companion.milliseconds
 
 @Suppress("SpellCheckingInspection")
 actual class PriceScraper : PriceFetcher {
+    // Balanced setup: enough tries and wait time to ride out a busy moment,
+    // without making every check feel slow. Waits grow each try (1s, then
+    // 2.5s) instead of a flat wait, since a longer pause is more likely to
+    // help on the second retry than the first. Kept identical to Android's
+    // PriceScraper so both platforms behave the same way.
+    private val retryDelaySteps = listOf(1000L, 2500L).map { it.milliseconds }
+    private val maxAttempts = retryDelaySteps.size + 1
+
     private val amazonUserAgents = listOf(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -28,7 +36,7 @@ actual class PriceScraper : PriceFetcher {
         val secureUrl = ensureHttps(url)
         val isFlipkart = secureUrl.lowercase().contains("flipkart")
 
-        for (attempt in 1..2) {
+        for (attempt in 0 until maxAttempts) {
             try {
                 val response: HttpResponse = client.get(secureUrl) {
                     headers {
@@ -52,10 +60,10 @@ actual class PriceScraper : PriceFetcher {
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                if (attempt == 2) return ScrapeResult()
+                if (attempt == maxAttempts - 1) return ScrapeResult()
             }
 
-            delay(1500.milliseconds)
+            if (attempt < retryDelaySteps.size) delay(retryDelaySteps[attempt])
         }
 
         return ScrapeResult()

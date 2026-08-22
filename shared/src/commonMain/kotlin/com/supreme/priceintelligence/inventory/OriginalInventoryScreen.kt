@@ -357,9 +357,9 @@ fun OriginalInventoryScreen(
                         .fillMaxWidth(),
                     contentPadding = PaddingValues(
                         bottom = if (state.isSelectionMode) {
-                            104.dp + bottomBannerHeight
+                            120.dp + bottomBannerHeight
                         } else {
-                            168.dp + bottomBannerHeight
+                            184.dp + bottomBannerHeight
                         }
                     ),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -445,7 +445,8 @@ fun OriginalInventoryScreen(
                         end = 14.dp,
                         bottom =
                             96.dp +
-                                bottomBannerHeight
+                                bottomBannerHeight +
+                                16.dp
                     ),
                 shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.primary,

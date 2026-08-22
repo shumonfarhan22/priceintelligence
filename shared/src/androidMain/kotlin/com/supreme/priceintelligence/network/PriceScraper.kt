@@ -40,6 +40,13 @@ actual class PriceScraper : PriceFetcher {
         .protocols(listOf(Protocol.HTTP_1_1))
         .build()
 
+    // Balanced setup: enough tries and wait time to ride out a busy moment,
+    // without making every check feel slow. Waits grow each try (1s, then
+    // 2.5s) instead of a flat wait, since a longer pause is more likely to
+    // help on the second retry than the first.
+    private val retryDelaySteps = listOf(1000L, 2500L).map { it.milliseconds }
+    private val maxAttempts = retryDelaySteps.size + 1
+
     actual override suspend fun fetchPrice(url: String): ScrapeResult = withContext(Dispatchers.IO) {
         if (url.isBlank()) return@withContext ScrapeResult()
 
@@ -47,7 +54,7 @@ actual class PriceScraper : PriceFetcher {
         val isFlipkart = secureUrl.lowercase().contains("flipkart")
         val client = if (isFlipkart) flipkartClient else amazonClient
 
-        for (attempt in 1..2) {
+        for (attempt in 0 until maxAttempts) {
             try {
                 val request = Request.Builder()
                     .url(secureUrl)
@@ -67,10 +74,10 @@ actual class PriceScraper : PriceFetcher {
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                if (attempt == 2) return@withContext ScrapeResult()
+                if (attempt == maxAttempts - 1) return@withContext ScrapeResult()
             }
 
-            delay(1500.milliseconds)
+            if (attempt < retryDelaySteps.size) delay(retryDelaySteps[attempt])
         }
 
         ScrapeResult()
