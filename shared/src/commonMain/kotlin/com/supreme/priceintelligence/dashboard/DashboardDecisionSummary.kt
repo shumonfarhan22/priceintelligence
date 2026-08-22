@@ -2,7 +2,6 @@ package com.supreme.priceintelligence.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,6 +37,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.InventoryItem
 
+data class PriorityProduct(
+    val productName: String,
+    val gap: Double,
+    val onlinePrice: Double,
+    val purchaseCost: Double?
+)
+
 data class DashboardDecisionSummary(
     val comparedCount: Int,
     val onlineCheaperCount: Int,
@@ -40,10 +51,7 @@ data class DashboardDecisionSummary(
     val noOnlinePriceCount: Int,
     val invalidShopPriceCount: Int,
     val livePriceProductCount: Int,
-    val biggestSavingProductName: String? = null,
-    val biggestSavingAmount: Double? = null,
-    val priorityOnlinePrice: Double? = null,
-    val priorityPurchaseCost: Double? = null
+    val priorityProducts: List<PriorityProduct> = emptyList()
 )
 
 // Builds the summary from every matching product (allItems) — the whole
@@ -61,10 +69,7 @@ fun List<InventoryItem>.buildDecisionSummary(
     var noOnlinePriceCount = 0
     var invalidShopPriceCount = 0
     var livePriceProductCount = 0
-    var biggestSavingProductName: String? = null
-    var biggestSavingAmount: Double? = null
-    var priorityOnlinePrice: Double? = null
-    var priorityPurchaseCost: Double? = null
+    val priorityProducts = mutableListOf<PriorityProduct>()
 
     forEach { item ->
         val liveCard = liveById[item.id]
@@ -88,12 +93,15 @@ fun List<InventoryItem>.buildDecisionSummary(
             ShopPricePosition.HIGHER -> {
                 onlineCheaperCount += 1
                 val gap = comparison.shopDifference
+                val onlinePrice = comparison.onlineLowestPrice
 
-                if (gap != null && gap > (biggestSavingAmount ?: 0.0)) {
-                    biggestSavingAmount = gap
-                    biggestSavingProductName = item.productName
-                    priorityOnlinePrice = comparison.onlineLowestPrice
-                    priorityPurchaseCost = item.purchaseCost
+                if (gap != null && onlinePrice != null) {
+                    priorityProducts += PriorityProduct(
+                        productName = item.productName,
+                        gap = gap,
+                        onlinePrice = onlinePrice,
+                        purchaseCost = item.purchaseCost
+                    )
                 }
             }
 
@@ -119,18 +127,8 @@ fun List<InventoryItem>.buildDecisionSummary(
         noOnlinePriceCount = noOnlinePriceCount,
         invalidShopPriceCount = invalidShopPriceCount,
         livePriceProductCount = livePriceProductCount,
-        biggestSavingProductName = biggestSavingProductName,
-        biggestSavingAmount = biggestSavingAmount,
-        priorityOnlinePrice = priorityOnlinePrice,
-        priorityPurchaseCost = priorityPurchaseCost
+        priorityProducts = priorityProducts.sortedByDescending { product -> product.gap }
     )
-}
-
-private enum class DecisionFocus {
-    COMPETITIVE,
-    REVIEW,
-    NO_ONLINE_PRICE,
-    FIX_PRICE
 }
 
 @Composable
@@ -138,18 +136,11 @@ fun DashboardDecisionSummaryCard(
     summary: DashboardDecisionSummary,
     modifier: Modifier = Modifier
 ) {
-    var selectedFocus by remember {
-        mutableStateOf<DecisionFocus?>(null)
-    }
+    var isBreakdownExpanded by remember { mutableStateOf(false) }
+    var isPriorityListExpanded by remember { mutableStateOf(false) }
 
     val competitiveColor = MaterialTheme.colorScheme.primary
     val reviewColor = MaterialTheme.colorScheme.error
-    val noOnlinePriceColor = MaterialTheme.colorScheme.secondary
-    val fixPriceColor = MaterialTheme.colorScheme.onSurfaceVariant
-
-    fun toggle(focus: DecisionFocus) {
-        selectedFocus = if (selectedFocus == focus) null else focus
-    }
 
     Surface(
         modifier = modifier
@@ -210,90 +201,116 @@ fun DashboardDecisionSummaryCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            DecisionDistributionBar(
-                summary = summary,
-                selectedFocus = selectedFocus,
+            // Always-visible meter: green (competitive) vs red (review),
+            // side by side, proportional to how many products fall in
+            // each. This is the "at a glance" view — no tap needed.
+            DecisionMeterBar(
+                competitiveCount = summary.shopCompetitiveCount,
+                reviewCount = summary.onlineCheaperCount,
                 competitiveColor = competitiveColor,
-                reviewColor = reviewColor,
-                noOnlinePriceColor = noOnlinePriceColor,
-                fixPriceColor = fixPriceColor,
-                onFocusSelected = ::toggle
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                DecisionMetric(
-                    value = summary.shopCompetitiveCount,
-                    label = "Competitive",
-                    color = competitiveColor,
-                    selected = selectedFocus == DecisionFocus.COMPETITIVE,
-                    onClick = { toggle(DecisionFocus.COMPETITIVE) },
-                    modifier = Modifier.weight(1f)
-                )
-
-                DecisionMetric(
-                    value = summary.onlineCheaperCount,
-                    label = "Review",
-                    color = reviewColor,
-                    selected = selectedFocus == DecisionFocus.REVIEW,
-                    onClick = { toggle(DecisionFocus.REVIEW) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                DecisionMetric(
-                    value = summary.noOnlinePriceCount,
-                    label = "No online price",
-                    color = noOnlinePriceColor,
-                    selected = selectedFocus == DecisionFocus.NO_ONLINE_PRICE,
-                    onClick = { toggle(DecisionFocus.NO_ONLINE_PRICE) },
-                    modifier = Modifier.weight(1f)
-                )
-
-                DecisionMetric(
-                    value = summary.invalidShopPriceCount,
-                    label = "Fix shop price",
-                    color = fixPriceColor,
-                    selected = selectedFocus == DecisionFocus.FIX_PRICE,
-                    onClick = { toggle(DecisionFocus.FIX_PRICE) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            PriorityPriceComparison(
-                summary = summary,
                 reviewColor = reviewColor
             )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            ExpandToggleRow(
+                label = "Breakdown",
+                expanded = isBreakdownExpanded,
+                onClick = { isBreakdownExpanded = !isBreakdownExpanded }
+            )
+
+            if (isBreakdownExpanded) {
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DecisionMetric(
+                        value = summary.shopCompetitiveCount,
+                        label = "Competitive",
+                        color = competitiveColor,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    DecisionMetric(
+                        value = summary.onlineCheaperCount,
+                        label = "Review",
+                        color = reviewColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            if (summary.priorityProducts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+
+                ExpandToggleRow(
+                    label = "Top priorities (${summary.priorityProducts.size})",
+                    expanded = isPriorityListExpanded,
+                    onClick = { isPriorityListExpanded = !isPriorityListExpanded }
+                )
+
+                if (isPriorityListExpanded) {
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        summary.priorityProducts.forEachIndexed { index, product ->
+                            PriorityProductRow(
+                                rank = index + 1,
+                                product = product,
+                                reviewColor = reviewColor,
+                                competitiveColor = competitiveColor
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun DecisionDistributionBar(
-    summary: DashboardDecisionSummary,
-    selectedFocus: DecisionFocus?,
-    competitiveColor: Color,
-    reviewColor: Color,
-    noOnlinePriceColor: Color,
-    fixPriceColor: Color,
-    onFocusSelected: (DecisionFocus) -> Unit
+private fun ExpandToggleRow(
+    label: String,
+    expanded: Boolean,
+    onClick: () -> Unit
 ) {
-    val segments = listOf(
-        Triple(DecisionFocus.COMPETITIVE, summary.shopCompetitiveCount, competitiveColor),
-        Triple(DecisionFocus.REVIEW, summary.onlineCheaperCount, reviewColor),
-        Triple(DecisionFocus.NO_ONLINE_PRICE, summary.noOnlinePriceCount, noOnlinePriceColor),
-        Triple(DecisionFocus.FIX_PRICE, summary.invalidShopPriceCount, fixPriceColor)
-    ).filter { (_, count, _) -> count > 0 }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Icon(
+            imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+private fun DecisionMeterBar(
+    competitiveCount: Int,
+    reviewCount: Int,
+    competitiveColor: Color,
+    reviewColor: Color
+) {
+    val total = competitiveCount + reviewCount
 
     Row(
         modifier = Modifier
@@ -303,31 +320,30 @@ private fun DecisionDistributionBar(
             .background(Color.White.copy(alpha = 0.06f)),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        if (segments.isEmpty()) {
+        if (total == 0) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.White.copy(alpha = 0.06f))
             )
         } else {
-            segments.forEach { (focus, count, color) ->
+            if (competitiveCount > 0) {
                 Box(
                     modifier = Modifier
-                        .weight(count.toFloat())
+                        .weight(competitiveCount.toFloat())
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(4.dp))
-                        .background(
-                            color.copy(
-                                alpha = if (
-                                    selectedFocus == null || selectedFocus == focus
-                                ) {
-                                    1f
-                                } else {
-                                    0.30f
-                                }
-                            )
-                        )
-                        .clickable { onFocusSelected(focus) }
+                        .background(competitiveColor)
+                )
+            }
+
+            if (reviewCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .weight(reviewCount.toFloat())
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(reviewColor)
                 )
             }
         }
@@ -339,30 +355,12 @@ private fun DecisionMetric(
     value: Int,
     label: String,
     color: Color,
-    selected: Boolean,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(
-                color.copy(
-                    alpha = if (selected) 0.20f else 0.10f
-                )
-            )
-            .then(
-                if (selected) {
-                    Modifier.border(
-                        width = 1.dp,
-                        color = color.copy(alpha = 0.75f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                } else {
-                    Modifier
-                }
-            )
-            .clickable(onClick = onClick)
+            .background(color.copy(alpha = 0.10f))
             .padding(
                 horizontal = 9.dp,
                 vertical = 9.dp
@@ -387,33 +385,19 @@ private fun DecisionMetric(
 }
 
 @Composable
-private fun PriorityPriceComparison(
-    summary: DashboardDecisionSummary,
-    reviewColor: Color
+private fun PriorityProductRow(
+    rank: Int,
+    product: PriorityProduct,
+    reviewColor: Color,
+    competitiveColor: Color
 ) {
-    val productName = summary.biggestSavingProductName
-    val saving = summary.biggestSavingAmount
-    val onlinePrice = summary.priorityOnlinePrice
-
-    if (
-        productName == null ||
-        saving == null ||
-        onlinePrice == null
-    ) {
-        return
-    }
-
-    val shopPrice = onlinePrice + saving
-    val purchaseCost = summary.priorityPurchaseCost
-        ?.takeIf { cost ->
-            cost.isFinite() && cost > 0.0
-        }
+    val supremePrice = product.onlinePrice + product.gap
+    val purchaseCost = product.purchaseCost
+        ?.takeIf { cost -> cost.isFinite() && cost > 0.0 }
 
     val marginRisk =
         purchaseCost != null &&
-                onlinePrice <= purchaseCost + 0.01
-
-    Spacer(modifier = Modifier.height(12.dp))
+                product.onlinePrice <= purchaseCost + 0.01
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -436,23 +420,15 @@ private fun PriorityPriceComparison(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = if (marginRisk) {
-                            "MARGIN RISK"
-                        } else {
-                            "TOP PRIORITY"
-                        },
-                        color = if (marginRisk) {
-                            reviewColor
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
+                        text = if (marginRisk) "MARGIN RISK" else "#$rank PRIORITY",
+                        color = if (marginRisk) reviewColor else competitiveColor,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.8.sp
                     )
 
                     Text(
-                        text = productName,
+                        text = product.productName,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -462,7 +438,7 @@ private fun PriorityPriceComparison(
                 }
 
                 Text(
-                    text = "${formatIndianPrice(saving)} gap",
+                    text = "${formatIndianPrice(product.gap)} gap",
                     color = reviewColor,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.ExtraBold
@@ -477,24 +453,22 @@ private fun PriorityPriceComparison(
             ) {
                 DecisionPricePoint(
                     label = "Cost",
-                    value = purchaseCost?.let {
-                        formatIndianPrice(it)
-                    } ?: "Not set",
+                    value = purchaseCost?.let { cost -> formatIndianPrice(cost) } ?: "Not set",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
 
                 DecisionPricePoint(
                     label = "Online",
-                    value = formatIndianPrice(onlinePrice),
+                    value = formatIndianPrice(product.onlinePrice),
                     color = reviewColor,
                     modifier = Modifier.weight(1f)
                 )
 
                 DecisionPricePoint(
-                    label = "Your price",
-                    value = formatIndianPrice(shopPrice),
-                    color = MaterialTheme.colorScheme.primary,
+                    label = "Supreme",
+                    value = formatIndianPrice(supremePrice),
+                    color = competitiveColor,
                     modifier = Modifier.weight(1f)
                 )
             }

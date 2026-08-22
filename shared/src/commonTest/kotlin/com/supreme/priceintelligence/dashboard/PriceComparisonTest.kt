@@ -79,8 +79,25 @@ class PriceComparisonTest {
         assertEquals(1, summary.onlineCheaperCount)
         assertEquals(1, summary.noOnlinePriceCount)
         assertEquals(1, summary.invalidShopPriceCount)
-        assertEquals("Needs review", summary.biggestSavingProductName)
-        assertEquals(500.0, summary.biggestSavingAmount)
+        assertEquals(1, summary.priorityProducts.size)
+        assertEquals("Needs review", summary.priorityProducts.first().productName)
+        assertEquals(500.0, summary.priorityProducts.first().gap)
+    }
+
+    @Test
+    fun decisionSummaryRanksPriorityProductsFromMostToLeastGap() {
+        val items = listOf(
+            inventoryItem(id = 1, name = "Small gap", shopPrice = 1_100.0, amazonPrice = 1_000.0),
+            inventoryItem(id = 2, name = "Biggest gap", shopPrice = 3_000.0, amazonPrice = 1_000.0),
+            inventoryItem(id = 3, name = "Middle gap", shopPrice = 2_000.0, amazonPrice = 1_000.0)
+        )
+
+        val summary = items.buildDecisionSummary(livePriceCards = emptyList())
+
+        assertEquals(
+            listOf("Biggest gap", "Middle gap", "Small gap"),
+            summary.priorityProducts.map { product -> product.productName }
+        )
     }
 
     @Test
@@ -106,7 +123,7 @@ class PriceComparisonTest {
         val summary = listOf(item).buildDecisionSummary(livePriceCards = listOf(liveCard))
 
         assertEquals(1, summary.onlineCheaperCount)
-        assertEquals(300.0, summary.biggestSavingAmount)
+        assertEquals(300.0, summary.priorityProducts.first().gap)
         assertEquals(1, summary.livePriceProductCount)
     }
 
