@@ -116,6 +116,13 @@ class DashboardViewModel(
             delay(250.milliseconds)
             _uiState.update { it.copy(suggestions = repository.getNameSuggestions(query)) }
         }
+
+        // Actually re-run the product search as the user types, the same
+        // way Inventory's search already does. Before this, typing only
+        // refreshed the suggestions dropdown above — the visible product
+        // list never updated until the user explicitly submitted, which is
+        // why a partial name looked like it matched nothing.
+        runSearch(query, showLoadingIndicator = false)
     }
 
     fun onSearchSubmitted(query: String) {

@@ -42,7 +42,7 @@ private struct SplashOverlay: View {
             Image("SplashLogo")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 120, height: 120)
+                .frame(width: 150, height: 150)
 
             VStack {
                 Spacer()

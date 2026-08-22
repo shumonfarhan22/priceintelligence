@@ -801,6 +801,12 @@ private fun OriginalInventoryProductRow(
 ) {
     val swipeState = rememberSwipeToDismissBoxState()
 
+    LaunchedEffect(swipeState.currentValue) {
+        if (swipeState.currentValue == SwipeToDismissBoxValue.Settled) {
+            swipeState.reset()
+        }
+    }
+
     SwipeToDismissBox(
         state = swipeState,
         modifier = Modifier.fillMaxWidth(),

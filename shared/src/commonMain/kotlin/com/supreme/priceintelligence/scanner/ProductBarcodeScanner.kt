@@ -60,6 +60,7 @@ fun ProductBarcodeScanner(
     var flashlightEnabled by remember {
         mutableStateOf(false)
     }
+    val scanHapticFeedback = rememberScanHapticFeedback()
 
     Dialog(
         onDismissRequest = onCanceled,
@@ -103,8 +104,10 @@ fun ProductBarcodeScanner(
                 scannerController = scannerController
             ) { result ->
                 when (result) {
-                    is BarcodeResult.OnSuccess ->
+                    is BarcodeResult.OnSuccess -> {
+                        scanHapticFeedback.scanSucceeded()
                         onScanned(result.barcode.data)
+                    }
 
                     is BarcodeResult.OnFailed ->
                         onError(
