@@ -398,7 +398,7 @@ fun OriginalDashboardScreen(
                     )
                 }
 
-                if (advancedModeEnabled && state.allMatchingItems.isNotEmpty()) {
+                if (advancedModeEnabled && state.searchQuery.isBlank() && state.allMatchingItems.isNotEmpty()) {
                     item(key = "advanced-summary") {
                         DashboardDecisionSummaryCard(
                             summary = state.allMatchingItems.buildDecisionSummary(state.pageItems),

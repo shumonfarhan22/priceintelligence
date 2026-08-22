@@ -174,6 +174,14 @@ class DashboardViewModel(
                 }
             }
 
+            if (query.isNotBlank() && _uiState.value.priceFilter != null) {
+                // The Shop Overview card (and its Competitive/Review filter)
+                // only exists on the unsearched, "main" view — clear it the
+                // moment a real search starts, so a hidden filter can't
+                // silently keep narrowing the search results.
+                _uiState.update { it.copy(priceFilter = null) }
+            }
+
             if (_uiState.value.priceFilter == null) {
                 val startTime =
                     Clock.System.now().toEpochMilliseconds()
@@ -215,7 +223,7 @@ class DashboardViewModel(
             // The database can sort and page by text/sort order, but not by
             // a computed price position — that depends on live results too.
             // So pull every matching product once and filter/page it here.
-            val allMatching = repository.getAllMatching(state.searchQuery)
+            val allMatching = repository.getAllMatching("")
             val liveById = state.pageItems.associateBy { card -> card.item.id }
 
             val filtered = allMatching.filter { item ->
@@ -278,7 +286,10 @@ class DashboardViewModel(
     // list above so that card, which promises a full-shop view, is never
     // quietly limited to whatever page the user happens to be looking at.
     private suspend fun refreshWholeShopSnapshot() {
-        val items = repository.getAllMatching(_uiState.value.searchQuery)
+        // Always the whole shop, regardless of any active text search — the
+        // Shop Overview card is hidden while searching (see the screen), so
+        // this must never narrow down to just the search results.
+        val items = repository.getAllMatching("")
         _uiState.update { it.copy(allMatchingItems = items) }
     }
 

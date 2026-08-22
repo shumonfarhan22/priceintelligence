@@ -612,10 +612,17 @@ internal fun ProfessionalDashboardSearchOverlay(
         modifier = modifier.fillMaxSize()
     ) {
         if (isFocused) {
+            // A blank, focused search box (before typing) still gets the
+            // heavy curtain — there's nothing behind it to show yet. Once
+            // there's a query, lighten it so the already-filtered product
+            // list is visible through it, instead of hidden until you
+            // dismiss the search box.
+            val scrimAlpha = if (query.isBlank()) 0.82f else 0.35f
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.82f))
+                    .background(Color.Black.copy(alpha = scrimAlpha))
                     .clickable(onClick = onDismissFocus)
             )
         } else {

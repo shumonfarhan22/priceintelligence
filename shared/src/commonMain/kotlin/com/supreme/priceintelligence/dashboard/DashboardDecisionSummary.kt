@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -141,6 +142,7 @@ fun DashboardDecisionSummaryCard(
     activeFilter: PricePositionFilter? = null,
     onFilterToggle: (PricePositionFilter) -> Unit = {}
 ) {
+    var isCardExpanded by remember { mutableStateOf(false) }
     var isBreakdownExpanded by remember { mutableStateOf(false) }
     var isPriorityListExpanded by remember { mutableStateOf(false) }
 
@@ -149,6 +151,7 @@ fun DashboardDecisionSummaryCard(
     // scroll back near the top later.
     LaunchedEffect(collapseSignal) {
         if (collapseSignal) {
+            isCardExpanded = false
             isBreakdownExpanded = false
             isPriorityListExpanded = false
         }
@@ -172,7 +175,10 @@ fun DashboardDecisionSummaryCard(
             modifier = Modifier.padding(16.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { isCardExpanded = !isCardExpanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -193,97 +199,118 @@ fun DashboardDecisionSummaryCard(
                     )
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(
-                        alpha = 0.12f
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text =
-                            "${summary.livePriceProductCount}/" +
-                                    "${summary.comparedCount} live",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(
-                            horizontal = 10.dp,
-                            vertical = 6.dp
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(
+                            alpha = 0.12f
                         )
+                    ) {
+                        Text(
+                            text =
+                                "${summary.livePriceProductCount}/" +
+                                        "${summary.comparedCount} live",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(
+                                horizontal = 10.dp,
+                                vertical = 6.dp
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Icon(
+                        imageVector = if (isCardExpanded) {
+                            Icons.Rounded.ExpandLess
+                        } else {
+                            Icons.Rounded.ExpandMore
+                        },
+                        contentDescription = if (isCardExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Always-visible meter: green (competitive) vs red (review),
-            // side by side, proportional to how many products fall in
-            // each. This is the "at a glance" view — no tap needed.
+            // Always visible — green (competitive) vs red (review), side by
+            // side, proportional to how many products fall in each. Tapping
+            // it (like tapping the header above) reveals the breakdown and
+            // priorities below.
             DecisionMeterBar(
                 competitiveCount = summary.shopCompetitiveCount,
                 reviewCount = summary.onlineCheaperCount,
                 competitiveColor = competitiveColor,
                 reviewColor = reviewColor,
-                activeFilter = activeFilter
+                activeFilter = activeFilter,
+                onTap = { isCardExpanded = !isCardExpanded }
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            ExpandToggleRow(
-                label = "Breakdown",
-                expanded = isBreakdownExpanded,
-                onClick = { isBreakdownExpanded = !isBreakdownExpanded }
-            )
-
-            if (isBreakdownExpanded) {
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DecisionMetric(
-                        value = summary.shopCompetitiveCount,
-                        label = "Competitive",
-                        color = competitiveColor,
-                        selected = activeFilter == PricePositionFilter.COMPETITIVE,
-                        onClick = { onFilterToggle(PricePositionFilter.COMPETITIVE) },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    DecisionMetric(
-                        value = summary.onlineCheaperCount,
-                        label = "Review",
-                        color = reviewColor,
-                        selected = activeFilter == PricePositionFilter.REVIEW,
-                        onClick = { onFilterToggle(PricePositionFilter.REVIEW) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            if (summary.priorityProducts.isNotEmpty()) {
+            if (isCardExpanded) {
                 Spacer(modifier = Modifier.height(10.dp))
 
                 ExpandToggleRow(
-                    label = "Top priorities (${summary.priorityProducts.size})",
-                    expanded = isPriorityListExpanded,
-                    onClick = { isPriorityListExpanded = !isPriorityListExpanded }
+                    label = "Breakdown",
+                    expanded = isBreakdownExpanded,
+                    onClick = { isBreakdownExpanded = !isBreakdownExpanded }
                 )
 
-                if (isPriorityListExpanded) {
+                if (isBreakdownExpanded) {
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        summary.priorityProducts.forEachIndexed { index, product ->
-                            PriorityProductRow(
-                                rank = index + 1,
-                                product = product,
-                                reviewColor = reviewColor,
-                                competitiveColor = competitiveColor
-                            )
+                        DecisionMetric(
+                            value = summary.shopCompetitiveCount,
+                            label = "Competitive",
+                            color = competitiveColor,
+                            selected = activeFilter == PricePositionFilter.COMPETITIVE,
+                            onClick = { onFilterToggle(PricePositionFilter.COMPETITIVE) },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        DecisionMetric(
+                            value = summary.onlineCheaperCount,
+                            label = "Review",
+                            color = reviewColor,
+                            selected = activeFilter == PricePositionFilter.REVIEW,
+                            onClick = { onFilterToggle(PricePositionFilter.REVIEW) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                if (summary.priorityProducts.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    ExpandToggleRow(
+                        label = "Top priorities (${summary.priorityProducts.size})",
+                        expanded = isPriorityListExpanded,
+                        onClick = { isPriorityListExpanded = !isPriorityListExpanded }
+                    )
+
+                    if (isPriorityListExpanded) {
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            summary.priorityProducts.forEachIndexed { index, product ->
+                                PriorityProductRow(
+                                    rank = index + 1,
+                                    product = product,
+                                    reviewColor = reviewColor,
+                                    competitiveColor = competitiveColor
+                                )
+                            }
                         }
                     }
                 }
@@ -329,7 +356,8 @@ private fun DecisionMeterBar(
     reviewCount: Int,
     competitiveColor: Color,
     reviewColor: Color,
-    activeFilter: PricePositionFilter?
+    activeFilter: PricePositionFilter?,
+    onTap: () -> Unit
 ) {
     val total = competitiveCount + reviewCount
     val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
@@ -355,7 +383,8 @@ private fun DecisionMeterBar(
             .fillMaxWidth()
             .height(16.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.06f)),
+            .background(Color.White.copy(alpha = 0.06f))
+            .clickable(onClick = onTap),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         if (total == 0) {
