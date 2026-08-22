@@ -2,6 +2,7 @@ package com.supreme.priceintelligence.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -136,7 +137,9 @@ fun List<InventoryItem>.buildDecisionSummary(
 fun DashboardDecisionSummaryCard(
     summary: DashboardDecisionSummary,
     modifier: Modifier = Modifier,
-    collapseSignal: Boolean = false
+    collapseSignal: Boolean = false,
+    activeFilter: PricePositionFilter? = null,
+    onFilterToggle: (PricePositionFilter) -> Unit = {}
 ) {
     var isBreakdownExpanded by remember { mutableStateOf(false) }
     var isPriorityListExpanded by remember { mutableStateOf(false) }
@@ -220,7 +223,8 @@ fun DashboardDecisionSummaryCard(
                 competitiveCount = summary.shopCompetitiveCount,
                 reviewCount = summary.onlineCheaperCount,
                 competitiveColor = competitiveColor,
-                reviewColor = reviewColor
+                reviewColor = reviewColor,
+                activeFilter = activeFilter
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -242,6 +246,8 @@ fun DashboardDecisionSummaryCard(
                         value = summary.shopCompetitiveCount,
                         label = "Competitive",
                         color = competitiveColor,
+                        selected = activeFilter == PricePositionFilter.COMPETITIVE,
+                        onClick = { onFilterToggle(PricePositionFilter.COMPETITIVE) },
                         modifier = Modifier.weight(1f)
                     )
 
@@ -249,6 +255,8 @@ fun DashboardDecisionSummaryCard(
                         value = summary.onlineCheaperCount,
                         label = "Review",
                         color = reviewColor,
+                        selected = activeFilter == PricePositionFilter.REVIEW,
+                        onClick = { onFilterToggle(PricePositionFilter.REVIEW) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -320,9 +328,27 @@ private fun DecisionMeterBar(
     competitiveCount: Int,
     reviewCount: Int,
     competitiveColor: Color,
-    reviewColor: Color
+    reviewColor: Color,
+    activeFilter: PricePositionFilter?
 ) {
     val total = competitiveCount + reviewCount
+    val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+
+    val resolvedCompetitiveColor = if (
+        activeFilter == null || activeFilter == PricePositionFilter.COMPETITIVE
+    ) {
+        competitiveColor
+    } else {
+        mutedColor
+    }
+
+    val resolvedReviewColor = if (
+        activeFilter == null || activeFilter == PricePositionFilter.REVIEW
+    ) {
+        reviewColor
+    } else {
+        mutedColor
+    }
 
     Row(
         modifier = Modifier
@@ -345,7 +371,7 @@ private fun DecisionMeterBar(
                         .weight(competitiveCount.toFloat())
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(4.dp))
-                        .background(competitiveColor)
+                        .background(resolvedCompetitiveColor)
                 )
             }
 
@@ -355,7 +381,7 @@ private fun DecisionMeterBar(
                         .weight(reviewCount.toFloat())
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(4.dp))
-                        .background(reviewColor)
+                        .background(resolvedReviewColor)
                 )
             }
         }
@@ -367,12 +393,32 @@ private fun DecisionMetric(
     value: Int,
     label: String,
     color: Color,
+    selected: Boolean = false,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = 0.10f))
+            .background(color.copy(alpha = if (selected) 0.18f else 0.10f))
+            .then(
+                if (selected) {
+                    Modifier.border(
+                        width = 1.dp,
+                        color = color.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
             .padding(
                 horizontal = 9.dp,
                 vertical = 9.dp

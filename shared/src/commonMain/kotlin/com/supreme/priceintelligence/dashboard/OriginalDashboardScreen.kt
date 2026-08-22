@@ -402,7 +402,9 @@ fun OriginalDashboardScreen(
                     item(key = "advanced-summary") {
                         DashboardDecisionSummaryCard(
                             summary = state.allMatchingItems.buildDecisionSummary(state.pageItems),
-                            collapseSignal = decisionCardShouldCollapse
+                            collapseSignal = decisionCardShouldCollapse,
+                            activeFilter = state.priceFilter,
+                            onFilterToggle = viewModel::setPriceFilter
                         )
                     }
                 }
@@ -417,7 +419,7 @@ fun OriginalDashboardScreen(
                     state.totalMatchCount == 0 -> {
                         item(key = "empty") {
                             DashboardEmptyState(
-                                isSearching = state.searchQuery.isNotBlank()
+                                isSearching = state.searchQuery.isNotBlank() || state.priceFilter != null
                             )
                         }
                     }

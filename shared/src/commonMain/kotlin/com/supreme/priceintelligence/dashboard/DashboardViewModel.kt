@@ -36,6 +36,10 @@ enum class SortOrder { MOST_VIEWED, BEST_SAVING, ALPHABETICAL, RECENT }
 
 enum class BloomState { SUCCESS, ERROR, WARNING, NONE }
 
+// Tapping the Competitive or Review KPI card on the decision summary sets
+// this, filtering the visible product list down to just that bucket.
+enum class PricePositionFilter { COMPETITIVE, REVIEW }
+
 data class DashboardUiState(
     val searchQuery: String = "",
     val sortOrder: SortOrder = SortOrder.MOST_VIEWED,
@@ -43,6 +47,7 @@ data class DashboardUiState(
     val totalMatchCount: Int = 0,
     val pageItems: List<ProductCardUiState> = emptyList(),
     val allMatchingItems: List<InventoryItem> = emptyList(),
+    val priceFilter: PricePositionFilter? = null,
     val currentPage: Int = 1,
     val pageSize: Int = 10,
     val priceHistoryByProduct: Map<Long, List<PriceHistoryEntry>> = emptyMap(),
@@ -149,6 +154,14 @@ class DashboardViewModel(
         runSearch(_uiState.value.searchQuery)
     }
 
+    // Tapping an active filter again clears it; tapping the other one
+    // switches straight to it.
+    fun setPriceFilter(filter: PricePositionFilter) {
+        val current = _uiState.value.priceFilter
+        _uiState.update { it.copy(priceFilter = if (current == filter) null else filter) }
+        runSearch(_uiState.value.searchQuery)
+    }
+
     private fun runSearch(
         query: String,
         showLoadingIndicator: Boolean = true
@@ -161,15 +174,22 @@ class DashboardViewModel(
                 }
             }
 
-            val startTime =
-                Clock.System.now().toEpochMilliseconds()
-            val count = repository.getSearchCount(query)
-            _uiState.update {
-                it.copy(
-                    totalMatchCount = count,
-                    currentPage = 1,
-                    searchDurationMs = Clock.System.now().toEpochMilliseconds() - startTime
-                )
+            if (_uiState.value.priceFilter == null) {
+                val startTime =
+                    Clock.System.now().toEpochMilliseconds()
+                val count = repository.getSearchCount(query)
+                _uiState.update {
+                    it.copy(
+                        totalMatchCount = count,
+                        currentPage = 1,
+                        searchDurationMs = Clock.System.now().toEpochMilliseconds() - startTime
+                    )
+                }
+            } else {
+                // A KPI filter is active: fetchPageFromDatabase computes the
+                // filtered count itself below, since it depends on each
+                // product's live/last-known price position, not just text.
+                _uiState.update { it.copy(currentPage = 1) }
             }
             fetchPageFromDatabase(1)
         }
@@ -189,6 +209,49 @@ class DashboardViewModel(
         val limit = state.pageSize
         val offset = (page - 1) * limit
         val sortString = state.sortOrder.name
+        val priceFilter = state.priceFilter
+
+        if (priceFilter != null) {
+            // The database can sort and page by text/sort order, but not by
+            // a computed price position — that depends on live results too.
+            // So pull every matching product once and filter/page it here.
+            val allMatching = repository.getAllMatching(state.searchQuery)
+            val liveById = state.pageItems.associateBy { card -> card.item.id }
+
+            val filtered = allMatching.filter { item ->
+                val liveCard = liveById[item.id]
+                val amazonPrice = liveCard?.amazonResult?.price ?: item.amazonLastPrice
+                val flipkartPrice = liveCard?.flipkartResult?.price ?: item.flipkartLastPrice
+                val position = compareWithOnlinePrices(
+                    shopPrice = item.shopPrice,
+                    amazonPrice = amazonPrice,
+                    flipkartPrice = flipkartPrice
+                ).shopPosition
+
+                when (priceFilter) {
+                    PricePositionFilter.COMPETITIVE ->
+                        position == ShopPricePosition.LOWER || position == ShopPricePosition.MATCHED
+
+                    PricePositionFilter.REVIEW ->
+                        position == ShopPricePosition.HIGHER
+                }
+            }
+
+            val pageSlice = filtered.drop(offset).take(limit)
+
+            _uiState.update {
+                val pageIds = pageSlice.map { item -> item.id }.toSet()
+                it.copy(
+                    totalMatchCount = filtered.size,
+                    pageItems = pageSlice.map { item -> ProductCardUiState(item = item) },
+                    allMatchingItems = allMatching,
+                    priceHistoryByProduct = it.priceHistoryByProduct.filterKeys { id -> id in pageIds },
+                    historyLoadingProductIds = it.historyLoadingProductIds.filter { id -> id in pageIds }.toSet(),
+                    isLoading = false
+                )
+            }
+            return
+        }
 
         val pageProducts = if (state.searchQuery.isBlank()) {
             repository.getPaged(sortString, limit, offset)

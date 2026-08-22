@@ -826,12 +826,14 @@ private fun OriginalInventoryProductRow(
                     .background(MaterialTheme.colorScheme.error),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Delete,
-                    contentDescription = "Delete ${item.productName}",
-                    tint = Color.White,
-                    modifier = Modifier.padding(end = 22.dp)
-                )
+                if (swipeState.currentValue != SwipeToDismissBoxValue.Settled) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = "Delete ${item.productName}",
+                        tint = Color.White,
+                        modifier = Modifier.padding(end = 22.dp)
+                    )
+                }
             }
         }
     ) {

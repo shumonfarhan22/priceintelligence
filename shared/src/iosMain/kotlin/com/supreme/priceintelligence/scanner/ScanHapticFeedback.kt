@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import platform.UIKit.UINotificationFeedbackGenerator
 import platform.UIKit.UINotificationFeedbackType
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 @Composable
 actual fun rememberScanHapticFeedback(): ScanHapticFeedback {
@@ -12,10 +14,12 @@ actual fun rememberScanHapticFeedback(): ScanHapticFeedback {
             private val generator = UINotificationFeedbackGenerator()
 
             override fun scanSucceeded() {
-                generator.prepare()
-                generator.notificationOccurred(
-                    UINotificationFeedbackType.UINotificationFeedbackTypeSuccess
-                )
+                dispatch_async(dispatch_get_main_queue()) {
+                    generator.prepare()
+                    generator.notificationOccurred(
+                        UINotificationFeedbackType.UINotificationFeedbackTypeSuccess
+                    )
+                }
             }
         }
     }

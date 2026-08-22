@@ -86,6 +86,7 @@ fun App(
                 )
             }
             val inventoryState by inventoryViewModel.uiState.collectAsState()
+            val dashboardState by dashboardViewModel.uiState.collectAsState()
             var destinationName by rememberSaveable {
                 mutableStateOf(AppDestination.Dashboard.name)
             }
@@ -185,7 +186,8 @@ fun App(
             }
 
             OriginalAppBackground(
-                isConnected = isConnected
+                isConnected = isConnected,
+                filterBloom = dashboardState.priceFilter
             ) {
                 Box(
                     modifier = Modifier

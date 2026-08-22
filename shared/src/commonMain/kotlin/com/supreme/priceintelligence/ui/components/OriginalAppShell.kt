@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.dashboard.PricePositionFilter
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
 import kotlinx.coroutines.delay
@@ -62,6 +63,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 fun OriginalAppBackground(
     isConnected: Boolean,
+    filterBloom: PricePositionFilter?,
     content: @Composable () -> Unit
 ) {
 
@@ -110,6 +112,45 @@ fun OriginalAppBackground(
         label = "networkPulseAlpha"
     )
 
+    // A separate, whole-screen pulse for the dashboard's Competitive/Review
+    // KPI taps — distinct from the small corner glow above, which is only
+    // about network status.
+    var filterPulseVisible by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(filterBloom) {
+        if (filterBloom != null) {
+            filterPulseVisible = true
+            delay(900.milliseconds)
+            filterPulseVisible = false
+        } else {
+            filterPulseVisible = false
+        }
+    }
+
+    val filterPulseColor by animateColorAsState(
+        targetValue = when (filterBloom) {
+            PricePositionFilter.COMPETITIVE -> MaterialTheme.colorScheme.primary
+            PricePositionFilter.REVIEW -> MaterialTheme.colorScheme.error
+            null -> Color.Transparent
+        },
+        animationSpec = tween(
+            durationMillis = 250,
+            easing = FastOutSlowInEasing
+        ),
+        label = "filterPulseColor"
+    )
+
+    val filterPulseAlpha by animateFloatAsState(
+        targetValue = if (filterPulseVisible) 0.12f else 0f,
+        animationSpec = tween(
+            durationMillis = if (filterPulseVisible) 250 else 800,
+            easing = FastOutSlowInEasing
+        ),
+        label = "filterPulseAlpha"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -145,6 +186,25 @@ fun OriginalAppBackground(
                     ),
                     radius = networkGlowRadius,
                     center = logoGlowCenter
+                )
+            }
+
+            if (filterPulseAlpha > 0f) {
+                val screenCenter = Offset(
+                    x = size.width * 0.5f,
+                    y = size.height * 0.5f
+                )
+
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            filterPulseColor.copy(alpha = filterPulseAlpha),
+                            filterPulseColor.copy(alpha = filterPulseAlpha * 0.6f)
+                        ),
+                        center = screenCenter,
+                        radius = size.maxDimension
+                    ),
+                    size = size
                 )
             }
         }

@@ -2,6 +2,8 @@ package com.supreme.priceintelligence.scanner
 
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -15,20 +17,24 @@ import androidx.compose.ui.platform.LocalView
 actual fun rememberScanHapticFeedback(): ScanHapticFeedback {
     val view = LocalView.current
     val context = LocalContext.current
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
     return remember(view, context) {
         object : ScanHapticFeedback {
             override fun scanSucceeded() {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    // Defers to the phone's own haptic engine (Samsung One UI,
-                    // MIUI, stock Android) so it plays that device's native
-                    // "confirm" pattern instead of a generic buzz.
-                    view.performHapticFeedback(
-                        HapticFeedbackConstants.CONFIRM,
-                        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
-                    )
-                } else {
-                    vibrateLegacy(context)
+                mainHandler.post {
+                    val handled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        view.performHapticFeedback(
+                            HapticFeedbackConstants.CONFIRM,
+                            HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
+                        )
+                    } else {
+                        false
+                    }
+
+                    if (!handled) {
+                        vibrateLegacy(context)
+                    }
                 }
             }
         }
