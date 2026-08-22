@@ -567,9 +567,13 @@ internal fun ProfessionalDashboardSearchOverlay(
 
     val keyboardVisible = keyboardClearance > 0.dp
 
+    val bannerClearanceGap =
+        if (bottomBannerHeight > 0.dp) 20.dp else 0.dp
+
     val restingSearchBarBottom =
-        91.dp +
+        96.dp +
                 bottomBannerHeight +
+                bannerClearanceGap +
                 additionalBannerHeight
 
     val keyboardSearchBarBottom =

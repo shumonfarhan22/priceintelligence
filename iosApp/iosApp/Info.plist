@@ -12,8 +12,6 @@
 	<dict>
 		<key>UIColorName</key>
 		<string>SplashBackground</string>
-		<key>UIImageName</key>
-		<string>SplashLogo</string>
 	</dict>
 </dict>
 </plist>

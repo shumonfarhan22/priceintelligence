@@ -5,6 +5,9 @@
 
 package com.supreme.priceintelligence.inventory
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -432,7 +435,12 @@ fun OriginalInventoryScreen(
                 )
         )
 
-        if (!state.isSelectionMode) {
+        AnimatedVisibility(
+            visible = !state.isSelectionMode && bottomBannerHeight <= 0.dp,
+            modifier = Modifier.align(Alignment.BottomEnd),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
             FloatingActionButton(
                 onClick = {
                     viewModel.clearSelection()
@@ -440,13 +448,9 @@ fun OriginalInventoryScreen(
                     editorOpen = true
                 },
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
                     .padding(
                         end = 14.dp,
-                        bottom =
-                            96.dp +
-                                bottomBannerHeight +
-                                16.dp
+                        bottom = 96.dp
                     ),
                 shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.primary,

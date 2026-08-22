@@ -11,8 +11,47 @@ struct ComposeView: UIViewControllerRepresentable {
 }
 
 struct ContentView: View {
+    @State private var showSplash = true
+
     var body: some View {
-        ComposeView()
-            .ignoresSafeArea()
+        ZStack {
+            ComposeView()
+                .ignoresSafeArea()
+
+            if showSplash {
+                SplashOverlay()
+                    .transition(.opacity)
+            }
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                withAnimation(.easeOut(duration: 0.4)) {
+                    showSplash = false
+                }
+            }
+        }
+    }
+}
+
+private struct SplashOverlay: View {
+    var body: some View {
+        ZStack {
+            Color("SplashBackground")
+                .ignoresSafeArea()
+
+            Image("SplashLogo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 120, height: 120)
+
+            VStack {
+                Spacer()
+                Image("SplashBranding")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 220, height: 88)
+                    .padding(.bottom, 40)
+            }
+        }
     }
 }
