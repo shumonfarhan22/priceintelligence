@@ -1,6 +1,7 @@
 package com.supreme.priceintelligence.dashboard
 
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.network.ScrapeResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -64,35 +65,62 @@ class PriceComparisonTest {
     }
 
     @Test
-    fun decisionSummarySeparatesShopWinsReviewsAndMissingPrices() {
-        val cards = listOf(
-            productCard(id = 1, name = "Shop winner", shopPrice = 900.0, amazonPrice = 1_000.0),
-            productCard(id = 2, name = "Needs review", shopPrice = 2_000.0, amazonPrice = 1_500.0),
-            productCard(id = 3, name = "Not checked", shopPrice = 500.0, amazonPrice = null)
+    fun decisionSummarySeparatesShopWinsReviewsAndBothUnavailableReasons() {
+        val items = listOf(
+            inventoryItem(id = 1, name = "Shop winner", shopPrice = 900.0, amazonPrice = 1_000.0),
+            inventoryItem(id = 2, name = "Needs review", shopPrice = 2_000.0, amazonPrice = 1_500.0),
+            inventoryItem(id = 3, name = "Not checked", shopPrice = 500.0, amazonPrice = null),
+            inventoryItem(id = 4, name = "Bad shop price", shopPrice = Double.NaN, amazonPrice = 900.0)
         )
 
-        val summary = cards.buildDecisionSummary()
+        val summary = items.buildDecisionSummary(livePriceCards = emptyList())
 
         assertEquals(1, summary.shopCompetitiveCount)
         assertEquals(1, summary.onlineCheaperCount)
-        assertEquals(1, summary.unavailableCount)
+        assertEquals(1, summary.noOnlinePriceCount)
+        assertEquals(1, summary.invalidShopPriceCount)
         assertEquals("Needs review", summary.biggestSavingProductName)
         assertEquals(500.0, summary.biggestSavingAmount)
     }
 
-    private fun productCard(
+    @Test
+    fun decisionSummaryCoversTheWholeListNotJustOnePage() {
+        val items = (1..25).map { id ->
+            inventoryItem(id = id.toLong(), name = "Product $id", shopPrice = 100.0, amazonPrice = 90.0)
+        }
+
+        val summary = items.buildDecisionSummary(livePriceCards = emptyList())
+
+        assertEquals(25, summary.comparedCount)
+        assertEquals(25, summary.onlineCheaperCount)
+    }
+
+    @Test
+    fun livePriceOverridesStoredLastPriceWhenBothArePresent() {
+        val item = inventoryItem(id = 5, name = "Live check", shopPrice = 1_000.0, amazonPrice = 950.0)
+        val liveCard = ProductCardUiState(
+            item = item,
+            amazonResult = ScrapeResult(price = 700.0)
+        )
+
+        val summary = listOf(item).buildDecisionSummary(livePriceCards = listOf(liveCard))
+
+        assertEquals(1, summary.onlineCheaperCount)
+        assertEquals(300.0, summary.biggestSavingAmount)
+        assertEquals(1, summary.livePriceProductCount)
+    }
+
+    private fun inventoryItem(
         id: Long,
         name: String,
         shopPrice: Double,
         amazonPrice: Double?
-    ): ProductCardUiState = ProductCardUiState(
-        item = InventoryItem(
-            id = id,
-            productName = name,
-            shopPrice = shopPrice,
-            amazonLastPrice = amazonPrice,
-            createdAt = 1,
-            updatedAt = 1
-        )
+    ): InventoryItem = InventoryItem(
+        id = id,
+        productName = name,
+        shopPrice = shopPrice,
+        amazonLastPrice = amazonPrice,
+        createdAt = 1,
+        updatedAt = 1
     )
 }

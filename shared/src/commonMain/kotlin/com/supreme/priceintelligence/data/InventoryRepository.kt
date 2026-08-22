@@ -322,6 +322,27 @@ class InventoryRepository(private val dao: InventoryDao) {
         return dao.getAllRanked().count { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
     }
 
+    // Same matching rules as searchPaged/getSearchCount, but returns every
+    // match instead of one page. Used for whole-shop summaries, which must
+    // reflect everything the user is looking at, not just the 10 or so
+    // products currently visible on screen.
+    suspend fun getAllMatching(query: String): List<InventoryItem> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return dao.getAll()
+
+        if (trimmed.all { it.isDigit() }) {
+            val byBarcode = dao.findByBarcode(trimmed)
+            if (byBarcode.isNotEmpty()) return byBarcode
+        }
+
+        if (looksLikeUrl(trimmed)) {
+            return dao.getAllRanked().filter { matchesUrl(it, trimmed) }
+        }
+
+        val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
+        return dao.getAll().filter { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
+    }
+
     private fun looksLikeUrl(value: String): Boolean =
         value.startsWith("http") || value.contains("amazon") || value.contains("flipkart")
 

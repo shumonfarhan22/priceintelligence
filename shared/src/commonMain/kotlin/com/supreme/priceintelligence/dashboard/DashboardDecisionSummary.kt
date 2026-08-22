@@ -31,12 +31,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.data.InventoryItem
 
 data class DashboardDecisionSummary(
     val comparedCount: Int,
     val onlineCheaperCount: Int,
     val shopCompetitiveCount: Int,
-    val unavailableCount: Int,
+    val noOnlinePriceCount: Int,
+    val invalidShopPriceCount: Int,
     val livePriceProductCount: Int,
     val biggestSavingProductName: String? = null,
     val biggestSavingAmount: Double? = null,
@@ -44,32 +46,40 @@ data class DashboardDecisionSummary(
     val priorityPurchaseCost: Double? = null
 )
 
-fun List<ProductCardUiState>.buildDecisionSummary():
-        DashboardDecisionSummary {
+// Builds the summary from every matching product (allItems) — the whole
+// shop, or the whole search result — never just whatever page is currently
+// on screen. livePriceCards supplies a fresher price for whichever of those
+// products also happen to be visible right now, so a check you just ran
+// shows up immediately instead of waiting for the next full reload.
+fun List<InventoryItem>.buildDecisionSummary(
+    livePriceCards: List<ProductCardUiState>
+): DashboardDecisionSummary {
+    val liveById = livePriceCards.associateBy { card -> card.item.id }
+
     var onlineCheaperCount = 0
     var shopCompetitiveCount = 0
-    var unavailableCount = 0
+    var noOnlinePriceCount = 0
+    var invalidShopPriceCount = 0
     var livePriceProductCount = 0
     var biggestSavingProductName: String? = null
     var biggestSavingAmount: Double? = null
     var priorityOnlinePrice: Double? = null
     var priorityPurchaseCost: Double? = null
 
-    forEach { card ->
-        val amazonPrice =
-            card.amazonResult?.price ?: card.item.amazonLastPrice
-        val flipkartPrice =
-            card.flipkartResult?.price ?: card.item.flipkartLastPrice
+    forEach { item ->
+        val liveCard = liveById[item.id]
+        val amazonPrice = liveCard?.amazonResult?.price ?: item.amazonLastPrice
+        val flipkartPrice = liveCard?.flipkartResult?.price ?: item.flipkartLastPrice
 
         val comparison = compareWithOnlinePrices(
-            shopPrice = card.item.shopPrice,
+            shopPrice = item.shopPrice,
             amazonPrice = amazonPrice,
             flipkartPrice = flipkartPrice
         )
 
         if (
-            card.amazonResult?.price != null ||
-            card.flipkartResult?.price != null
+            liveCard?.amazonResult?.price != null ||
+            liveCard?.flipkartResult?.price != null
         ) {
             livePriceProductCount += 1
         }
@@ -79,17 +89,11 @@ fun List<ProductCardUiState>.buildDecisionSummary():
                 onlineCheaperCount += 1
                 val gap = comparison.shopDifference
 
-                if (
-                    gap != null &&
-                    gap > (biggestSavingAmount ?: 0.0)
-                ) {
+                if (gap != null && gap > (biggestSavingAmount ?: 0.0)) {
                     biggestSavingAmount = gap
-                    biggestSavingProductName =
-                        card.item.productName
-                    priorityOnlinePrice =
-                        comparison.onlineLowestPrice
-                    priorityPurchaseCost =
-                        card.item.purchaseCost
+                    biggestSavingProductName = item.productName
+                    priorityOnlinePrice = comparison.onlineLowestPrice
+                    priorityPurchaseCost = item.purchaseCost
                 }
             }
 
@@ -98,9 +102,12 @@ fun List<ProductCardUiState>.buildDecisionSummary():
                 shopCompetitiveCount += 1
             }
 
-            ShopPricePosition.NO_ONLINE_PRICE,
+            ShopPricePosition.NO_ONLINE_PRICE -> {
+                noOnlinePriceCount += 1
+            }
+
             ShopPricePosition.INVALID_SHOP_PRICE -> {
-                unavailableCount += 1
+                invalidShopPriceCount += 1
             }
         }
     }
@@ -109,7 +116,8 @@ fun List<ProductCardUiState>.buildDecisionSummary():
         comparedCount = size,
         onlineCheaperCount = onlineCheaperCount,
         shopCompetitiveCount = shopCompetitiveCount,
-        unavailableCount = unavailableCount,
+        noOnlinePriceCount = noOnlinePriceCount,
+        invalidShopPriceCount = invalidShopPriceCount,
         livePriceProductCount = livePriceProductCount,
         biggestSavingProductName = biggestSavingProductName,
         biggestSavingAmount = biggestSavingAmount,
@@ -117,18 +125,17 @@ fun List<ProductCardUiState>.buildDecisionSummary():
         priorityPurchaseCost = priorityPurchaseCost
     )
 }
+
 private enum class DecisionFocus {
     COMPETITIVE,
-    REVIEW_PRICE,
-    NEED_CHECK
+    REVIEW,
+    NO_ONLINE_PRICE,
+    FIX_PRICE
 }
-
-private val DecisionCheckColor = Color(0xFFF59E0B)
 
 @Composable
 fun DashboardDecisionSummaryCard(
     summary: DashboardDecisionSummary,
-    currentPage: Int,
     modifier: Modifier = Modifier
 ) {
     var selectedFocus by remember {
@@ -137,16 +144,11 @@ fun DashboardDecisionSummaryCard(
 
     val competitiveColor = MaterialTheme.colorScheme.primary
     val reviewColor = MaterialTheme.colorScheme.error
+    val noOnlinePriceColor = MaterialTheme.colorScheme.secondary
+    val fixPriceColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    val selectedColor = when (selectedFocus) {
-        DecisionFocus.COMPETITIVE -> competitiveColor
-        DecisionFocus.REVIEW_PRICE -> reviewColor
-        DecisionFocus.NEED_CHECK -> DecisionCheckColor
-        null -> when {
-            summary.onlineCheaperCount > 0 -> reviewColor
-            summary.shopCompetitiveCount > 0 -> competitiveColor
-            else -> DecisionCheckColor
-        }
+    fun toggle(focus: DecisionFocus) {
+        selectedFocus = if (selectedFocus == focus) null else focus
     }
 
     Surface(
@@ -170,7 +172,7 @@ fun DashboardDecisionSummaryCard(
             ) {
                 Column {
                     Text(
-                        text = "PRICE POSITION",
+                        text = "SHOP OVERVIEW",
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -178,7 +180,7 @@ fun DashboardDecisionSummaryCard(
                     )
 
                     Text(
-                        text = "Page $currentPage snapshot",
+                        text = "${summary.comparedCount} products compared",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
@@ -213,10 +215,9 @@ fun DashboardDecisionSummaryCard(
                 selectedFocus = selectedFocus,
                 competitiveColor = competitiveColor,
                 reviewColor = reviewColor,
-                onFocusSelected = { focus ->
-                    selectedFocus =
-                        if (selectedFocus == focus) null else focus
-                }
+                noOnlinePriceColor = noOnlinePriceColor,
+                fixPriceColor = fixPriceColor,
+                onFocusSelected = ::toggle
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -229,19 +230,8 @@ fun DashboardDecisionSummaryCard(
                     value = summary.shopCompetitiveCount,
                     label = "Competitive",
                     color = competitiveColor,
-                    selected =
-                        selectedFocus == DecisionFocus.COMPETITIVE,
-                    onClick = {
-                        selectedFocus =
-                            if (
-                                selectedFocus ==
-                                DecisionFocus.COMPETITIVE
-                            ) {
-                                null
-                            } else {
-                                DecisionFocus.COMPETITIVE
-                            }
-                    },
+                    selected = selectedFocus == DecisionFocus.COMPETITIVE,
+                    onClick = { toggle(DecisionFocus.COMPETITIVE) },
                     modifier = Modifier.weight(1f)
                 )
 
@@ -249,61 +239,34 @@ fun DashboardDecisionSummaryCard(
                     value = summary.onlineCheaperCount,
                     label = "Review",
                     color = reviewColor,
-                    selected =
-                        selectedFocus == DecisionFocus.REVIEW_PRICE,
-                    onClick = {
-                        selectedFocus =
-                            if (
-                                selectedFocus ==
-                                DecisionFocus.REVIEW_PRICE
-                            ) {
-                                null
-                            } else {
-                                DecisionFocus.REVIEW_PRICE
-                            }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-
-                DecisionMetric(
-                    value = summary.unavailableCount,
-                    label = "Check",
-                    color = DecisionCheckColor,
-                    selected =
-                        selectedFocus == DecisionFocus.NEED_CHECK,
-                    onClick = {
-                        selectedFocus =
-                            if (
-                                selectedFocus ==
-                                DecisionFocus.NEED_CHECK
-                            ) {
-                                null
-                            } else {
-                                DecisionFocus.NEED_CHECK
-                            }
-                    },
+                    selected = selectedFocus == DecisionFocus.REVIEW,
+                    onClick = { toggle(DecisionFocus.REVIEW) },
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(selectedColor.copy(alpha = 0.10f))
-                    .padding(
-                        horizontal = 12.dp,
-                        vertical = 10.dp
-                    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = summary.focusText(selectedFocus),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    fontWeight = FontWeight.SemiBold
+                DecisionMetric(
+                    value = summary.noOnlinePriceCount,
+                    label = "No online price",
+                    color = noOnlinePriceColor,
+                    selected = selectedFocus == DecisionFocus.NO_ONLINE_PRICE,
+                    onClick = { toggle(DecisionFocus.NO_ONLINE_PRICE) },
+                    modifier = Modifier.weight(1f)
+                )
+
+                DecisionMetric(
+                    value = summary.invalidShopPriceCount,
+                    label = "Fix shop price",
+                    color = fixPriceColor,
+                    selected = selectedFocus == DecisionFocus.FIX_PRICE,
+                    onClick = { toggle(DecisionFocus.FIX_PRICE) },
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -321,108 +284,50 @@ private fun DecisionDistributionBar(
     selectedFocus: DecisionFocus?,
     competitiveColor: Color,
     reviewColor: Color,
+    noOnlinePriceColor: Color,
+    fixPriceColor: Color,
     onFocusSelected: (DecisionFocus) -> Unit
 ) {
-    val hasResults =
-        summary.shopCompetitiveCount > 0 ||
-                summary.onlineCheaperCount > 0 ||
-                summary.unavailableCount > 0
+    val segments = listOf(
+        Triple(DecisionFocus.COMPETITIVE, summary.shopCompetitiveCount, competitiveColor),
+        Triple(DecisionFocus.REVIEW, summary.onlineCheaperCount, reviewColor),
+        Triple(DecisionFocus.NO_ONLINE_PRICE, summary.noOnlinePriceCount, noOnlinePriceColor),
+        Triple(DecisionFocus.FIX_PRICE, summary.invalidShopPriceCount, fixPriceColor)
+    ).filter { (_, count, _) -> count > 0 }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(16.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.06f))
+            .background(Color.White.copy(alpha = 0.06f)),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        if (!hasResults) {
+        if (segments.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.White.copy(alpha = 0.06f))
             )
         } else {
-            if (summary.shopCompetitiveCount > 0) {
+            segments.forEach { (focus, count, color) ->
                 Box(
                     modifier = Modifier
-                        .weight(
-                            summary.shopCompetitiveCount.toFloat()
-                        )
+                        .weight(count.toFloat())
                         .fillMaxHeight()
+                        .clip(RoundedCornerShape(4.dp))
                         .background(
-                            competitiveColor.copy(
+                            color.copy(
                                 alpha = if (
-                                    selectedFocus == null ||
-                                    selectedFocus ==
-                                    DecisionFocus.COMPETITIVE
+                                    selectedFocus == null || selectedFocus == focus
                                 ) {
                                     1f
                                 } else {
-                                    0.35f
+                                    0.30f
                                 }
                             )
                         )
-                        .clickable {
-                            onFocusSelected(
-                                DecisionFocus.COMPETITIVE
-                            )
-                        }
-                )
-            }
-
-            if (summary.onlineCheaperCount > 0) {
-                Box(
-                    modifier = Modifier
-                        .weight(
-                            summary.onlineCheaperCount.toFloat()
-                        )
-                        .fillMaxHeight()
-                        .background(
-                            reviewColor.copy(
-                                alpha = if (
-                                    selectedFocus == null ||
-                                    selectedFocus ==
-                                    DecisionFocus.REVIEW_PRICE
-                                ) {
-                                    1f
-                                } else {
-                                    0.35f
-                                }
-                            )
-                        )
-                        .clickable {
-                            onFocusSelected(
-                                DecisionFocus.REVIEW_PRICE
-                            )
-                        }
-                )
-            }
-
-            if (summary.unavailableCount > 0) {
-                Box(
-                    modifier = Modifier
-                        .weight(
-                            summary.unavailableCount.toFloat()
-                        )
-                        .fillMaxHeight()
-                        .background(
-                            DecisionCheckColor.copy(
-                                alpha = if (
-                                    selectedFocus == null ||
-                                    selectedFocus ==
-                                    DecisionFocus.NEED_CHECK
-                                ) {
-                                    1f
-                                } else {
-                                    0.35f
-                                }
-                            )
-                        )
-                        .clickable {
-                            onFocusSelected(
-                                DecisionFocus.NEED_CHECK
-                            )
-                        }
+                        .clickable { onFocusSelected(focus) }
                 )
             }
         }
@@ -475,7 +380,8 @@ private fun DecisionMetric(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -533,7 +439,7 @@ private fun PriorityPriceComparison(
                         text = if (marginRisk) {
                             "MARGIN RISK"
                         } else {
-                            "PRICE PRIORITY"
+                            "TOP PRIORITY"
                         },
                         color = if (marginRisk) {
                             reviewColor
@@ -626,36 +532,5 @@ private fun DecisionPricePoint(
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )
-    }
-}
-
-private fun DashboardDecisionSummary.focusText(
-    focus: DecisionFocus?
-): String {
-    return when (focus) {
-        DecisionFocus.COMPETITIVE ->
-            "$shopCompetitiveCount products are priced at or below the available online price."
-
-        DecisionFocus.REVIEW_PRICE ->
-            "$onlineCheaperCount products have a lower online offer. Review these first."
-
-        DecisionFocus.NEED_CHECK ->
-            "$unavailableCount products need an individual fresh price check."
-
-        null -> when {
-            onlineCheaperCount > 0 &&
-                    biggestSavingProductName != null ->
-                "Start with $biggestSavingProductName — it has the largest online price gap."
-
-            shopCompetitiveCount > 0 &&
-                    unavailableCount == 0 ->
-                "Your available comparisons currently look competitive."
-
-            unavailableCount > 0 ->
-                "Check the unavailable products before making a pricing decision."
-
-            else ->
-                "No reliable online comparison is currently available."
-        }
     }
 }

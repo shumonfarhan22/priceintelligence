@@ -380,11 +380,10 @@ fun OriginalDashboardScreen(
                     )
                 }
 
-                if (advancedModeEnabled && state.pageItems.isNotEmpty()) {
+                if (advancedModeEnabled && state.allMatchingItems.isNotEmpty()) {
                     item(key = "advanced-summary") {
                         DashboardDecisionSummaryCard(
-                            summary = state.pageItems.buildDecisionSummary(),
-                            currentPage = state.currentPage
+                            summary = state.allMatchingItems.buildDecisionSummary(state.pageItems)
                         )
                     }
                 }

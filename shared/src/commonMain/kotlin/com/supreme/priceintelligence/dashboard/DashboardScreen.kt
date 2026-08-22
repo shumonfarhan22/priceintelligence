@@ -465,8 +465,7 @@ fun DashboardScreen(
                     ) {
                         item(key = "decision-summary") {
                             DashboardDecisionSummaryCard(
-                                summary = state.pageItems.buildDecisionSummary(),
-                                currentPage = state.currentPage
+                                summary = state.allMatchingItems.buildDecisionSummary(state.pageItems)
                             )
                         }
 

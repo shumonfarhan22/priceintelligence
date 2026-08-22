@@ -42,6 +42,7 @@ data class DashboardUiState(
     val suggestions: List<String> = emptyList(),
     val totalMatchCount: Int = 0,
     val pageItems: List<ProductCardUiState> = emptyList(),
+    val allMatchingItems: List<InventoryItem> = emptyList(),
     val currentPage: Int = 1,
     val pageSize: Int = 10,
     val priceHistoryByProduct: Map<Long, List<PriceHistoryEntry>> = emptyMap(),
@@ -199,6 +200,16 @@ class DashboardViewModel(
                 isLoading = false
             )
         }
+
+        refreshWholeShopSnapshot()
+    }
+
+    // Powers the whole-shop decision summary. Kept separate from the paged
+    // list above so that card, which promises a full-shop view, is never
+    // quietly limited to whatever page the user happens to be looking at.
+    private suspend fun refreshWholeShopSnapshot() {
+        val items = repository.getAllMatching(_uiState.value.searchQuery)
+        _uiState.update { it.copy(allMatchingItems = items) }
     }
 
     fun loadPriceHistory(productId: Long, force: Boolean = false) {
@@ -239,6 +250,7 @@ class DashboardViewModel(
         viewModelScope.launch {
             repository.incrementSearchCount(productId)
             scrapeOne(productId)
+            refreshWholeShopSnapshot()
         }
     }
 
@@ -267,6 +279,7 @@ class DashboardViewModel(
                         }.awaitAll()
                     }
                 }
+                refreshWholeShopSnapshot()
             } finally {
                 _uiState.update { it.copy(isRefreshingPage = false) }
             }
