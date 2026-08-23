@@ -647,6 +647,13 @@ internal fun ProfessionalDashboardSearchOverlay(
                             )
                         )
                     )
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(searchBarBottom + 96.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
