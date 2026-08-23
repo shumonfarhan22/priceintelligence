@@ -272,17 +272,18 @@ fun OriginalDashboardScreen(
     }
 
     // Separate from the compact-header effect above, which reacts to a tiny
-    // scroll (20-24dp). This tracks a much bigger distance — how far down
-    // the whole list the user is — so the decision summary card can fold
-    // itself shut once you're well past it, instead of staying expanded
-    // and taking up space if you scroll back near the top later.
+    // scroll (20-24dp). This checks something much more direct: whether the
+    // decision summary card's own list item is still on screen at all. Only
+    // once it has scrolled fully out of view does it fold itself shut, so
+    // it doesn't sit expanded — and taking up space — if you scroll back
+    // near the top later.
     LaunchedEffect(dashboardListState) {
         snapshotFlow {
-            val totalItems = dashboardListState.layoutInfo.totalItemsCount
-            val firstIndex = dashboardListState.firstVisibleItemIndex
-            if (totalItems <= 0) 0f else firstIndex.toFloat() / totalItems.toFloat()
-        }.collect { scrolledFraction ->
-            decisionCardShouldCollapse = scrolledFraction >= 0.4f
+            dashboardListState.layoutInfo.visibleItemsInfo.any { info ->
+                info.key == "advanced-summary"
+            }
+        }.collect { summaryCardOnScreen ->
+            decisionCardShouldCollapse = !summaryCardOnScreen
         }
     }
 

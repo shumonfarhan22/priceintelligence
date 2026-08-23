@@ -140,15 +140,19 @@ class DashboardViewModel(
         // Pull-to-refresh is a "start over" gesture — a filter left active
         // from before would be surprising to still see after asking for a
         // fresh look at everything. Same for an expanded card: refreshing
-        // should hand back the compact view.
+        // should hand back the compact view. Same for a typed search: it
+        // should clear too, back to the plain, unfiltered product list.
+        suggestionJob?.cancel()
         _uiState.update {
             it.copy(
+                searchQuery = "",
+                suggestions = emptyList(),
                 priceFilter = null,
                 refreshCollapseTick = it.refreshCollapseTick + 1
             )
         }
         runSearch(
-            query = _uiState.value.searchQuery,
+            query = "",
             showLoadingIndicator = true
         )
     }
