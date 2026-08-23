@@ -490,6 +490,34 @@ fun OriginalDashboardScreen(
             }
         }
 
+        ProfessionalDashboardSearchOverlay(
+            query = state.searchQuery,
+            suggestions = state.suggestions,
+            isFocused = searchFocused,
+            bottomBannerHeight = bottomBannerHeight,
+            additionalBannerHeight = networkBannerClearance,
+            onQueryChange = { query ->
+                viewModel.onSearchQueryChanged(query)
+
+                if (query.isBlank()) {
+                    viewModel.onSearchSubmitted("")
+                }
+            },
+            onSubmit = { query ->
+                viewModel.onSearchSubmitted(query)
+                searchFocused = false
+                focusManager.clearFocus()
+            },
+            onScanClick = permissionRequester::requestPermission,
+            onFocusChange = { focused ->
+                searchFocused = focused
+            },
+            onDismissFocus = {
+                searchFocused = false
+                focusManager.clearFocus()
+            }
+        )
+
         AnimatedVisibility(
             visible = showNetworkBanner,
             modifier = Modifier
@@ -525,34 +553,6 @@ fun OriginalDashboardScreen(
                 horizontalPadding = 16.dp
             )
         }
-
-        ProfessionalDashboardSearchOverlay(
-            query = state.searchQuery,
-            suggestions = state.suggestions,
-            isFocused = searchFocused,
-            bottomBannerHeight = bottomBannerHeight,
-            additionalBannerHeight = networkBannerClearance,
-            onQueryChange = { query ->
-                viewModel.onSearchQueryChanged(query)
-
-                if (query.isBlank()) {
-                    viewModel.onSearchSubmitted("")
-                }
-            },
-            onSubmit = { query ->
-                viewModel.onSearchSubmitted(query)
-                searchFocused = false
-                focusManager.clearFocus()
-            },
-            onScanClick = permissionRequester::requestPermission,
-            onFocusChange = { focused ->
-                searchFocused = focused
-            },
-            onDismissFocus = {
-                searchFocused = false
-                focusManager.clearFocus()
-            }
-        )
     }
 
     val selectedCard = state.pageItems.firstOrNull { card ->
