@@ -139,6 +139,7 @@ fun DashboardDecisionSummaryCard(
     summary: DashboardDecisionSummary,
     modifier: Modifier = Modifier,
     collapseSignal: Boolean = false,
+    refreshTick: Int = 0,
     activeFilter: PricePositionFilter? = null,
     onFilterToggle: (PricePositionFilter) -> Unit = {}
 ) {
@@ -151,6 +152,17 @@ fun DashboardDecisionSummaryCard(
     // scroll back near the top later.
     LaunchedEffect(collapseSignal) {
         if (collapseSignal) {
+            isCardExpanded = false
+            isBreakdownExpanded = false
+            isPriorityListExpanded = false
+        }
+    }
+
+    // Pull-to-refresh should also hand back the compact view. refreshTick
+    // starts at 0 and only ever increases, so the guard below skips the
+    // very first composition and only fires on an actual refresh.
+    LaunchedEffect(refreshTick) {
+        if (refreshTick > 0) {
             isCardExpanded = false
             isBreakdownExpanded = false
             isPriorityListExpanded = false

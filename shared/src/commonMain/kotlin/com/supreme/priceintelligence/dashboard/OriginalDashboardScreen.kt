@@ -403,6 +403,7 @@ fun OriginalDashboardScreen(
                         DashboardDecisionSummaryCard(
                             summary = state.allMatchingItems.buildDecisionSummary(state.pageItems),
                             collapseSignal = decisionCardShouldCollapse,
+                            refreshTick = state.refreshCollapseTick,
                             activeFilter = state.priceFilter,
                             onFilterToggle = viewModel::setPriceFilter
                         )

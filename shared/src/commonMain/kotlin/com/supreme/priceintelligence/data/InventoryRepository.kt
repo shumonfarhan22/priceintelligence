@@ -311,7 +311,8 @@ class InventoryRepository(private val dao: InventoryDao) {
         if (trimmed.isEmpty()) return getTotalCount()
 
         if (trimmed.all { it.isDigit() }) {
-            return if (dao.findByBarcode(trimmed).isNotEmpty()) 1 else 0
+            val byBarcode = dao.findByBarcode(trimmed)
+            if (byBarcode.isNotEmpty()) return byBarcode.size
         }
 
         if (looksLikeUrl(trimmed)) {

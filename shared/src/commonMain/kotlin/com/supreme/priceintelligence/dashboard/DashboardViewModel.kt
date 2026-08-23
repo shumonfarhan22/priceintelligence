@@ -48,6 +48,7 @@ data class DashboardUiState(
     val pageItems: List<ProductCardUiState> = emptyList(),
     val allMatchingItems: List<InventoryItem> = emptyList(),
     val priceFilter: PricePositionFilter? = null,
+    val refreshCollapseTick: Int = 0,
     val currentPage: Int = 1,
     val pageSize: Int = 10,
     val priceHistoryByProduct: Map<Long, List<PriceHistoryEntry>> = emptyMap(),
@@ -136,6 +137,16 @@ class DashboardViewModel(
     }
 
     fun refresh() {
+        // Pull-to-refresh is a "start over" gesture — a filter left active
+        // from before would be surprising to still see after asking for a
+        // fresh look at everything. Same for an expanded card: refreshing
+        // should hand back the compact view.
+        _uiState.update {
+            it.copy(
+                priceFilter = null,
+                refreshCollapseTick = it.refreshCollapseTick + 1
+            )
+        }
         runSearch(
             query = _uiState.value.searchQuery,
             showLoadingIndicator = true
