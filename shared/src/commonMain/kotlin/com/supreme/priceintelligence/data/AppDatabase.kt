@@ -8,7 +8,6 @@ import androidx.room3.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import kotlinx.coroutines.Dispatchers
 
 @Database(
     entities = [InventoryItem::class, PriceHistoryEntry::class],
@@ -129,6 +128,6 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
             MIGRATION_4_5
         )
         .setDriver(BundledSQLiteDriver())
-        .setQueryCoroutineContext(Dispatchers.IO)
+        .setQueryCoroutineContext(databaseDispatcher)
         .build()
 }
