@@ -6,6 +6,7 @@
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -117,6 +118,7 @@ fun OriginalInventoryScreen(
     advancedModeEnabled: Boolean,
     onAdvancedModeChanged: (Boolean) -> Unit,
     bottomBannerHeight: Dp = 0.dp,
+    reduceMotionEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -218,60 +220,88 @@ fun OriginalInventoryScreen(
         return
     }
 
-    val pendingIds = state.pendingDeletes
-        .map { item -> item.id }
-        .toSet()
+    val pendingIds = remember(state.pendingDeletes) {
+        state.pendingDeletes
+            .map { item -> item.id }
+            .toSet()
+    }
 
-    val visibleProducts = state.products
-        .filterNot { item ->
-            item.id in pendingIds
-        }
-        .let { products ->
-            val highlightedId = state.highlightedItemId
-
-            if (highlightedId == null) {
-                products
-            } else {
-                products.sortedByDescending { item ->
-                    item.id == highlightedId
-                }
+    val visibleProducts = remember(
+        state.products,
+        pendingIds,
+        state.highlightedItemId
+    ) {
+        state.products
+            .filterNot { item ->
+                item.id in pendingIds
             }
-        }
+            .let { products ->
+                val highlightedId = state.highlightedItemId
 
-    val groupedProducts = visibleProducts
-        .groupBy { item ->
-            item.productName
-                .trim()
-                .substringBefore(" ")
-                .uppercase()
-                .ifBlank { "OTHER" }
-        }
-        .toList()
-        .sortedWith(
-            compareBy<Pair<String, List<InventoryItem>>> { group ->
-                if (
-                    group.second.any { item ->
-                        item.id == state.highlightedItemId
-                    }
-                ) {
-                    0
+                if (highlightedId == null) {
+                    products
                 } else {
-                    1
+                    products.sortedByDescending { item ->
+                        item.id == highlightedId
+                    }
                 }
-            }.thenBy { group ->
-                group.first
             }
-        )
+    }
+
+    val groupedProducts = remember(
+        visibleProducts,
+        state.highlightedItemId
+    ) {
+        visibleProducts
+            .groupBy { item ->
+                item.productName
+                    .trim()
+                    .substringBefore(" ")
+                    .uppercase()
+                    .ifBlank { "OTHER" }
+            }
+            .toList()
+            .sortedWith(
+                compareBy<Pair<String, List<InventoryItem>>> { group ->
+                    if (
+                        group.second.any { item ->
+                            item.id == state.highlightedItemId
+                        }
+                    ) {
+                        0
+                    } else {
+                        1
+                    }
+                }.thenBy { group ->
+                    group.first
+                }
+            )
+    }
+
+    val allVisibleSelected = remember(
+        visibleProducts,
+        state.selectedItemIds
+    ) {
+        visibleProducts.isNotEmpty() &&
+                visibleProducts.all { item ->
+                    item.id in state.selectedItemIds
+                }
+    }
 
     LaunchedEffect(
         state.highlightedItemId,
-        visibleProducts.size
+        visibleProducts.size,
+        reduceMotionEnabled
     ) {
         if (
             state.highlightedItemId != null &&
             visibleProducts.isNotEmpty()
         ) {
-            inventoryListState.animateScrollToItem(0)
+            if (reduceMotionEnabled) {
+                inventoryListState.scrollToItem(0)
+            } else {
+                inventoryListState.animateScrollToItem(0)
+            }
         } else if (
             inventoryListState.firstVisibleItemIndex <= 1
         ) {
@@ -289,10 +319,7 @@ fun OriginalInventoryScreen(
                 totalProducts = visibleProducts.size,
                 isRefreshing = state.isRefreshing,
                 selectedCount = state.selectedItemIds.size,
-                isAllSelected = visibleProducts.isNotEmpty() &&
-                        visibleProducts.all { item ->
-                            item.id in state.selectedItemIds
-                        },
+                isAllSelected = allVisibleSelected,
                 menuOpen = menuOpen,
                 onMenuOpenChanged = { open ->
                     menuOpen = open
@@ -374,40 +401,96 @@ fun OriginalInventoryScreen(
                             state.directoryQuery.isNotBlank() ||
                                     groupName in state.expandedGroups
 
-                        item(key = "group:$groupName") {
-                            ProfessionalInventoryGroupHeader(
-                                groupName = groupName,
-                                productCount = products.size,
-                                expanded = expanded,
-                                onClick = {
-                                    viewModel.toggleGroup(groupName)
-                                }
-                            )
+                        item(
+                            key = "group:$groupName",
+                            contentType = "inventory-group-header"
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateItem(
+                                        fadeInSpec =
+                                            if (reduceMotionEnabled) {
+                                                null
+                                            } else {
+                                                tween(durationMillis = 160)
+                                            },
+                                        placementSpec =
+                                            if (reduceMotionEnabled) {
+                                                null
+                                            } else {
+                                                tween(durationMillis = 220)
+                                            },
+                                        fadeOutSpec =
+                                            if (reduceMotionEnabled) {
+                                                null
+                                            } else {
+                                                tween(durationMillis = 120)
+                                            }
+                                    )
+                            ) {
+                                ProfessionalInventoryGroupHeader(
+                                    groupName = groupName,
+                                    productCount = products.size,
+                                    expanded = expanded,
+                                    onClick = {
+                                        viewModel.toggleGroup(groupName)
+                                    }
+                                )
+                            }
                         }
 
                         if (expanded) {
                             items(
                                 items = products,
-                                key = { item -> "product:${item.id}" }
+                                key = { item -> "product:${item.id}" },
+                                contentType = {
+                                    "inventory-product-row"
+                                }
                             ) { item ->
-                                ProfessionalInventoryProductRow(
-                                    item = item,
-                                    selected =
-                                        item.id in state.selectedItemIds,
-                                    highlighted =
-                                        item.id == state.highlightedItemId,
-                                    selectionMode = state.isSelectionMode,
-                                    onToggleSelection = {
-                                        viewModel.toggleSelection(item.id)
-                                    },
-                                    onEdit = {
-                                        viewModel.startEditing(item)
-                                        editorOpen = true
-                                    },
-                                    onDelete = {
-                                        viewModel.queueDelete(setOf(item))
-                                    }
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateItem(
+                                            fadeInSpec =
+                                                if (reduceMotionEnabled) {
+                                                    null
+                                                } else {
+                                                    tween(durationMillis = 160)
+                                                },
+                                            placementSpec =
+                                                if (reduceMotionEnabled) {
+                                                    null
+                                                } else {
+                                                    tween(durationMillis = 220)
+                                                },
+                                            fadeOutSpec =
+                                                if (reduceMotionEnabled) {
+                                                    null
+                                                } else {
+                                                    tween(durationMillis = 120)
+                                                }
+                                        )
+                                ) {
+                                    ProfessionalInventoryProductRow(
+                                        item = item,
+                                        selected =
+                                            item.id in state.selectedItemIds,
+                                        highlighted =
+                                            item.id == state.highlightedItemId,
+                                        selectionMode = state.isSelectionMode,
+                                        onToggleSelection = {
+                                            viewModel.toggleSelection(item.id)
+                                        },
+                                        onEdit = {
+                                            viewModel.startEditing(item)
+                                            editorOpen = true
+                                        },
+                                        onDelete = {
+                                            viewModel.queueDelete(setOf(item))
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

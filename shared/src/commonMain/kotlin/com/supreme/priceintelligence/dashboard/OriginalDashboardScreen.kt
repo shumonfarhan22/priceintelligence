@@ -117,7 +117,8 @@ fun OriginalDashboardScreen(
     viewModel: DashboardViewModel,
     modifier: Modifier = Modifier,
     advancedModeEnabled: Boolean = false,
-    bottomBannerHeight: Dp = 0.dp
+    bottomBannerHeight: Dp = 0.dp,
+    reduceMotionEnabled: Boolean = false
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
@@ -434,19 +435,44 @@ fun OriginalDashboardScreen(
                                 "dashboard-product-card"
                             }
                         ) { card ->
-                            ProfessionalDashboardProductCard(
-                                card = card,
-                                onClick = {
-                                    viewModel.recordProductViewed(card.item.id)
-                                    selectedProductId = card.item.id
-                                    searchFocused = false
-                                    focusManager.clearFocus()
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateItem(
+                                        fadeInSpec =
+                                            if (reduceMotionEnabled) {
+                                                null
+                                            } else {
+                                                tween(durationMillis = 160)
+                                            },
+                                        placementSpec =
+                                            if (reduceMotionEnabled) {
+                                                null
+                                            } else {
+                                                tween(durationMillis = 220)
+                                            },
+                                        fadeOutSpec =
+                                            if (reduceMotionEnabled) {
+                                                null
+                                            } else {
+                                                tween(durationMillis = 120)
+                                            }
+                                    )
+                            ) {
+                                ProfessionalDashboardProductCard(
+                                    card = card,
+                                    onClick = {
+                                        viewModel.recordProductViewed(card.item.id)
+                                        selectedProductId = card.item.id
+                                        searchFocused = false
+                                        focusManager.clearFocus()
 
-                                    if (advancedModeEnabled) {
-                                        viewModel.loadPriceHistory(card.item.id)
+                                        if (advancedModeEnabled) {
+                                            viewModel.loadPriceHistory(card.item.id)
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
 
                         if (state.totalPages > 1) {

@@ -1,5 +1,13 @@
 package com.supreme.priceintelligence
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -87,6 +95,8 @@ fun App(
             }
             val inventoryState by inventoryViewModel.uiState.collectAsState()
             val dashboardState by dashboardViewModel.uiState.collectAsState()
+            val reduceMotionEnabled = rememberReduceMotionEnabled()
+
             var destinationName by rememberSaveable {
                 mutableStateOf(AppDestination.Dashboard.name)
             }
@@ -203,26 +213,109 @@ fun App(
                                 .weight(1f)
                                 .fillMaxWidth()
                         ) {
-                            when (destination) {
-                                AppDestination.Dashboard -> OriginalDashboardScreen(
-                                    viewModel = dashboardViewModel,
-                                    modifier = Modifier.fillMaxSize(),
-                                    advancedModeEnabled = advancedModeEnabled,
-                                    bottomBannerHeight = bottomBannerHeight
-                                )
+                            AnimatedContent(
+                                targetState = destination,
+                                transitionSpec = {
+                                    if (reduceMotionEnabled) {
+                                        EnterTransition.None togetherWith
+                                                ExitTransition.None
+                                    } else if (
+                                        targetState.ordinal >
+                                        initialState.ordinal
+                                    ) {
+                                        (
+                                            slideInHorizontally(
+                                                animationSpec = tween(
+                                                    durationMillis = 220
+                                                )
+                                            ) { width ->
+                                                width / 5
+                                            } +
+                                                fadeIn(
+                                                    animationSpec = tween(
+                                                        durationMillis = 160
+                                                    )
+                                                )
+                                        ) togetherWith (
+                                            slideOutHorizontally(
+                                                animationSpec = tween(
+                                                    durationMillis = 180
+                                                )
+                                            ) { width ->
+                                                -width / 5
+                                            } +
+                                                fadeOut(
+                                                    animationSpec = tween(
+                                                        durationMillis = 140
+                                                    )
+                                                )
+                                        )
+                                    } else {
+                                        (
+                                            slideInHorizontally(
+                                                animationSpec = tween(
+                                                    durationMillis = 220
+                                                )
+                                            ) { width ->
+                                                -width / 5
+                                            } +
+                                                fadeIn(
+                                                    animationSpec = tween(
+                                                        durationMillis = 160
+                                                    )
+                                                )
+                                        ) togetherWith (
+                                            slideOutHorizontally(
+                                                animationSpec = tween(
+                                                    durationMillis = 180
+                                                )
+                                            ) { width ->
+                                                width / 5
+                                            } +
+                                                fadeOut(
+                                                    animationSpec = tween(
+                                                        durationMillis = 140
+                                                    )
+                                                )
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                                label = "mainDestinationTransition"
+                            ) { visibleDestination ->
+                                when (visibleDestination) {
+                                    AppDestination.Dashboard ->
+                                        OriginalDashboardScreen(
+                                            viewModel = dashboardViewModel,
+                                            modifier = Modifier.fillMaxSize(),
+                                            advancedModeEnabled =
+                                                advancedModeEnabled,
+                                            bottomBannerHeight =
+                                                bottomBannerHeight,
+                                            reduceMotionEnabled =
+                                                reduceMotionEnabled
+                                        )
 
-                                AppDestination.Inventory -> OriginalInventoryScreen(
-                                    viewModel = inventoryViewModel,
-                                    advancedModeEnabled = advancedModeEnabled,
-                                    onAdvancedModeChanged = { enabled ->
-                                        advancedModeEnabled = enabled
-                                        appPreferences.advancedModeEnabled = enabled
-                                    },
-                                    bottomBannerHeight = bottomBannerHeight,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 16.dp)
-                                )
+                                    AppDestination.Inventory ->
+                                        OriginalInventoryScreen(
+                                            viewModel = inventoryViewModel,
+                                            advancedModeEnabled =
+                                                advancedModeEnabled,
+                                            onAdvancedModeChanged = { enabled ->
+                                                advancedModeEnabled = enabled
+                                                appPreferences
+                                                    .advancedModeEnabled =
+                                                    enabled
+                                            },
+                                            bottomBannerHeight =
+                                                bottomBannerHeight,
+                                            reduceMotionEnabled =
+                                                reduceMotionEnabled,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 16.dp)
+                                        )
+                                }
                             }
                         }
                     }
@@ -279,6 +372,7 @@ fun App(
                             androidx.compose.ui.Alignment.BottomCenter
                         ),
                         horizontalPadding = 16.dp,
+                        reduceMotionEnabled = reduceMotionEnabled,
                         onDestinationSelected = { selected ->
                             destinationName = selected.name
 

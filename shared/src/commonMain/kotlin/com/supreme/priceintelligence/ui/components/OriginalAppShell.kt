@@ -3,6 +3,7 @@ package com.supreme.priceintelligence.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -313,7 +315,8 @@ fun OriginalBottomNavigation(
     onDestinationSelected: (AppDestination) -> Unit,
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = 16.dp,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    reduceMotionEnabled: Boolean = false
 ) {
     val navigationShape = RoundedCornerShape(12.dp)
 
@@ -341,6 +344,7 @@ fun OriginalBottomNavigation(
                 destination = destination,
                 selected = destination == selectedDestination,
                 enabled = enabled,
+                reduceMotionEnabled = reduceMotionEnabled,
                 onClick = {
                     onDestinationSelected(destination)
                 },
@@ -364,14 +368,40 @@ private fun OriginalNavigationItem(
     destination: AppDestination,
     selected: Boolean,
     enabled: Boolean,
+    reduceMotionEnabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val itemColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        Color(0xFF7C8794)
-    }
+    val itemColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            Color(0xFF7C8794)
+        },
+        animationSpec =
+            if (reduceMotionEnabled) {
+                snap()
+            } else {
+                tween(durationMillis = 180)
+            },
+        label = "navigationItemColor"
+    )
+
+    val iconScale by animateFloatAsState(
+        targetValue =
+            if (selected && !reduceMotionEnabled) {
+                1.08f
+            } else {
+                1f
+            },
+        animationSpec =
+            if (reduceMotionEnabled) {
+                snap()
+            } else {
+                tween(durationMillis = 180)
+            },
+        label = "navigationIconScale"
+    )
 
     Column(
         modifier = modifier
@@ -395,7 +425,12 @@ private fun OriginalNavigationItem(
             },
             contentDescription = null,
             tint = itemColor,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier
+                .size(24.dp)
+                .graphicsLayer {
+                    scaleX = iconScale
+                    scaleY = iconScale
+                }
         )
 
         Text(
