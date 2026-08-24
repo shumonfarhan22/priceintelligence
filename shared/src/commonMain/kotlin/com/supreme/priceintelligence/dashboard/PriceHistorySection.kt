@@ -42,6 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.PriceHistoryEntry
 import com.supreme.priceintelligence.data.PriceRetailer
+import kotlin.math.absoluteValue
+import kotlin.math.roundToLong
+import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -664,4 +667,28 @@ private fun PriceHistoryMetric(
             fontWeight = FontWeight.ExtraBold
         )
     }
+}
+
+@OptIn(ExperimentalTime::class)
+internal fun formatTimeAgo(timeMs: Long): String {
+    val elapsedMs = (
+            Clock.System.now().toEpochMilliseconds() - timeMs
+            ).coerceAtLeast(0L)
+    val elapsedMinutes = elapsedMs / 60_000L
+    val elapsedHours = elapsedMinutes / 60L
+    val elapsedDays = elapsedHours / 24L
+
+    return when {
+        elapsedDays > 0L -> "$elapsedDays day${if (elapsedDays == 1L) "" else "s"} ago"
+        elapsedHours > 0L -> "$elapsedHours hour${if (elapsedHours == 1L) "" else "s"} ago"
+        elapsedMinutes > 0L -> "$elapsedMinutes minute${if (elapsedMinutes == 1L) "" else "s"} ago"
+        else -> "recently"
+    }
+}
+
+internal fun formatPercent(value: Double): String {
+    val tenths = (value.absoluteValue * 10.0).roundToLong()
+    val whole = tenths / 10
+    val decimal = tenths % 10
+    return if (decimal == 0L) "$whole%" else "$whole.$decimal%"
 }

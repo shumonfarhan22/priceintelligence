@@ -77,13 +77,8 @@ fun ProductBarcodeScanner(
             ScannerView(
                 modifier = Modifier.fillMaxSize(),
                 codeTypes = listOf(
-                    BarcodeFormat.FORMAT_CODE_128,
-                    BarcodeFormat.FORMAT_CODE_39,
-                    BarcodeFormat.FORMAT_CODE_93,
-                    BarcodeFormat.FORMAT_CODABAR,
                     BarcodeFormat.FORMAT_EAN_13,
                     BarcodeFormat.FORMAT_EAN_8,
-                    BarcodeFormat.FORMAT_ITF,
                     BarcodeFormat.FORMAT_UPC_A,
                     BarcodeFormat.FORMAT_UPC_E
                 ),

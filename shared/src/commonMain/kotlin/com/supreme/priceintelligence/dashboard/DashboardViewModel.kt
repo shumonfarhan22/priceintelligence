@@ -11,6 +11,7 @@ import com.supreme.priceintelligence.data.PriceRetailer
 import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.network.PriceFetcher
 import com.supreme.priceintelligence.network.ScrapeResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -198,15 +199,26 @@ class DashboardViewModel(
             }
 
             if (_uiState.value.priceFilter == null) {
-                val startTime =
-                    Clock.System.now().toEpochMilliseconds()
-                val count = repository.getSearchCount(query)
-                _uiState.update {
-                    it.copy(
-                        totalMatchCount = count,
-                        currentPage = 1,
-                        searchDurationMs = Clock.System.now().toEpochMilliseconds() - startTime
-                    )
+                try {
+                    val startTime =
+                        Clock.System.now().toEpochMilliseconds()
+                    val count = repository.getSearchCount(query)
+                    _uiState.update {
+                        it.copy(
+                            totalMatchCount = count,
+                            currentPage = 1,
+                            searchDurationMs = Clock.System.now().toEpochMilliseconds() - startTime
+                        )
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // A database hiccup here should show as "nothing found"
+                    // rather than crash the whole app.
+                    _uiState.update {
+                        it.copy(totalMatchCount = 0, currentPage = 1, isLoading = false)
+                    }
+                    return@launch
                 }
             } else {
                 // A KPI filter is active: fetchPageFromDatabase computes the
@@ -228,6 +240,20 @@ class DashboardViewModel(
     }
 
     private suspend fun fetchPageFromDatabase(page: Int) {
+        try {
+            fetchPageFromDatabaseUnsafe(page)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // A database hiccup while loading a page should show as an
+            // empty list, not crash the whole app.
+            _uiState.update {
+                it.copy(pageItems = emptyList(), isLoading = false)
+            }
+        }
+    }
+
+    private suspend fun fetchPageFromDatabaseUnsafe(page: Int) {
         val state = _uiState.value
         val limit = state.pageSize
         val offset = (page - 1) * limit
@@ -304,8 +330,15 @@ class DashboardViewModel(
         // Always the whole shop, regardless of any active text search — the
         // Shop Overview card is hidden while searching (see the screen), so
         // this must never narrow down to just the search results.
-        val items = repository.getAllMatching("")
-        _uiState.update { it.copy(allMatchingItems = items) }
+        try {
+            val items = repository.getAllMatching("")
+            _uiState.update { it.copy(allMatchingItems = items) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Leave allMatchingItems as it was — the Shop Overview card
+            // just won't update this time, instead of crashing.
+        }
     }
 
     fun loadPriceHistory(productId: Long, force: Boolean = false) {
@@ -326,6 +359,11 @@ class DashboardViewModel(
                         priceHistoryByProduct = state.priceHistoryByProduct + (productId to history)
                     )
                 }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // A failed history load should just leave the section
+                // empty, not crash the whole app.
             } finally {
                 _uiState.update { state ->
                     state.copy(
@@ -376,6 +414,11 @@ class DashboardViewModel(
                     }
                 }
                 refreshWholeShopSnapshot()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Individual checks already protect themselves; this is a
+                // final safety net so nothing here can crash the app.
             } finally {
                 _uiState.update { it.copy(isRefreshingPage = false) }
             }
@@ -471,6 +514,13 @@ class DashboardViewModel(
                     }
                 )
             }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // A single failed check — a database hiccup, unexpected data,
+            // anything unforeseen — should never crash the whole app. This
+            // product just keeps showing its last known price, the same as
+            // a plain network failure already does.
         } finally {
             setCardRefreshing(productId, false)
         }

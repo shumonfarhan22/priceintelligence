@@ -19,3 +19,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 -renamesourcefileattribute SourceFile
+
+# Barcode scanner library — young/pre-1.0, keep it intact rather than
+# risk R8 stripping something it needs reflectively.
+-keep class org.ncgroup.kscan.** { *; }
+
+# Room-generated database code.
+-keep class * extends androidx.room3.RoomDatabase
+-keep @androidx.room3.Entity class * { *; }

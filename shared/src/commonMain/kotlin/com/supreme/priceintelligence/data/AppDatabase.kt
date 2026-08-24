@@ -129,6 +129,6 @@ fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase {
             MIGRATION_4_5
         )
         .setDriver(BundledSQLiteDriver())
-        .setQueryCoroutineContext(Dispatchers.Default)
+        .setQueryCoroutineContext(Dispatchers.IO)
         .build()
 }
