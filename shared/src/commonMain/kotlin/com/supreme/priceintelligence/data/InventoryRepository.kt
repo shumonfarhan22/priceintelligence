@@ -2,14 +2,47 @@
 
 package com.supreme.priceintelligence.data
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 private const val PRICE_HISTORY_RETENTION_MILLIS =
     30L * 24L * 60L * 60L * 1000L
 
+private const val PRICE_HISTORY_CLEANUP_INTERVAL_MILLIS =
+    24L * 60L * 60L * 1000L
+
 private const val INDIA_UTC_OFFSET_MILLIS = 19_800_000L
 private const val CALENDAR_DAY_MILLIS = 86_400_000L
+private const val DATABASE_SEARCH_WORD_LIMIT = 6
+
+private data class DatabaseSearchWords(
+    val word1: String,
+    val word2: String,
+    val word3: String,
+    val word4: String,
+    val word5: String,
+    val word6: String
+)
+
+private fun databaseSearchWords(value: String): DatabaseSearchWords? {
+    val words = value
+        .trim()
+        .split(Regex("\\s+"))
+        .filter { word -> word.isNotBlank() }
+
+    if (words.size > DATABASE_SEARCH_WORD_LIMIT) return null
+
+    return DatabaseSearchWords(
+        word1 = words.getOrElse(0) { "" },
+        word2 = words.getOrElse(1) { "" },
+        word3 = words.getOrElse(2) { "" },
+        word4 = words.getOrElse(3) { "" },
+        word5 = words.getOrElse(4) { "" },
+        word6 = words.getOrElse(5) { "" }
+    )
+}
 
 private fun priceHistoryDayKey(timestamp: Long): Long =
     (timestamp + INDIA_UTC_OFFSET_MILLIS) / CALENDAR_DAY_MILLIS
@@ -19,6 +52,8 @@ private fun priceHistoryPriceKey(price: Double): Long =
 
 @Suppress("SpellCheckingInspection")
 class InventoryRepository(private val dao: InventoryDao) {
+    private val priceHistoryCleanupMutex = Mutex()
+    private var lastPriceHistoryCleanupAt = 0L
 
     suspend fun addProduct(
         name: String,
@@ -52,6 +87,9 @@ class InventoryRepository(private val dao: InventoryDao) {
 
     suspend fun deleteProduct(id: Long) = dao.deleteById(id)
 
+    suspend fun getProductById(id: Long): InventoryItem? =
+        if (id > 0L) dao.getById(id) else null
+
     suspend fun isAmazonUrlDuplicate(url: String, excludeId: Long): Boolean =
         dao.checkAmazonUrlExists(url, excludeId) != null
 
@@ -65,57 +103,111 @@ class InventoryRepository(private val dao: InventoryDao) {
     suspend fun getAllRecent(): List<InventoryItem> = dao.getAllRecent()
 
     /**
-     * Mirrors the original search_products(): digits-only query tries an exact
-     * barcode match first; otherwise (or if no barcode hit) does a multi-word
-     * AND search over product_name — now filtered in Kotlin instead of raw SQL,
-     * since @RawQuery isn't supported on iOS yet in Room's multiplatform build.
+     * Digits-only queries try an exact barcode first. Normal name and retailer
+     * link searches are filtered by SQLite so a large inventory is not copied
+     * into memory merely to find a few matching products.
      */
     suspend fun search(query: String): List<InventoryItem> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return getAllRanked()
 
-        if (trimmed.all { it.isDigit() }) {
+        if (trimmed.all { character -> character.isDigit() }) {
             val byBarcode = dao.findByBarcode(trimmed)
             if (byBarcode.isNotEmpty()) return byBarcode
         }
 
-        val allRanked = dao.getAllRanked()
-
         if (looksLikeUrl(trimmed)) {
-            val urlMatches = allRanked.filter { matchesUrl(it, trimmed) }
+            val urlMatches = dao.searchUrlPaged(
+                query = trimmed,
+                limit = Int.MAX_VALUE,
+                offset = 0
+            )
             if (urlMatches.isNotEmpty()) return urlMatches
         }
 
-        val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        return allRanked.filter { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
+        val databaseWords = databaseSearchWords(trimmed)
+        if (databaseWords != null) {
+            return dao.searchNamePaged(
+                word1 = databaseWords.word1,
+                word2 = databaseWords.word2,
+                word3 = databaseWords.word3,
+                word4 = databaseWords.word4,
+                word5 = databaseWords.word5,
+                word6 = databaseWords.word6,
+                sortOrder = "MOST_VIEWED",
+                limit = Int.MAX_VALUE,
+                offset = 0
+            )
+        }
+
+        val words = trimmed
+            .split(Regex("\\s+"))
+            .filter { word -> word.isNotBlank() }
+
+        return dao.getAllRanked().filter { item ->
+            words.all { word ->
+                item.productName.contains(word, ignoreCase = true)
+            }
+        }
     }
 
-    /** Mirrors the original get_name_suggestions() autocomplete. */
+    /** Returns a small, popularity-ranked autocomplete list. */
     suspend fun getNameSuggestions(prefix: String, limit: Int = 6): List<String> {
         val trimmed = prefix.trim()
         if (trimmed.isEmpty()) return emptyList()
 
         if (looksLikeUrl(trimmed)) {
-            val urlMatches = dao.getAllRanked().filter { matchesUrl(it, trimmed) }.take(limit)
-            if (urlMatches.isNotEmpty()) return urlMatches.map { it.productName }.distinct()
+            val urlMatches = dao.searchUrlPaged(
+                query = trimmed,
+                limit = limit,
+                offset = 0
+            )
+            if (urlMatches.isNotEmpty()) {
+                return urlMatches
+                    .map { item -> item.productName }
+                    .distinct()
+            }
         }
 
-        val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val databaseWords = databaseSearchWords(trimmed)
+        if (databaseWords != null) {
+            return dao.searchNameSuggestions(
+                prefix = trimmed,
+                word1 = databaseWords.word1,
+                word2 = databaseWords.word2,
+                word3 = databaseWords.word3,
+                word4 = databaseWords.word4,
+                word5 = databaseWords.word5,
+                word6 = databaseWords.word6,
+                limit = limit
+            )
+        }
+
+        val words = trimmed
+            .split(Regex("\\s+"))
+            .filter { word -> word.isNotBlank() }
         val exactPrefix = trimmed.lowercase()
 
-        // getAllRanked() is already ordered by search_count DESC, name — Kotlin's
-        // sortedWith is stable, so this only reshuffles exact-prefix matches to
-        // the front without disturbing that existing order, same as the old SQL did.
         val rows = dao.getAllRanked()
-            .filter { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
-            .sortedWith(compareBy { if (it.productName.lowercase().startsWith(exactPrefix)) 0 else 1 })
+            .filter { item ->
+                words.all { word ->
+                    item.productName.contains(word, ignoreCase = true)
+                }
+            }
+            .sortedWith(
+                compareBy { item ->
+                    if (item.productName.lowercase().startsWith(exactPrefix)) 0 else 1
+                }
+            )
             .take(limit)
 
         val seen = LinkedHashSet<String>()
         val names = mutableListOf<String>()
         for (row in rows) {
             val key = row.productName.lowercase()
-            if (seen.add(key)) names.add(row.productName)
+            if (seen.add(key)) {
+                names.add(row.productName)
+            }
         }
         return names
     }
@@ -134,6 +226,11 @@ class InventoryRepository(private val dao: InventoryDao) {
     suspend fun updateFlipkartCache(itemId: Long, price: Double, timestamp: Long) =
         dao.updateFlipkartCache(itemId, price, timestamp)
 
+    suspend fun updateImageUrl(itemId: Long, imageUrl: String) {
+        if (itemId <= 0L || imageUrl.isBlank()) return
+        dao.updateImageUrl(itemId, imageUrl)
+    }
+
     suspend fun recordPriceCheck(
         itemId: Long,
         retailer: PriceRetailer,
@@ -144,11 +241,7 @@ class InventoryRepository(private val dao: InventoryDao) {
         if (dao.getById(itemId) == null) return false
 
         return try {
-            dao.deletePriceHistoryOlderThan(
-                cutoffTimestamp = (
-                    checkedAt - PRICE_HISTORY_RETENTION_MILLIS
-                ).coerceAtLeast(0L)
-            )
+            cleanOldPriceHistoryWhenNeeded(checkedAt)
 
             val samePriceAlreadySavedToday = dao.getPriceHistory(
                 itemId = itemId,
@@ -264,6 +357,28 @@ class InventoryRepository(private val dao: InventoryDao) {
         limit = limit.coerceIn(1, MAX_PRICE_HISTORY_PER_RETAILER * PriceRetailer.entries.size)
     )
 
+    private suspend fun cleanOldPriceHistoryWhenNeeded(checkedAt: Long) {
+        priceHistoryCleanupMutex.withLock {
+            val clockMovedBackwards =
+                lastPriceHistoryCleanupAt > 0L &&
+                    checkedAt < lastPriceHistoryCleanupAt
+            val cleanupIsDue =
+                lastPriceHistoryCleanupAt == 0L ||
+                    clockMovedBackwards ||
+                    checkedAt - lastPriceHistoryCleanupAt >=
+                    PRICE_HISTORY_CLEANUP_INTERVAL_MILLIS
+
+            if (cleanupIsDue) {
+                dao.deletePriceHistoryOlderThan(
+                    cutoffTimestamp = (
+                        checkedAt - PRICE_HISTORY_RETENTION_MILLIS
+                    ).coerceAtLeast(0L)
+                )
+                lastPriceHistoryCleanupAt = checkedAt
+            }
+        }
+    }
+
     // --- STRICT DATABASE PAGINATION ---
 
     suspend fun getTotalCount(): Int = dao.getTotalCount()
@@ -280,78 +395,171 @@ class InventoryRepository(private val dao: InventoryDao) {
         }
     }
 
-    suspend fun searchPaged(query: String, sortOrder: String, limit: Int, offset: Int): List<InventoryItem> {
+    suspend fun searchPaged(
+        query: String,
+        sortOrder: String,
+        limit: Int,
+        offset: Int
+    ): List<InventoryItem> {
         val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            return getPaged(sortOrder, limit, offset)
+        }
 
-        if (trimmed.all { it.isDigit() }) {
+        if (trimmed.all { character -> character.isDigit() }) {
             val byBarcode = dao.findByBarcode(trimmed)
-            if (byBarcode.isNotEmpty()) return byBarcode
+            if (byBarcode.isNotEmpty()) {
+                return byBarcode.drop(offset).take(limit)
+            }
         }
 
-        // URL matches always rank by search_count, same as the original — regardless
-        // of whatever sortOrder the user has picked for the rest of the list.
+        // Retailer-link results always use popularity order, matching the
+        // established app behavior regardless of the selected name sort.
         if (looksLikeUrl(trimmed)) {
-            val urlMatches = dao.getAllRanked().filter { matchesUrl(it, trimmed) }
-            return urlMatches.drop(offset).take(limit)
+            return dao.searchUrlPaged(
+                query = trimmed,
+                limit = limit,
+                offset = offset
+            )
         }
 
+        val databaseWords = databaseSearchWords(trimmed)
+        if (databaseWords != null) {
+            val databaseSortOrder =
+                if (sortOrder == "BEST_SAVING") "MOST_VIEWED" else sortOrder
+            val databaseLimit =
+                if (sortOrder == "BEST_SAVING") Int.MAX_VALUE else limit
+            val databaseOffset =
+                if (sortOrder == "BEST_SAVING") 0 else offset
+
+            val databaseMatches = dao.searchNamePaged(
+                word1 = databaseWords.word1,
+                word2 = databaseWords.word2,
+                word3 = databaseWords.word3,
+                word4 = databaseWords.word4,
+                word5 = databaseWords.word5,
+                word6 = databaseWords.word6,
+                sortOrder = databaseSortOrder,
+                limit = databaseLimit,
+                offset = databaseOffset
+            )
+
+            return if (sortOrder == "BEST_SAVING") {
+                databaseMatches
+                    .sortedByBestSavedSaving()
+                    .drop(offset)
+                    .take(limit)
+            } else {
+                databaseMatches
+            }
+        }
+
+        // Preserve full matching behavior for unusually long searches.
+        val words = trimmed
+            .split(Regex("\\s+"))
+            .filter { word -> word.isNotBlank() }
         val baseList = when (sortOrder) {
             "ALPHABETICAL" -> dao.getAll()
             "RECENT" -> dao.getAllRecent()
             "BEST_SAVING" -> dao.getAllRanked().sortedByBestSavedSaving()
             else -> dao.getAllRanked()
         }
-        val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        val filtered = baseList.filter { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
-        return filtered.drop(offset).take(limit)
+
+        return baseList
+            .filter { item ->
+                words.all { word ->
+                    item.productName.contains(word, ignoreCase = true)
+                }
+            }
+            .drop(offset)
+            .take(limit)
     }
 
     suspend fun getSearchCount(query: String): Int {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return getTotalCount()
 
-        if (trimmed.all { it.isDigit() }) {
+        if (trimmed.all { character -> character.isDigit() }) {
             val byBarcode = dao.findByBarcode(trimmed)
             if (byBarcode.isNotEmpty()) return byBarcode.size
         }
 
         if (looksLikeUrl(trimmed)) {
-            return dao.getAllRanked().count { matchesUrl(it, trimmed) }
+            return dao.countUrlMatches(trimmed)
         }
 
-        val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        return dao.getAllRanked().count { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
+        val databaseWords = databaseSearchWords(trimmed)
+        if (databaseWords != null) {
+            return dao.countNameMatches(
+                word1 = databaseWords.word1,
+                word2 = databaseWords.word2,
+                word3 = databaseWords.word3,
+                word4 = databaseWords.word4,
+                word5 = databaseWords.word5,
+                word6 = databaseWords.word6
+            )
+        }
+
+        val words = trimmed
+            .split(Regex("\\s+"))
+            .filter { word -> word.isNotBlank() }
+
+        return dao.getAllRanked().count { item ->
+            words.all { word ->
+                item.productName.contains(word, ignoreCase = true)
+            }
+        }
     }
 
-    // Same matching rules as searchPaged/getSearchCount, but returns every
-    // match instead of one page. Used for whole-shop summaries, which must
-    // reflect everything the user is looking at, not just the 10 or so
-    // products currently visible on screen.
+    // Returns every match when a whole-shop summary genuinely needs all rows.
+    // Normal Dashboard pages use searchPaged and load only their visible rows.
     suspend fun getAllMatching(query: String): List<InventoryItem> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return dao.getAll()
 
-        if (trimmed.all { it.isDigit() }) {
+        if (trimmed.all { character -> character.isDigit() }) {
             val byBarcode = dao.findByBarcode(trimmed)
             if (byBarcode.isNotEmpty()) return byBarcode
         }
 
         if (looksLikeUrl(trimmed)) {
-            return dao.getAllRanked().filter { matchesUrl(it, trimmed) }
+            return dao.searchUrlPaged(
+                query = trimmed,
+                limit = Int.MAX_VALUE,
+                offset = 0
+            )
         }
 
-        val words = trimmed.split(Regex("\\s+")).filter { it.isNotBlank() }
-        return dao.getAll().filter { item -> words.all { w -> item.productName.contains(w, ignoreCase = true) } }
+        val databaseWords = databaseSearchWords(trimmed)
+        if (databaseWords != null) {
+            return dao.searchNamePaged(
+                word1 = databaseWords.word1,
+                word2 = databaseWords.word2,
+                word3 = databaseWords.word3,
+                word4 = databaseWords.word4,
+                word5 = databaseWords.word5,
+                word6 = databaseWords.word6,
+                sortOrder = "ALPHABETICAL",
+                limit = Int.MAX_VALUE,
+                offset = 0
+            )
+        }
+
+        val words = trimmed
+            .split(Regex("\\s+"))
+            .filter { word -> word.isNotBlank() }
+
+        return dao.getAll().filter { item ->
+            words.all { word ->
+                item.productName.contains(word, ignoreCase = true)
+            }
+        }
     }
 
-    private fun looksLikeUrl(value: String): Boolean =
-        value.startsWith("http") || value.contains("amazon") || value.contains("flipkart")
-
-    private fun matchesUrl(item: InventoryItem, pasted: String): Boolean {
-        val amazon = item.amazonUrl
-        val flipkart = item.flipkartUrl
-        val amazonMatch = !amazon.isNullOrEmpty() && (amazon.contains(pasted) || pasted.contains(amazon))
-        val flipkartMatch = !flipkart.isNullOrEmpty() && (flipkart.contains(pasted) || pasted.contains(flipkart))
-        return amazonMatch || flipkartMatch
+    private fun looksLikeUrl(value: String): Boolean {
+        val normalized = value.lowercase()
+        return normalized.startsWith("http") ||
+            normalized.contains("amazon") ||
+            normalized.contains("flipkart")
     }
 }

@@ -2,6 +2,7 @@ package com.supreme.priceintelligence.network
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.darwin.Darwin
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.statement.HttpResponse
@@ -28,7 +29,13 @@ actual class PriceScraper : PriceFetcher {
         "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile"
     )
 
-    private val client = HttpClient(Darwin)
+    private val client = HttpClient(Darwin) {
+        install(HttpTimeout) {
+            requestTimeoutMillis = 15_000L
+            connectTimeoutMillis = 15_000L
+            socketTimeoutMillis = 15_000L
+        }
+    }
 
     actual override suspend fun fetchPrice(url: String): ScrapeResult {
         if (url.isBlank()) return ScrapeResult()

@@ -437,6 +437,7 @@ fun OriginalDashboardScreen(
                             ProfessionalDashboardProductCard(
                                 card = card,
                                 onClick = {
+                                    viewModel.recordProductViewed(card.item.id)
                                     selectedProductId = card.item.id
                                     searchFocused = false
                                     focusManager.clearFocus()

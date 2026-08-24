@@ -118,21 +118,29 @@ class DashboardViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
+
         suggestionJob?.cancel()
         suggestionJob = viewModelScope.launch {
             delay(250.milliseconds)
-            _uiState.update { it.copy(suggestions = repository.getNameSuggestions(query)) }
+            if (query == _uiState.value.searchQuery) {
+                _uiState.update {
+                    it.copy(suggestions = repository.getNameSuggestions(query))
+                }
+            }
         }
 
-        // Actually re-run the product search as the user types, the same
-        // way Inventory's search already does. Before this, typing only
-        // refreshed the suggestions dropdown above — the visible product
-        // list never updated until the user explicitly submitted, which is
-        // why a partial name looked like it matched nothing.
-        runSearch(query, showLoadingIndicator = false)
+        // Wait briefly until typing pauses. This prevents a complete database
+        // search after every single letter while still updating results
+        // automatically as the user types.
+        runSearch(
+            query = query,
+            showLoadingIndicator = false,
+            debounceMillis = 300L
+        )
     }
 
     fun onSearchSubmitted(query: String) {
+        suggestionJob?.cancel()
         _uiState.update { it.copy(searchQuery = query, suggestions = emptyList()) }
         runSearch(query)
     }
@@ -180,10 +188,18 @@ class DashboardViewModel(
 
     private fun runSearch(
         query: String,
-        showLoadingIndicator: Boolean = true
+        showLoadingIndicator: Boolean = true,
+        debounceMillis: Long = 0L
     ) {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
+            if (debounceMillis > 0L) {
+                delay(debounceMillis.milliseconds)
+                if (query != _uiState.value.searchQuery) {
+                    return@launch
+                }
+            }
+
             if (showLoadingIndicator) {
                 _uiState.update {
                     it.copy(isLoading = true)
@@ -305,9 +321,12 @@ class DashboardViewModel(
         val pageProducts = if (state.searchQuery.isBlank()) {
             repository.getPaged(sortString, limit, offset)
         } else {
-            val searchResults = repository.searchPaged(state.searchQuery, sortString, limit, offset)
-            repository.incrementSearchCountBulk(searchResults.map { it.id })
-            searchResults
+            repository.searchPaged(
+                query = state.searchQuery,
+                sortOrder = sortString,
+                limit = limit,
+                offset = offset
+            )
         }
 
         _uiState.update {
@@ -375,6 +394,21 @@ class DashboardViewModel(
         }
     }
 
+    fun recordProductViewed(productId: Long) {
+        if (productId <= 0L) return
+
+        viewModelScope.launch {
+            try {
+                repository.incrementSearchCount(productId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // A popularity-count failure must never stop product details
+                // from opening.
+            }
+        }
+    }
+
     fun refreshProduct(productId: Long) {
         if (!_uiState.value.isConnected) {
             _uiState.update { it.copy(bloomState = BloomState.ERROR) }
@@ -382,7 +416,6 @@ class DashboardViewModel(
         }
 
         viewModelScope.launch {
-            repository.incrementSearchCount(productId)
             scrapeOne(productId)
             refreshWholeShopSnapshot()
         }
@@ -483,17 +516,20 @@ class DashboardViewModel(
                 null
             }
 
-            val newImage = amazonResult?.image ?: flipkartResult?.image
-            var updatedItem = item.copy(
-                amazonLastPrice = amazonResult?.price ?: item.amazonLastPrice,
-                amazonLastChecked = if (amazonResult?.price != null) now else item.amazonLastChecked,
-                flipkartLastPrice = flipkartResult?.price ?: item.flipkartLastPrice,
-                flipkartLastChecked = if (flipkartResult?.price != null) now else item.flipkartLastChecked
-            )
+            val newImage = (amazonResult?.image ?: flipkartResult?.image)
+                ?.takeIf { imageUrl -> imageUrl.isNotBlank() }
+
             if (newImage != null && newImage != item.imageUrl) {
-                updatedItem = updatedItem.copy(imageUrl = newImage)
-                repository.updateProduct(updatedItem)
+                repository.updateImageUrl(
+                    itemId = productId,
+                    imageUrl = newImage
+                )
             }
+
+            // Reload the current database row after saving the price and image.
+            // This preserves any edit made while the network request was running.
+            // It also prevents a late result from recreating a deleted product.
+            val updatedItem = repository.getProductById(productId) ?: return
 
             _uiState.update { state ->
                 state.copy(

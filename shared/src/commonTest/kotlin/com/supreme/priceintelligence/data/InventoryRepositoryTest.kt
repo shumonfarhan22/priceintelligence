@@ -64,6 +64,58 @@ class InventoryRepositoryTest {
     }
 
     @Test
+    fun nameSearchFiltersBeforePaginationAndReturnsCorrectCount() = runTest {
+        val products = (1..12).map { number ->
+            item(
+                id = number.toLong(),
+                name = "Samsung Test Product ${number.toString().padStart(2, '0')}",
+                barcode = "test-barcode-$number",
+                searchCount = 0,
+                updatedAt = number.toLong()
+            )
+        }
+        val repository = InventoryRepository(
+            FakeInventoryDao(*products.toTypedArray())
+        )
+
+        val secondPage = repository.searchPaged(
+            query = "test SAMSUNG",
+            sortOrder = "ALPHABETICAL",
+            limit = 5,
+            offset = 5
+        )
+
+        assertEquals(12, repository.getSearchCount("test SAMSUNG"))
+        assertEquals(
+            listOf(
+                "Samsung Test Product 06",
+                "Samsung Test Product 07",
+                "Samsung Test Product 08",
+                "Samsung Test Product 09",
+                "Samsung Test Product 10"
+            ),
+            secondPage.map { product -> product.productName }
+        )
+    }
+
+    @Test
+    fun retailerLinkSearchAndCountIgnoreLetterCase() = runTest {
+        val repository = InventoryRepository(FakeInventoryDao(phone, case, charger))
+        val uppercaseLink = "HTTPS://WWW.FLIPKART.COM/CLEAR-CASE"
+
+        assertEquals(
+            listOf(case),
+            repository.searchPaged(
+                query = uppercaseLink,
+                sortOrder = "ALPHABETICAL",
+                limit = 10,
+                offset = 0
+            )
+        )
+        assertEquals(1, repository.getSearchCount(uppercaseLink))
+    }
+
+    @Test
     fun duplicateStoreLinksIgnoreTheProductBeingEdited() = runTest {
         val repository = InventoryRepository(FakeInventoryDao(phone, case, charger))
 
@@ -73,7 +125,8 @@ class InventoryRepositoryTest {
 
     @Test
     fun priceChecksUpdateCacheAndKeepOnlyTheNewestHistory() = runTest {
-        val repository = InventoryRepository(FakeInventoryDao(phone))
+        val dao = FakeInventoryDao(phone)
+        val repository = InventoryRepository(dao)
 
         repeat(65) { index ->
             repository.recordPriceCheck(
@@ -91,6 +144,7 @@ class InventoryRepositoryTest {
         val updatedPhone = repository.getAllAlphabetical().single()
         assertEquals(936.0, updatedPhone.amazonLastPrice)
         assertEquals(1064L, updatedPhone.amazonLastChecked)
+        assertEquals(1, dao.priceHistoryCleanupCallCount)
     }
 
     @Test
@@ -102,6 +156,39 @@ class InventoryRepositoryTest {
         val viewedPhone = repository.getAllAlphabetical().single()
         assertEquals(phone.updatedAt, viewedPhone.updatedAt)
         assertEquals(phone.searchCount + 1, viewedPhone.searchCount)
+    }
+
+    @Test
+    fun imageRefreshPreservesAProductEditMadeWhileRefreshing() = runTest {
+        val repository = InventoryRepository(FakeInventoryDao(phone))
+
+        repository.updateProduct(
+            phone.copy(
+                productName = "Edited Samsung Phone",
+                shopPrice = 75_000.0,
+                barcode = "edited-barcode"
+            )
+        )
+        val editedBeforeImage = requireNotNull(
+            repository.getProductById(phone.id)
+        )
+
+        repository.updateImageUrl(
+            itemId = phone.id,
+            imageUrl = "https://images.example.com/phone.jpg"
+        )
+
+        val afterImageRefresh = requireNotNull(
+            repository.getProductById(phone.id)
+        )
+        assertEquals("Edited Samsung Phone", afterImageRefresh.productName)
+        assertEquals(75_000.0, afterImageRefresh.shopPrice)
+        assertEquals("edited-barcode", afterImageRefresh.barcode)
+        assertEquals(editedBeforeImage.updatedAt, afterImageRefresh.updatedAt)
+        assertEquals(
+            "https://images.example.com/phone.jpg",
+            afterImageRefresh.imageUrl
+        )
     }
 
     @Test
@@ -186,6 +273,9 @@ internal class FakeInventoryDao(vararg initialItems: InventoryItem) : InventoryD
     private val items = initialItems.toMutableList()
     private val priceHistory = mutableListOf<PriceHistoryEntry>()
 
+    var priceHistoryCleanupCallCount: Int = 0
+        private set
+
     override suspend fun insert(item: InventoryItem): Long {
         val id = item.id.takeIf { it != 0L } ?: ((items.maxOfOrNull { it.id } ?: 0L) + 1L)
         items += item.copy(id = id)
@@ -225,6 +315,155 @@ internal class FakeInventoryDao(vararg initialItems: InventoryItem) : InventoryD
     override suspend fun getAllRecentPaged(limit: Int, offset: Int): List<InventoryItem> =
         getAllRecent().drop(offset).take(limit)
 
+    override suspend fun searchNamePaged(
+        word1: String,
+        word2: String,
+        word3: String,
+        word4: String,
+        word5: String,
+        word6: String,
+        sortOrder: String,
+        limit: Int,
+        offset: Int
+    ): List<InventoryItem> {
+        val matches = matchingNames(
+            word1 = word1,
+            word2 = word2,
+            word3 = word3,
+            word4 = word4,
+            word5 = word5,
+            word6 = word6
+        )
+
+        val sorted = when (sortOrder) {
+            "ALPHABETICAL" ->
+                matches.sortedBy { item -> item.productName.lowercase() }
+
+            "RECENT" ->
+                matches.sortedWith(
+                    compareByDescending<InventoryItem> { item -> item.updatedAt }
+                        .thenByDescending { item -> item.id }
+                )
+
+            else ->
+                matches.sortedWith(
+                    compareByDescending<InventoryItem> { item -> item.searchCount }
+                        .thenBy { item -> item.productName.lowercase() }
+                )
+        }
+
+        return sorted.drop(offset).take(limit)
+    }
+
+    override suspend fun countNameMatches(
+        word1: String,
+        word2: String,
+        word3: String,
+        word4: String,
+        word5: String,
+        word6: String
+    ): Int = matchingNames(
+        word1 = word1,
+        word2 = word2,
+        word3 = word3,
+        word4 = word4,
+        word5 = word5,
+        word6 = word6
+    ).size
+
+    override suspend fun searchNameSuggestions(
+        prefix: String,
+        word1: String,
+        word2: String,
+        word3: String,
+        word4: String,
+        word5: String,
+        word6: String,
+        limit: Int
+    ): List<String> {
+        val normalizedPrefix = prefix.lowercase()
+
+        return matchingNames(
+            word1 = word1,
+            word2 = word2,
+            word3 = word3,
+            word4 = word4,
+            word5 = word5,
+            word6 = word6
+        )
+            .groupBy { item -> item.productName.lowercase() }
+            .map { (_, duplicateNames) ->
+                duplicateNames.maxBy { item -> item.searchCount }
+            }
+            .sortedWith(
+                compareBy<InventoryItem> { item ->
+                    if (item.productName.lowercase().startsWith(normalizedPrefix)) 0 else 1
+                }
+                    .thenByDescending { item -> item.searchCount }
+                    .thenBy { item -> item.productName.lowercase() }
+            )
+            .take(limit)
+            .map { item -> item.productName }
+    }
+
+    override suspend fun searchUrlPaged(
+        query: String,
+        limit: Int,
+        offset: Int
+    ): List<InventoryItem> =
+        matchingUrls(query)
+            .sortedWith(
+                compareByDescending<InventoryItem> { item -> item.searchCount }
+                    .thenBy { item -> item.productName.lowercase() }
+            )
+            .drop(offset)
+            .take(limit)
+
+    override suspend fun countUrlMatches(query: String): Int =
+        matchingUrls(query).size
+
+    private fun matchingNames(
+        word1: String,
+        word2: String,
+        word3: String,
+        word4: String,
+        word5: String,
+        word6: String
+    ): List<InventoryItem> {
+        val words = listOf(word1, word2, word3, word4, word5, word6)
+            .filter { word -> word.isNotBlank() }
+
+        return items.filter { item ->
+            words.all { word ->
+                item.productName.contains(word, ignoreCase = true)
+            }
+        }
+    }
+
+    private fun matchingUrls(query: String): List<InventoryItem> {
+        val normalizedQuery = query.lowercase()
+
+        return items.filter { item ->
+            val amazon = item.amazonUrl?.lowercase()
+            val flipkart = item.flipkartUrl?.lowercase()
+
+            val amazonMatches =
+                !amazon.isNullOrEmpty() &&
+                    (
+                        amazon.contains(normalizedQuery) ||
+                            normalizedQuery.contains(amazon)
+                    )
+            val flipkartMatches =
+                !flipkart.isNullOrEmpty() &&
+                    (
+                        flipkart.contains(normalizedQuery) ||
+                            normalizedQuery.contains(flipkart)
+                    )
+
+            amazonMatches || flipkartMatches
+        }
+    }
+
     override suspend fun findByBarcode(barcode: String): List<InventoryItem> =
         getAllRanked().filter { it.barcode == barcode }
 
@@ -248,6 +487,12 @@ internal class FakeInventoryDao(vararg initialItems: InventoryItem) : InventoryD
         }
     }
 
+    override suspend fun updateImageUrl(itemId: Long, imageUrl: String) {
+        getById(itemId)?.let {
+            update(it.copy(imageUrl = imageUrl))
+        }
+    }
+
     override suspend fun insertPriceHistory(entry: PriceHistoryEntry): Long {
         val id = entry.id.takeIf { it != 0L } ?: ((priceHistory.maxOfOrNull { it.id } ?: 0L) + 1L)
         priceHistory += entry.copy(id = id)
@@ -261,6 +506,7 @@ internal class FakeInventoryDao(vararg initialItems: InventoryItem) : InventoryD
             .take(limit)
 
     override suspend fun deletePriceHistoryOlderThan(cutoffTimestamp: Long) {
+        priceHistoryCleanupCallCount += 1
         priceHistory.removeAll { entry ->
             entry.checkedAt < cutoffTimestamp
         }

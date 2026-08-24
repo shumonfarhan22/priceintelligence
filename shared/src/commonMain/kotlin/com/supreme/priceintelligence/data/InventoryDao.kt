@@ -42,6 +42,134 @@ interface InventoryDao {
     @Query("SELECT * FROM inventory ORDER BY updated_at DESC, id DESC LIMIT :limit OFFSET :offset")
     suspend fun getAllRecentPaged(limit: Int, offset: Int): List<InventoryItem>
 
+    @Query(
+        """
+        SELECT * FROM inventory
+        WHERE (:word1 = '' OR instr(lower(product_name), lower(:word1)) > 0)
+          AND (:word2 = '' OR instr(lower(product_name), lower(:word2)) > 0)
+          AND (:word3 = '' OR instr(lower(product_name), lower(:word3)) > 0)
+          AND (:word4 = '' OR instr(lower(product_name), lower(:word4)) > 0)
+          AND (:word5 = '' OR instr(lower(product_name), lower(:word5)) > 0)
+          AND (:word6 = '' OR instr(lower(product_name), lower(:word6)) > 0)
+        ORDER BY
+          CASE WHEN :sortOrder = 'ALPHABETICAL' THEN lower(product_name) END ASC,
+          CASE WHEN :sortOrder = 'RECENT' THEN updated_at END DESC,
+          CASE WHEN :sortOrder = 'RECENT' THEN id END DESC,
+          CASE WHEN :sortOrder NOT IN ('ALPHABETICAL', 'RECENT') THEN search_count END DESC,
+          lower(product_name) ASC
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    suspend fun searchNamePaged(
+        word1: String,
+        word2: String,
+        word3: String,
+        word4: String,
+        word5: String,
+        word6: String,
+        sortOrder: String,
+        limit: Int,
+        offset: Int
+    ): List<InventoryItem>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM inventory
+        WHERE (:word1 = '' OR instr(lower(product_name), lower(:word1)) > 0)
+          AND (:word2 = '' OR instr(lower(product_name), lower(:word2)) > 0)
+          AND (:word3 = '' OR instr(lower(product_name), lower(:word3)) > 0)
+          AND (:word4 = '' OR instr(lower(product_name), lower(:word4)) > 0)
+          AND (:word5 = '' OR instr(lower(product_name), lower(:word5)) > 0)
+          AND (:word6 = '' OR instr(lower(product_name), lower(:word6)) > 0)
+        """
+    )
+    suspend fun countNameMatches(
+        word1: String,
+        word2: String,
+        word3: String,
+        word4: String,
+        word5: String,
+        word6: String
+    ): Int
+
+    @Query(
+        """
+        SELECT product_name FROM inventory
+        WHERE (:word1 = '' OR instr(lower(product_name), lower(:word1)) > 0)
+          AND (:word2 = '' OR instr(lower(product_name), lower(:word2)) > 0)
+          AND (:word3 = '' OR instr(lower(product_name), lower(:word3)) > 0)
+          AND (:word4 = '' OR instr(lower(product_name), lower(:word4)) > 0)
+          AND (:word5 = '' OR instr(lower(product_name), lower(:word5)) > 0)
+          AND (:word6 = '' OR instr(lower(product_name), lower(:word6)) > 0)
+        GROUP BY lower(product_name)
+        ORDER BY
+          CASE WHEN instr(lower(product_name), lower(:prefix)) = 1 THEN 0 ELSE 1 END ASC,
+          MAX(search_count) DESC,
+          lower(product_name) ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchNameSuggestions(
+        prefix: String,
+        word1: String,
+        word2: String,
+        word3: String,
+        word4: String,
+        word5: String,
+        word6: String,
+        limit: Int
+    ): List<String>
+
+    @Query(
+        """
+        SELECT * FROM inventory
+        WHERE (
+            amazon_url IS NOT NULL
+            AND amazon_url != ''
+            AND (
+                instr(lower(amazon_url), lower(:query)) > 0
+                OR instr(lower(:query), lower(amazon_url)) > 0
+            )
+        ) OR (
+            flipkart_url IS NOT NULL
+            AND flipkart_url != ''
+            AND (
+                instr(lower(flipkart_url), lower(:query)) > 0
+                OR instr(lower(:query), lower(flipkart_url)) > 0
+            )
+        )
+        ORDER BY search_count DESC, product_name COLLATE NOCASE
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    suspend fun searchUrlPaged(
+        query: String,
+        limit: Int,
+        offset: Int
+    ): List<InventoryItem>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM inventory
+        WHERE (
+            amazon_url IS NOT NULL
+            AND amazon_url != ''
+            AND (
+                instr(lower(amazon_url), lower(:query)) > 0
+                OR instr(lower(:query), lower(amazon_url)) > 0
+            )
+        ) OR (
+            flipkart_url IS NOT NULL
+            AND flipkart_url != ''
+            AND (
+                instr(lower(flipkart_url), lower(:query)) > 0
+                OR instr(lower(:query), lower(flipkart_url)) > 0
+            )
+        )
+        """
+    )
+    suspend fun countUrlMatches(query: String): Int
+
     @Query("SELECT * FROM inventory WHERE barcode = :barcode ORDER BY search_count DESC")
     suspend fun findByBarcode(barcode: String): List<InventoryItem>
 
@@ -56,6 +184,9 @@ interface InventoryDao {
 
     @Query("UPDATE inventory SET flipkart_last_price = :price, flipkart_last_checked = :timestamp WHERE id = :itemId")
     suspend fun updateFlipkartCache(itemId: Long, price: Double, timestamp: Long)
+
+    @Query("UPDATE inventory SET image_url = :imageUrl WHERE id = :itemId")
+    suspend fun updateImageUrl(itemId: Long, imageUrl: String)
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertPriceHistory(entry: PriceHistoryEntry): Long

@@ -108,6 +108,49 @@ class DashboardViewModelTest {
 
         viewModel.viewModelScope.cancel()
     }
+
+    @Test
+    fun searchingDoesNotIncreasePopularityUntilProductIsOpened() = runTest(dispatcher) {
+        val dao = FakeInventoryDao()
+        val repository = InventoryRepository(dao)
+        repository.addProduct(
+            name = "Popular phone",
+            shopPrice = 20_000.0
+        )
+        repository.addProduct(
+            name = "Another phone",
+            shopPrice = 15_000.0
+        )
+        val viewModel = DashboardViewModel(
+            repository = repository,
+            scraper = FakePriceFetcher(emptyMap()),
+            networkMonitor = FakeNetworkMonitor(isConnected = true)
+        )
+
+        advanceUntilIdle()
+        viewModel.onSearchQueryChanged("phone")
+        advanceUntilIdle()
+
+        assertEquals(2, viewModel.uiState.value.totalMatchCount)
+        assertTrue(
+            dao.getAllRanked().all { product ->
+                product.searchCount == 0
+            }
+        )
+
+        val openedProductId = viewModel.uiState.value.pageItems.first().item.id
+        viewModel.recordProductViewed(openedProductId)
+        advanceUntilIdle()
+
+        assertEquals(1, dao.getById(openedProductId)?.searchCount)
+        assertTrue(
+            dao.getAllRanked()
+                .filter { product -> product.id != openedProductId }
+                .all { product -> product.searchCount == 0 }
+        )
+
+        viewModel.viewModelScope.cancel()
+    }
 }
 
 private class FakePriceFetcher(
