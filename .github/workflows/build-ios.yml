@@ -51,7 +51,7 @@ jobs:
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
             -destination 'generic/platform=iOS' \
-            -configuration Debug \
+            -configuration Release \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             -derivedDataPath build \
@@ -59,7 +59,7 @@ jobs:
 
       - name: Package into unsigned IPA
         run: |
-          cd build/Build/Products/Debug-iphoneos
+          cd build/Build/Products/Release-iphoneos
           mkdir Payload
           cp -r *.app Payload/
           zip -r unsigned.ipa Payload
@@ -68,4 +68,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-ipa
-          path: build/Build/Products/Debug-iphoneos/unsigned.ipa
+          path: build/Build/Products/Release-iphoneos/unsigned.ipa
