@@ -38,6 +38,34 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun productImagePreferenceIsStableAndAmazonFirst() {
+        assertEquals(
+            "https://amazon.example/new.jpg",
+            selectPreferredProductImageUrl(
+                savedImageUrl = "https://saved.example/good.jpg",
+                amazonImageUrl = "https://amazon.example/new.jpg",
+                flipkartImageUrl = "https://flipkart.example/new.jpg"
+            )
+        )
+        assertEquals(
+            "https://saved.example/good.jpg",
+            selectPreferredProductImageUrl(
+                savedImageUrl = "https://saved.example/good.jpg",
+                amazonImageUrl = null,
+                flipkartImageUrl = "https://flipkart.example/new.jpg"
+            )
+        )
+        assertEquals(
+            "https://flipkart.example/new.jpg",
+            selectPreferredProductImageUrl(
+                savedImageUrl = null,
+                amazonImageUrl = null,
+                flipkartImageUrl = "https://flipkart.example/new.jpg"
+            )
+        )
+    }
+
+    @Test
     fun liveRefreshUpdatesTheVisibleCardAndDatabaseCache() = runTest(dispatcher) {
         val dao = FakeInventoryDao()
         val repository = InventoryRepository(dao)

@@ -33,6 +33,21 @@ data class ProductCardUiState(
     val flipkartResult: ScrapeResult? = null
 )
 
+internal fun selectPreferredProductImageUrl(
+    savedImageUrl: String?,
+    amazonImageUrl: String?,
+    flipkartImageUrl: String?
+): String? {
+    val validAmazonImage =
+        amazonImageUrl?.takeIf { imageUrl -> imageUrl.isNotBlank() }
+    val validSavedImage =
+        savedImageUrl?.takeIf { imageUrl -> imageUrl.isNotBlank() }
+    val validFlipkartImage =
+        flipkartImageUrl?.takeIf { imageUrl -> imageUrl.isNotBlank() }
+
+    return validAmazonImage ?: validSavedImage ?: validFlipkartImage
+}
+
 enum class SortOrder { MOST_VIEWED, BEST_SAVING, ALPHABETICAL, RECENT }
 
 enum class BloomState { SUCCESS, ERROR, WARNING, NONE }
@@ -516,13 +531,19 @@ class DashboardViewModel(
                 null
             }
 
-            val newImage = (amazonResult?.image ?: flipkartResult?.image)
-                ?.takeIf { imageUrl -> imageUrl.isNotBlank() }
+            val preferredImageUrl = selectPreferredProductImageUrl(
+                savedImageUrl = item.imageUrl,
+                amazonImageUrl = amazonResult?.image,
+                flipkartImageUrl = flipkartResult?.image
+            )
 
-            if (newImage != null && newImage != item.imageUrl) {
+            if (
+                preferredImageUrl != null &&
+                preferredImageUrl != item.imageUrl
+            ) {
                 repository.updateImageUrl(
                     itemId = productId,
-                    imageUrl = newImage
+                    imageUrl = preferredImageUrl
                 )
             }
 
