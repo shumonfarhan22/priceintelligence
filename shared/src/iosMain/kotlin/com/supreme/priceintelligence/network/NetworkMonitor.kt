@@ -10,7 +10,8 @@ import platform.Network.nw_path_monitor_set_queue
 import platform.Network.nw_path_monitor_set_update_handler
 import platform.Network.nw_path_monitor_start
 import platform.Network.nw_path_status_satisfied
-import platform.darwin.dispatch_get_main_queue
+import platform.darwin.DISPATCH_QUEUE_SERIAL
+import platform.darwin.dispatch_queue_create
 
 // Android has ConnectivityManager built in; iOS's equivalent (Network.framework)
 // only exposes a low-level C-style API to Kotlin, not a friendly class — hence
@@ -23,8 +24,13 @@ class IosNetworkMonitor : NetworkMonitor {
     private val monitor = nw_path_monitor_create()
     private var isStopped = false
 
+    private val monitorQueue = dispatch_queue_create(
+        "com.supreme.priceintelligence.networkmonitor",
+        DISPATCH_QUEUE_SERIAL
+    )
+
     init {
-        nw_path_monitor_set_queue(monitor, dispatch_get_main_queue())
+        nw_path_monitor_set_queue(monitor, monitorQueue)
         nw_path_monitor_set_update_handler(monitor) { path ->
             _isConnected.value = nw_path_get_status(path) == nw_path_status_satisfied
         }
