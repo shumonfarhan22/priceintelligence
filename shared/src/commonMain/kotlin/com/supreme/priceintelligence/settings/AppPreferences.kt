@@ -21,4 +21,5 @@ enum class AppThemeMode {
 interface AppPreferences {
     var advancedModeEnabled: Boolean
     var themeMode: AppThemeMode
+    var automaticPriceRefreshLedger: String
 }

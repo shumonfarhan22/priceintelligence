@@ -11,8 +11,10 @@ import com.supreme.priceintelligence.data.PriceRetailer
 import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.network.PriceFetcher
 import com.supreme.priceintelligence.network.ScrapeResult
+import com.supreme.priceintelligence.settings.AppPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -61,11 +63,13 @@ enum class PricePositionFilter {
 }
 
 data class DashboardUiState(
+    val searchDraft: String = "",
     val searchQuery: String = "",
     val sortOrder: SortOrder = SortOrder.MOST_VIEWED,
     val suggestions: List<String> = emptyList(),
     val totalMatchCount: Int = 0,
     val pageItems: List<ProductCardUiState> = emptyList(),
+    val manualResultLightProductIds: Set<Long> = emptySet(),
     val allMatchingItems: List<InventoryItem> = emptyList(),
     val priceFilter: PricePositionFilter? = null,
     val refreshCollapseTick: Int = 0,
@@ -77,7 +81,8 @@ data class DashboardUiState(
     val isRefreshingPage: Boolean = false,
     val isConnected: Boolean = false,
     val searchDurationMs: Long = 0,
-    val bloomState: BloomState = BloomState.NONE
+    val bloomState: BloomState = BloomState.NONE,
+    val freshnessPromptPresented: Boolean = false
 ) {
     val totalPages: Int
         get() = if (totalMatchCount == 0) 1 else ((totalMatchCount - 1) / pageSize) + 1
@@ -89,7 +94,8 @@ data class DashboardUiState(
 class DashboardViewModel(
     private val repository: InventoryRepository,
     private val scraper: PriceFetcher,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val appPreferences: AppPreferences? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -98,7 +104,12 @@ class DashboardViewModel(
     private var suggestionJob: Job? = null
     private var searchJob: Job? = null
     private var connectionFeedbackJob: Job? = null
+    private var automaticRefreshJob: Job? = null
+    private var manualRefreshJob: Job? = null
+    private var pageRefreshJob: Job? = null
     private val historyJobs = mutableMapOf<Long, Job>()
+    private val manualResultLightJobs =
+        mutableMapOf<Long, Job>()
 
     init {
         runSearch("")
@@ -115,15 +126,29 @@ class DashboardViewModel(
                             bloomState = BloomState.SUCCESS
                         )
                     }
+
                     connectionFeedbackJob?.cancel()
                     connectionFeedbackJob = viewModelScope.launch {
                         delay(5000.milliseconds)
-                        if (_uiState.value.bloomState == BloomState.SUCCESS) {
-                            _uiState.update { it.copy(bloomState = BloomState.NONE) }
+
+                        if (
+                            _uiState.value.bloomState ==
+                            BloomState.SUCCESS
+                        ) {
+                            _uiState.update {
+                                it.copy(
+                                    bloomState = BloomState.NONE
+                                )
+                            }
                         }
                     }
+
+                    startAutomaticDailyRefreshIfPossible()
                 } else {
+                    automaticRefreshJob?.cancel()
+                    automaticRefreshJob = null
                     connectionFeedbackJob?.cancel()
+
                     _uiState.update {
                         it.copy(
                             isConnected = false,
@@ -137,7 +162,7 @@ class DashboardViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _uiState.update {
-            it.copy(searchQuery = query)
+            it.copy(searchDraft = query)
         }
 
         requestSearchSuggestions(
@@ -146,35 +171,39 @@ class DashboardViewModel(
                 if (query.isBlank()) {
                     0L
                 } else {
-                    200L
-                }
-        )
-
-        // Wait briefly until typing pauses. Clearing the search remains
-        // immediate, while normal typing avoids a database search after
-        // every single letter.
-        runSearch(
-            query = query,
-            showLoadingIndicator = false,
-            debounceMillis =
-                if (query.isBlank()) {
-                    0L
-                } else {
                     300L
                 }
         )
+
+        if (
+            query.isBlank() &&
+            _uiState.value.searchQuery.isNotBlank()
+        ) {
+            _uiState.update {
+                it.copy(searchQuery = "")
+            }
+
+            runSearch(
+                query = "",
+                showLoadingIndicator = false
+            )
+        }
     }
 
     fun onSearchFocusChanged(focused: Boolean) {
         if (focused) {
             requestSearchSuggestions(
-                query = _uiState.value.searchQuery,
+                query = _uiState.value.searchDraft,
                 debounceMillis = 0L
             )
         } else {
             suggestionJob?.cancel()
+
             _uiState.update {
-                it.copy(suggestions = emptyList())
+                it.copy(
+                    searchDraft = it.searchQuery,
+                    suggestions = emptyList()
+                )
             }
         }
     }
@@ -193,7 +222,7 @@ class DashboardViewModel(
                 val suggestions =
                     repository.getNameSuggestions(query)
 
-                if (query == _uiState.value.searchQuery) {
+                if (query == _uiState.value.searchDraft) {
                     _uiState.update {
                         it.copy(suggestions = suggestions)
                     }
@@ -201,7 +230,7 @@ class DashboardViewModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                if (query == _uiState.value.searchQuery) {
+                if (query == _uiState.value.searchDraft) {
                     _uiState.update {
                         it.copy(suggestions = emptyList())
                     }
@@ -212,13 +241,24 @@ class DashboardViewModel(
 
     fun onSearchSubmitted(query: String) {
         suggestionJob?.cancel()
+
         _uiState.update {
             it.copy(
+                searchDraft = query,
                 searchQuery = query,
                 suggestions = emptyList()
             )
         }
+
         runSearch(query)
+    }
+
+    fun markFreshnessPromptPresented() {
+        if (!_uiState.value.freshnessPromptPresented) {
+            _uiState.update {
+                it.copy(freshnessPromptPresented = true)
+            }
+        }
     }
 
     fun refresh() {
@@ -230,6 +270,7 @@ class DashboardViewModel(
         suggestionJob?.cancel()
         _uiState.update {
             it.copy(
+                searchDraft = "",
                 searchQuery = "",
                 suggestions = emptyList(),
                 priceFilter = null,
@@ -247,6 +288,8 @@ class DashboardViewModel(
             query = _uiState.value.searchQuery,
             showLoadingIndicator = false
         )
+
+        startAutomaticDailyRefreshIfPossible()
     }
 
     fun setSortOrder(order: SortOrder) {
@@ -516,21 +559,95 @@ class DashboardViewModel(
         }
     }
 
+    private fun showManualResultLight(
+        productId: Long
+    ) {
+        manualResultLightJobs
+            .remove(productId)
+            ?.cancel()
+
+        _uiState.update { state ->
+            state.copy(
+                manualResultLightProductIds =
+                    state.manualResultLightProductIds +
+                        productId
+            )
+        }
+
+        val newJob = viewModelScope.launch {
+            delay(5000.milliseconds)
+
+            _uiState.update { state ->
+                state.copy(
+                    manualResultLightProductIds =
+                        state.manualResultLightProductIds -
+                            productId
+                )
+            }
+
+            if (
+                manualResultLightJobs[productId] ===
+                coroutineContext[Job]
+            ) {
+                manualResultLightJobs.remove(productId)
+            }
+        }
+
+        manualResultLightJobs[productId] = newJob
+    }
+
     fun refreshProduct(productId: Long) {
         if (!_uiState.value.isConnected) {
-            _uiState.update { it.copy(bloomState = BloomState.ERROR) }
+            _uiState.update {
+                it.copy(bloomState = BloomState.ERROR)
+            }
             return
         }
 
-        viewModelScope.launch {
-            scrapeOne(productId)
-            refreshWholeShopSnapshot()
+        val pausedAutomaticJob = automaticRefreshJob
+        automaticRefreshJob = null
+
+        manualRefreshJob?.cancel()
+
+        val newJob = viewModelScope.launch {
+            pausedAutomaticJob?.cancelAndJoin()
+
+            try {
+                val hasLivePrice = scrapeOne(
+                    productId = productId,
+                    showFailureFeedback = true
+                )
+
+                if (hasLivePrice) {
+                    showManualResultLight(productId)
+                }
+
+                markAutomaticRefreshAttempt(productId)
+                refreshWholeShopSnapshot()
+            } finally {
+                if (
+                    manualRefreshJob ===
+                    coroutineContext[Job]
+                ) {
+                    manualRefreshJob = null
+                    startAutomaticDailyRefreshIfPossible()
+                }
+            }
         }
+
+        manualRefreshJob = newJob
     }
 
     fun refreshVisiblePrices() {
         val state = _uiState.value
-        if (!state.isConnected || state.isRefreshingPage) return
+
+        if (
+            !state.isConnected ||
+            state.isRefreshingPage ||
+            pageRefreshJob?.isActive == true
+        ) {
+            return
+        }
 
         val productIds = state.pageItems
             .filter { card ->
@@ -541,40 +658,213 @@ class DashboardViewModel(
 
         if (productIds.isEmpty()) return
 
-        viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshingPage = true) }
+        val pausedAutomaticJob = automaticRefreshJob
+        automaticRefreshJob = null
+
+        val newJob = viewModelScope.launch {
+            pausedAutomaticJob?.cancelAndJoin()
+            _uiState.update {
+                it.copy(isRefreshingPage = true)
+            }
+
             try {
-                // Three products at a time keeps the stores and slower phones from
-                // being flooded with up to twenty simultaneous web requests.
+                // This is an explicit user action, so a small batch is
+                // acceptable. The automatic daily queue remains strictly
+                // one product at a time.
                 productIds.chunked(3).forEach { batch ->
                     coroutineScope {
                         batch.map { productId ->
-                            async { scrapeOne(productId) }
+                            async {
+                                val hasLivePrice = scrapeOne(
+                                    productId = productId,
+                                    showFailureFeedback = true
+                                )
+
+                                if (hasLivePrice) {
+                                    showManualResultLight(
+                                        productId
+                                    )
+                                }
+                            }
                         }.awaitAll()
+                    }
+
+                    batch.forEach { productId ->
+                        markAutomaticRefreshAttempt(productId)
                     }
                 }
 
                 if (_uiState.value.priceFilter == null) {
                     refreshWholeShopSnapshot()
                 } else {
-                    // Reapply the active filter after saving successful checks.
-                    // A product that is now current can leave Needs Check
-                    // immediately instead of remaining in a stale result list.
                     fetchPageFromDatabase(1)
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                // Individual checks already protect themselves; this is a
-                // final safety net so nothing here can crash the app.
+                // Individual checks already protect themselves.
             } finally {
-                _uiState.update { it.copy(isRefreshingPage = false) }
+                _uiState.update {
+                    it.copy(isRefreshingPage = false)
+                }
+
+                if (
+                    pageRefreshJob ===
+                    coroutineContext[Job]
+                ) {
+                    pageRefreshJob = null
+                    startAutomaticDailyRefreshIfPossible()
+                }
             }
+        }
+
+        pageRefreshJob = newJob
+    }
+
+    private fun startAutomaticDailyRefreshIfPossible() {
+        val preferences = appPreferences ?: return
+
+        if (
+            !_uiState.value.isConnected ||
+            automaticRefreshJob?.isActive == true ||
+            manualRefreshJob?.isActive == true ||
+            pageRefreshJob?.isActive == true
+        ) {
+            return
+        }
+
+        val newJob = viewModelScope.launch {
+            try {
+                // Give launch, database loading, and immediate user actions
+                // priority before starting background work.
+                delay(4000.milliseconds)
+
+                if (!_uiState.value.isConnected) {
+                    return@launch
+                }
+
+                val now =
+                    Clock.System.now().toEpochMilliseconds()
+
+                val attemptedProductIds =
+                    readAutomaticRefreshAttempts(
+                        storedValue =
+                            preferences
+                                .automaticPriceRefreshLedger,
+                        nowMillis = now
+                    )
+
+                val pendingProducts =
+                    repository.getAllMatching("")
+                        .filter { item ->
+                            item.hasRetailerLink()
+                        }
+                        .filter { item ->
+                            item.id !in attemptedProductIds
+                        }
+                        .filterNot { item ->
+                            item.wasCheckedToday(now)
+                        }
+
+                pendingProducts.forEachIndexed {
+                        index,
+                        item ->
+
+                    if (!_uiState.value.isConnected) {
+                        return@launch
+                    }
+
+                    scrapeOne(
+                        productId = item.id,
+                        showFailureFeedback = false
+                    )
+
+                    markAutomaticRefreshAttempt(item.id)
+
+                    if (index < pendingProducts.lastIndex) {
+                        delay(15000.milliseconds)
+                    }
+                }
+
+                refreshWholeShopSnapshot()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Automatic work must never interrupt normal app use.
+            } finally {
+                if (
+                    automaticRefreshJob ===
+                    coroutineContext[Job]
+                ) {
+                    automaticRefreshJob = null
+                }
+            }
+        }
+
+        automaticRefreshJob = newJob
+    }
+
+    private fun markAutomaticRefreshAttempt(
+        productId: Long
+    ) {
+        val preferences = appPreferences ?: return
+
+        if (productId <= 0L) {
+            return
+        }
+
+        val now =
+            Clock.System.now().toEpochMilliseconds()
+
+        val attemptedProductIds =
+            readAutomaticRefreshAttempts(
+                storedValue =
+                    preferences.automaticPriceRefreshLedger,
+                nowMillis = now
+            ) + productId
+
+        preferences.automaticPriceRefreshLedger =
+            writeAutomaticRefreshAttempts(
+                productIds = attemptedProductIds,
+                nowMillis = now
+            )
+    }
+
+    private fun InventoryItem.hasRetailerLink(): Boolean =
+        !amazonUrl.isNullOrBlank() ||
+            !flipkartUrl.isNullOrBlank()
+
+    private fun InventoryItem.wasCheckedToday(
+        nowMillis: Long
+    ): Boolean {
+        val currentDay =
+            automaticRefreshDayKey(nowMillis)
+
+        val linkedCheckTimes = buildList {
+            if (!amazonUrl.isNullOrBlank()) {
+                amazonLastChecked?.let(::add)
+            }
+
+            if (!flipkartUrl.isNullOrBlank()) {
+                flipkartLastChecked?.let(::add)
+            }
+        }
+
+        return linkedCheckTimes.any { checkedAt ->
+            checkedAt > 0L &&
+                automaticRefreshDayKey(checkedAt) ==
+                    currentDay
         }
     }
 
-    private suspend fun scrapeOne(productId: Long) {
-        val item = _uiState.value.pageItems.find { it.item.id == productId }?.item ?: return
+    private suspend fun scrapeOne(
+        productId: Long,
+        showFailureFeedback: Boolean = true
+    ): Boolean {
+        val item =
+            repository.getProductById(productId)
+                ?: return false
+
         setCardRefreshing(productId, true)
 
         try {
@@ -597,8 +887,14 @@ class DashboardViewModel(
             val hasLivePrice =
                 amazonResult?.price != null || flipkartResult?.price != null
 
-            if (!hasLivePrice && hasRetailerUrl) {
-                _uiState.update { it.copy(bloomState = BloomState.WARNING) }
+            if (
+                !hasLivePrice &&
+                hasRetailerUrl &&
+                showFailureFeedback
+            ) {
+                _uiState.update {
+                    it.copy(bloomState = BloomState.WARNING)
+                }
                 viewModelScope.launch {
                     delay(4000.milliseconds)
                     if (_uiState.value.bloomState == BloomState.WARNING) {
@@ -650,7 +946,9 @@ class DashboardViewModel(
             // Reload the current database row after saving the price and image.
             // This preserves any edit made while the network request was running.
             // It also prevents a late result from recreating a deleted product.
-            val updatedItem = repository.getProductById(productId) ?: return
+            val updatedItem =
+                repository.getProductById(productId)
+                    ?: return false
 
             _uiState.update { state ->
                 state.copy(
@@ -671,6 +969,8 @@ class DashboardViewModel(
                     }
                 )
             }
+
+            return hasLivePrice
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
@@ -678,6 +978,7 @@ class DashboardViewModel(
             // anything unforeseen — should never crash the whole app. This
             // product just keeps showing its last known price, the same as
             // a plain network failure already does.
+            return false
         } finally {
             setCardRefreshing(productId, false)
         }

@@ -105,7 +105,8 @@ fun App(
                 DashboardViewModel(
                     repository = repository,
                     scraper = priceScraper,
-                    networkMonitor = networkMonitor
+                    networkMonitor = networkMonitor,
+                    appPreferences = appPreferences
                 )
             }
             val inventoryState by inventoryViewModel.uiState.collectAsState()
@@ -188,15 +189,29 @@ fun App(
             )
 
             PlatformBackHandler(
-                enabled = destination != AppDestination.Dashboard,
+                enabled =
+                    destination != AppDestination.Dashboard ||
+                        dashboardState.currentPage > 1,
                 onBack = {
-                    if (
-                        destination == AppDestination.Inventory &&
-                        inventoryState.isSelectionMode
-                    ) {
-                        inventoryViewModel.clearSelection()
-                    } else {
-                        destinationName = AppDestination.Dashboard.name
+                    when {
+                        destination ==
+                            AppDestination.Dashboard &&
+                            dashboardState.currentPage > 1 -> {
+                            dashboardViewModel.goToPage(
+                                dashboardState.currentPage - 1
+                            )
+                        }
+
+                        destination ==
+                            AppDestination.Inventory &&
+                            inventoryState.isSelectionMode -> {
+                            inventoryViewModel.clearSelection()
+                        }
+
+                        else -> {
+                            destinationName =
+                                AppDestination.Dashboard.name
+                        }
                     }
                 }
             )

@@ -30,10 +30,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.EmojiEvents
+import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
@@ -58,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -105,7 +109,9 @@ private val TextLight: Color
 
 @Composable
 internal fun ProfessionalDashboardBranding(
-    compact: Boolean
+    compact: Boolean,
+    showPreviousPage: Boolean = false,
+    onPreviousPage: () -> Unit = {}
 ) {
     val logoSize = if (compact) {
         28.dp
@@ -125,6 +131,24 @@ internal fun ProfessionalDashboardBranding(
             .height(headerHeight),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (showPreviousPage) {
+            IconButton(
+                onClick = onPreviousPage,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector =
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription =
+                        "Go to previous Dashboard page",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+
         androidx.compose.foundation.Image(
             painter = painterResource(Res.drawable.app_logo),
             contentDescription = "Supreme Price Intelligence logo",
@@ -338,6 +362,7 @@ internal fun ProfessionalDashboardResultsRow(
 @Composable
 internal fun ProfessionalDashboardProductCard(
     card: ProductCardUiState,
+    showResultLight: Boolean,
     onClick: () -> Unit
 ) {
     val item = card.item
@@ -348,21 +373,42 @@ internal fun ProfessionalDashboardProductCard(
     val liveFlipkartPrice = card.flipkartResult?.price
         ?.takeIf(::isUsableDashboardPrice)
 
+    val savedAmazonPrice = item.amazonLastPrice
+        ?.takeIf(::isUsableDashboardPrice)
+
+    val savedFlipkartPrice = item.flipkartLastPrice
+        ?.takeIf(::isUsableDashboardPrice)
+
     val hasLivePrice =
         liveAmazonPrice != null ||
                 liveFlipkartPrice != null
 
-    val liveComparison = compareWithOnlinePrices(
+    val amazonPrice =
+        liveAmazonPrice ?: savedAmazonPrice
+
+    val flipkartPrice =
+        liveFlipkartPrice ?: savedFlipkartPrice
+
+    val hasComparisonPrice =
+        amazonPrice != null || flipkartPrice != null
+
+    val comparison = compareWithOnlinePrices(
         shopPrice = item.shopPrice,
-        amazonPrice = liveAmazonPrice,
-        flipkartPrice = liveFlipkartPrice
+        amazonPrice = amazonPrice,
+        flipkartPrice = flipkartPrice
     )
 
+    val priceSourceLabel = if (hasLivePrice) {
+        "live"
+    } else {
+        "saved"
+    }
+
     val glow = when {
-        card.isRefreshing || !hasLivePrice ->
+        card.isRefreshing || !hasComparisonPrice ->
             DashboardCardGlow.NEUTRAL
 
-        liveComparison.shopPosition ==
+        comparison.shopPosition ==
                 ShopPricePosition.HIGHER ->
             DashboardCardGlow.ALERT
 
@@ -374,19 +420,44 @@ internal fun ProfessionalDashboardProductCard(
         card.isRefreshing ->
             "Checking online prices"
 
-        !hasLivePrice ->
-            "Online prices not checked"
+        !hasComparisonPrice ->
+            "Online prices need checking"
 
-        liveComparison.shopPosition ==
+        comparison.shopPosition ==
                 ShopPricePosition.HIGHER ->
-            "Online price is lower than shop price"
+            "$priceSourceLabel online price is lower than shop price"
 
-        liveComparison.shopPosition ==
+        comparison.shopPosition ==
                 ShopPricePosition.MATCHED ->
-            "Online price matches shop price"
+            "$priceSourceLabel online price matches shop price"
 
         else ->
-            "Shop price is lower than online price"
+            "Shop price is lower than $priceSourceLabel online price"
+    }
+
+    val statusIcon = when {
+        card.isRefreshing ->
+            Icons.Rounded.Schedule
+
+        !hasComparisonPrice ->
+            Icons.Rounded.Search
+
+        glow == DashboardCardGlow.ALERT ->
+            Icons.Rounded.PriorityHigh
+
+        else ->
+            Icons.Rounded.EmojiEvents
+    }
+
+    val statusColor = when (glow) {
+        DashboardCardGlow.NEUTRAL ->
+            MaterialTheme.supremeColors.warning
+
+        DashboardCardGlow.ALERT ->
+            MaterialTheme.colorScheme.error
+
+        DashboardCardGlow.SAFE ->
+            MaterialTheme.supremeColors.competitive
     }
 
     val primaryGlow by animateColorAsState(
@@ -404,63 +475,48 @@ internal fun ProfessionalDashboardProductCard(
         label = "dashboardCardPrimaryGlow"
     )
 
-    val secondaryGlow by animateColorAsState(
-        targetValue = when (glow) {
-            DashboardCardGlow.NEUTRAL ->
-                Color.Transparent
-
-            DashboardCardGlow.ALERT ->
-                Color(0xFFEF4444)
-
-            DashboardCardGlow.SAFE ->
-                Color(0xFF34D399)
-        },
-        animationSpec = tween(durationMillis = 500),
-        label = "dashboardCardSecondaryGlow"
-    )
-
-    val borderColor = when (glow) {
-        DashboardCardGlow.NEUTRAL ->
-            MaterialTheme.supremeColors.border
-
-        DashboardCardGlow.ALERT ->
-            MaterialTheme.colorScheme.error.copy(alpha = 0.50f)
-
-        DashboardCardGlow.SAFE ->
-            MaterialTheme.supremeColors.competitive.copy(alpha = 0.50f)
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (glow != DashboardCardGlow.NEUTRAL) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.95f)
-                    .height(80.dp)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                primaryGlow.copy(alpha = 0.45f),
-                                secondaryGlow.copy(alpha = 0.18f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-        }
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.supremeColors.panel)
+                .drawBehind {
+                    if (
+                        showResultLight &&
+                        glow != DashboardCardGlow.NEUTRAL
+                    ) {
+                        drawRect(
+                            brush =
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        primaryGlow.copy(
+                                            alpha = 0.32f
+                                        ),
+                                        primaryGlow.copy(
+                                            alpha = 0.16f
+                                        ),
+                                        primaryGlow.copy(
+                                            alpha = 0.06f
+                                        ),
+                                        Color.Transparent
+                                    ),
+                                    startY = 0f,
+                                    endY =
+                                        size.height * 0.68f
+                                )
+                        )
+                    }
+                }
                 .border(
                     width = 1.dp,
-                    color = borderColor,
+                    color =
+                        MaterialTheme.supremeColors.border,
                     shape = RoundedCornerShape(16.dp)
                 )
                 .clickable(onClick = onClick)
@@ -517,38 +573,72 @@ internal fun ProfessionalDashboardProductCard(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .border(
-                            width = 1.dp,
-                            color = Brand.copy(alpha = 0.30f),
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(
-                            horizontal = 10.dp,
-                            vertical = 6.dp
-                        ),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Sell,
-                        contentDescription = null,
-                        tint = Brand,
-                        modifier = Modifier.size(14.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(
+                                width = 1.dp,
+                                color = Brand.copy(
+                                    alpha = 0.30f
+                                ),
+                                shape =
+                                    RoundedCornerShape(8.dp)
+                            )
+                            .padding(
+                                horizontal = 10.dp,
+                                vertical = 6.dp
+                            ),
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Sell,
+                            contentDescription = null,
+                            tint = Brand,
+                            modifier = Modifier.size(14.dp)
+                        )
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
-                    Text(
-                        text = "Supreme Price: ${
-                            formatIndianPrice(item.shopPrice)
-                        }",
-                        color = Brand,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                        Text(
+                            text = "Supreme Price: ${
+                                formatIndianPrice(
+                                    item.shopPrice
+                                )
+                            }",
+                            color = Brand,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(7.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                statusColor.copy(
+                                    alpha = 0.16f
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = statusIcon,
+                            contentDescription =
+                                cardStateDescription,
+                            tint = statusColor,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                 }
             }
         }

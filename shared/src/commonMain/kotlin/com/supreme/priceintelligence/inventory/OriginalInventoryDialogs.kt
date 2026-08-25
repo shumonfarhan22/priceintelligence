@@ -109,8 +109,14 @@ internal fun OriginalProductEditorDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    MaterialTheme.colorScheme.background.copy(
-                        alpha = 0.98f
+                    MaterialTheme.supremeColors.scrim.copy(
+                        alpha = if (
+                            MaterialTheme.supremeColors.isDark
+                        ) {
+                            0.78f
+                        } else {
+                            0.52f
+                        }
                     )
                 )
                 .imePadding(),

@@ -31,8 +31,25 @@ class AndroidAppPreferences(
                 .apply()
         }
 
+    override var automaticPriceRefreshLedger: String
+        get() = preferences.getString(
+            AUTOMATIC_PRICE_REFRESH_LEDGER_KEY,
+            ""
+        ).orEmpty()
+        set(value) {
+            preferences
+                .edit()
+                .putString(
+                    AUTOMATIC_PRICE_REFRESH_LEDGER_KEY,
+                    value
+                )
+                .apply()
+        }
+
     private companion object {
         const val ADVANCED_MODE_KEY = "advanced_mode_enabled"
         const val THEME_MODE_KEY = "theme_mode"
+        const val AUTOMATIC_PRICE_REFRESH_LEDGER_KEY =
+            "automatic_price_refresh_ledger"
     }
 }

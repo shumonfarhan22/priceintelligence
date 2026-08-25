@@ -13,8 +13,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
@@ -96,12 +98,35 @@ class DashboardViewModelTest {
         advanceUntilIdle()
         val productId = viewModel.uiState.value.pageItems.single().item.id
         viewModel.refreshProduct(productId)
-        advanceUntilIdle()
+        runCurrent()
 
         val card = viewModel.uiState.value.pageItems.single()
         assertEquals(48_000.0, card.amazonResult?.price)
         assertEquals(49_000.0, card.flipkartResult?.price)
         assertFalse(card.isRefreshing)
+        assertTrue(
+            productId in
+                viewModel.uiState.value
+                    .manualResultLightProductIds
+        )
+
+        advanceTimeBy(4_999)
+        runCurrent()
+
+        assertTrue(
+            productId in
+                viewModel.uiState.value
+                    .manualResultLightProductIds
+        )
+
+        advanceTimeBy(1)
+        runCurrent()
+
+        assertFalse(
+            productId in
+                viewModel.uiState.value
+                    .manualResultLightProductIds
+        )
         assertEquals(48_000.0, dao.getAllRanked().single().amazonLastPrice)
         assertEquals(49_000.0, dao.getAllRanked().single().flipkartLastPrice)
         assertEquals(2, fetcher.requestedUrls.size)
@@ -162,17 +187,49 @@ class DashboardViewModelTest {
         )
 
         advanceUntilIdle()
-        viewModel.onSearchQueryChanged("phone")
+
+        viewModel.onSearchQueryChanged("Popular")
         advanceUntilIdle()
 
-        assertEquals(2, viewModel.uiState.value.totalMatchCount)
+        // Typing only changes the draft and suggestions. It must not
+        // filter the product cards behind the keyboard.
+        assertEquals(
+            "Popular",
+            viewModel.uiState.value.searchDraft
+        )
+        assertEquals(
+            "",
+            viewModel.uiState.value.searchQuery
+        )
+        assertEquals(
+            2,
+            viewModel.uiState.value.totalMatchCount
+        )
+        assertEquals(
+            2,
+            viewModel.uiState.value.pageItems.size
+        )
+
+        viewModel.onSearchSubmitted("Popular")
+        advanceUntilIdle()
+
+        assertEquals(
+            "Popular",
+            viewModel.uiState.value.searchQuery
+        )
+        assertEquals(
+            1,
+            viewModel.uiState.value.totalMatchCount
+        )
+
         assertTrue(
             dao.getAllRanked().all { product ->
                 product.searchCount == 0
             }
         )
 
-        val openedProductId = viewModel.uiState.value.pageItems.first().item.id
+        val openedProductId =
+            viewModel.uiState.value.pageItems.first().item.id
         viewModel.recordProductViewed(openedProductId)
         advanceUntilIdle()
 

@@ -16,10 +16,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.PriorityHigh
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -288,6 +293,7 @@ fun DashboardDecisionSummaryCard(
                             value =
                                 summary.shopCompetitiveCount,
                             label = "Competitive",
+                            icon = Icons.Rounded.EmojiEvents,
                             color = competitiveColor,
                             selected =
                                 activeFilter ==
@@ -304,6 +310,7 @@ fun DashboardDecisionSummaryCard(
                             value =
                                 freshnessSummary.needsCheckCount,
                             label = "Needs check",
+                            icon = Icons.Rounded.Search,
                             color = freshnessColor,
                             selected =
                                 activeFilter ==
@@ -329,6 +336,7 @@ fun DashboardDecisionSummaryCard(
                             value =
                                 summary.onlineCheaperCount,
                             label = "Review",
+                            icon = Icons.Rounded.PriorityHigh,
                             color = reviewColor,
                             selected =
                                 activeFilter ==
@@ -476,53 +484,83 @@ private fun DecisionMeterBar(
 private fun DecisionMetric(
     value: Int,
     label: String,
+    icon: ImageVector,
     color: Color,
     selected: Boolean = false,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = if (selected) 0.18f else 0.10f))
-            .then(
-                if (selected) {
-                    Modifier.border(
-                        width = 1.dp,
-                        color = color.copy(alpha = 0.7f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                } else {
-                    Modifier
-                }
-            )
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(onClick = onClick)
-                } else {
-                    Modifier
-                }
-            )
-            .padding(
-                horizontal = 9.dp,
-                vertical = 9.dp
-            )
+    Surface(
+        modifier = modifier,
+        onClick = {
+            onClick?.invoke()
+        },
+        enabled = onClick != null,
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(
+            alpha = if (selected) {
+                0.18f
+            } else {
+                0.10f
+            }
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) {
+                color.copy(alpha = 0.70f)
+            } else {
+                MaterialTheme.supremeColors.border
+            }
+        )
     ) {
-        Text(
-            text = value.toString(),
-            color = color,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
+        Column(
+            modifier = Modifier.padding(
+                horizontal = 10.dp,
+                vertical = 10.dp
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(
+                        color.copy(
+                            alpha = if (selected) {
+                                0.28f
+                            } else {
+                                0.18f
+                            }
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
 
-        Text(
-            text = label,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = value.toString(),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+
+            Text(
+                text = label,
+                color =
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

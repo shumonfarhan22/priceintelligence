@@ -60,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -82,10 +83,13 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.absoluteValue
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.ExperimentalTime
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
+@OptIn(ExperimentalTime::class)
 @Composable
 internal fun OriginalProfessionalProductDetailDialog(
     card: ProductCardUiState,
@@ -244,9 +248,29 @@ internal fun OriginalProfessionalProductDetailDialog(
         !item.amazonUrl.isNullOrBlank() ||
             !item.flipkartUrl.isNullOrBlank()
 
-    LaunchedEffect(item.id) {
+    val productNeedsFreshPrice = remember(
+        item.id,
+        item.amazonUrl,
+        item.flipkartUrl,
+        item.amazonLastPrice,
+        item.flipkartLastPrice,
+        item.amazonLastChecked,
+        item.flipkartLastChecked
+    ) {
+        item.needsPriceCheck(
+            nowMillis =
+                Clock.System.now()
+                    .toEpochMilliseconds()
+        )
+    }
+
+    LaunchedEffect(
+        item.id,
+        productNeedsFreshPrice
+    ) {
         if (
             hasRetailerUrl &&
+            productNeedsFreshPrice &&
             card.amazonResult == null &&
             card.flipkartResult == null &&
             !card.isRefreshing
@@ -277,8 +301,52 @@ internal fun OriginalProfessionalProductDetailDialog(
         amazonLivePrice != null || flipkartLivePrice != null
 
     val detailScrollState = rememberScrollState()
-    val showDetailBloom =
-        detailScrollState.value == 0 && hasLiveComparison
+    val showDetailBloom = hasLiveComparison
+
+    val resultBloomProgress = remember {
+        Animatable(0f)
+    }
+
+    LaunchedEffect(
+        showDetailBloom,
+        card.isRefreshing,
+        reduceMotionEnabled
+    ) {
+        when {
+            card.isRefreshing || !showDetailBloom -> {
+                resultBloomProgress.snapTo(0f)
+            }
+
+            reduceMotionEnabled -> {
+                resultBloomProgress.snapTo(0.92f)
+            }
+
+            else -> {
+                resultBloomProgress.snapTo(0f)
+
+                resultBloomProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 650
+                    )
+                )
+
+                resultBloomProgress.animateTo(
+                    targetValue = 0.76f,
+                    animationSpec = tween(
+                        durationMillis = 700
+                    )
+                )
+
+                resultBloomProgress.animateTo(
+                    targetValue = 0.92f,
+                    animationSpec = tween(
+                        durationMillis = 850
+                    )
+                )
+            }
+        }
+    }
 
     val glowPrimary by animateColorAsState(
         targetValue = when {
@@ -396,27 +464,18 @@ internal fun OriginalProfessionalProductDetailDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    MaterialTheme.colorScheme.background.copy(
-                        alpha = 0.98f
+                    MaterialTheme.supremeColors.scrim.copy(
+                        alpha = if (
+                            MaterialTheme.supremeColors.isDark
+                        ) {
+                            0.78f
+                        } else {
+                            0.52f
+                        }
                     )
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.96f)
-                    .height(440.dp)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                glowPrimary.copy(alpha = 0.50f),
-                                glowSecondary.copy(alpha = 0.20f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-
             Surface(
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
@@ -433,10 +492,12 @@ internal fun OriginalProfessionalProductDetailDialog(
                             0.96f + (0.04f * progress)
                     },
                 shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.supremeColors.panel,
+                color =
+                    MaterialTheme.supremeColors.panelStrong,
                 border = BorderStroke(
                     width = 1.dp,
-                    color = MaterialTheme.supremeColors.border
+                    color =
+                        MaterialTheme.supremeColors.border
                 )
             ) {
                 Column(
@@ -449,7 +510,7 @@ internal fun OriginalProfessionalProductDetailDialog(
                                         fetchSpotlightPosition.value
 
                                 val spotlightHalfHeight =
-                                    84.dp.toPx()
+                                    120.dp.toPx()
 
                                 drawRect(
                                     brush =
@@ -459,17 +520,17 @@ internal fun OriginalProfessionalProductDetailDialog(
                                                 Color(0xFFF59E0B)
                                                     .copy(
                                                         alpha =
-                                                            0.025f
+                                                            0.08f
                                                     ),
                                                 Color(0xFFFBBF24)
                                                     .copy(
                                                         alpha =
-                                                            0.11f
+                                                            0.30f
                                                     ),
                                                 Color(0xFFF59E0B)
                                                     .copy(
                                                         alpha =
-                                                            0.025f
+                                                            0.08f
                                                     ),
                                                 Color.Transparent
                                             ),
@@ -479,6 +540,80 @@ internal fun OriginalProfessionalProductDetailDialog(
                                             endY =
                                                 spotlightCenterY +
                                                     spotlightHalfHeight
+                                        )
+                                )
+                            } else if (showDetailBloom) {
+                                val bloomProgress =
+                                    resultBloomProgress.value
+
+                                drawRect(
+                                    brush =
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                glowPrimary.copy(
+                                                    alpha =
+                                                        0.28f *
+                                                            bloomProgress
+                                                ),
+                                                glowSecondary.copy(
+                                                    alpha =
+                                                        0.14f *
+                                                            bloomProgress
+                                                ),
+                                                glowSecondary.copy(
+                                                    alpha =
+                                                        0.06f *
+                                                            bloomProgress
+                                                ),
+                                                Color.Transparent
+                                            ),
+                                            startY = 0f,
+                                            endY =
+                                                size.height *
+                                                    (
+                                                        0.28f +
+                                                            (
+                                                                0.24f *
+                                                                    bloomProgress
+                                                            )
+                                                        )
+                                        )
+                                )
+
+                                drawRect(
+                                    brush =
+                                        Brush.radialGradient(
+                                            colors = listOf(
+                                                glowPrimary.copy(
+                                                    alpha =
+                                                        0.40f *
+                                                            bloomProgress
+                                                ),
+                                                glowSecondary.copy(
+                                                    alpha =
+                                                        0.20f *
+                                                            bloomProgress
+                                                ),
+                                                glowSecondary.copy(
+                                                    alpha =
+                                                        0.08f *
+                                                            bloomProgress
+                                                ),
+                                                Color.Transparent
+                                            ),
+                                            center = Offset(
+                                                x = size.width / 2f,
+                                                y = 0f
+                                            ),
+                                            radius =
+                                                size.width *
+                                                    (
+                                                        0.55f +
+                                                            (
+                                                                0.40f *
+                                                                    bloomProgress
+                                                            )
+                                                        )
                                         )
                                 )
                             }

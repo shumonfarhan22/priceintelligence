@@ -144,8 +144,10 @@ fun OriginalDashboardScreen(
     var selectedProductId by rememberSaveable { mutableStateOf<Long?>(null) }
     var cameraPermissionDenied by rememberSaveable { mutableStateOf(false) }
 
-    var priceFreshnessCardVisible by rememberSaveable {
-        mutableStateOf(true)
+    var priceFreshnessCardVisible by remember {
+        mutableStateOf(
+            !state.freshnessPromptPresented
+        )
     }
 
     var priceFreshnessCardPinned by rememberSaveable {
@@ -161,6 +163,7 @@ fun OriginalDashboardScreen(
             priceFreshnessCardVisible &&
             !priceFreshnessCardPinned
         ) {
+            viewModel.markFreshnessPromptPresented()
             delay(5000.milliseconds)
 
             if (!priceFreshnessCardPinned) {
@@ -406,15 +409,21 @@ fun OriginalDashboardScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(
-                    top = 0.dp,
+                    top = if (state.currentPage > 1) {
+                        52.dp
+                    } else {
+                        0.dp
+                    },
                     bottom = 190.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                item(key = "branding") {
-                    ProfessionalDashboardBranding(
-                        compact = false
-                    )
+                if (state.currentPage == 1) {
+                    item(key = "branding") {
+                        ProfessionalDashboardBranding(
+                            compact = false
+                        )
+                    }
                 }
 
                 if (cameraPermissionDenied) {
@@ -608,6 +617,9 @@ fun OriginalDashboardScreen(
                             ) {
                                 ProfessionalDashboardProductCard(
                                     card = card,
+                                    showResultLight =
+                                        card.item.id in
+                                            state.manualResultLightProductIds,
                                     onClick = {
                                         viewModel.recordProductViewed(card.item.id)
                                         selectedProductId = card.item.id
@@ -642,7 +654,9 @@ fun OriginalDashboardScreen(
         }
 
         AnimatedVisibility(
-            visible = compactDashboardHeaderVisible,
+            visible =
+                compactDashboardHeaderVisible ||
+                    state.currentPage > 1,
             modifier = Modifier.align(Alignment.TopCenter),
             enter = fadeIn(
                 animationSpec = tween(durationMillis = 120)
@@ -656,20 +670,47 @@ fun OriginalDashboardScreen(
                 color = MaterialTheme.colorScheme.background.copy(
                     alpha = 0.98f
                 ),
-                shadowElevation = 4.dp
+                shadowElevation = 0.dp
             ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                ) {
-                    ProfessionalDashboardBranding(
-                        compact = true
+                Column {
+                    Box(
+                        modifier =
+                            Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        ProfessionalDashboardBranding(
+                            compact = true,
+                            showPreviousPage =
+                                state.currentPage > 1,
+                            onPreviousPage = {
+                                viewModel.goToPage(
+                                    state.currentPage - 1
+                                )
+                            }
+                        )
+                    }
+
+                    Spacer(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(
+                                if (
+                                    MaterialTheme.supremeColors.isDark
+                                ) {
+                                    Color.Transparent
+                                } else {
+                                    MaterialTheme.supremeColors.border.copy(
+                                        alpha = 0.70f
+                                    )
+                                }
+                            )
                     )
                 }
             }
         }
 
         ProfessionalDashboardSearchOverlay(
-            query = state.searchQuery,
+            query = state.searchDraft,
             suggestions = state.suggestions,
             isFocused = searchFocused,
             bottomBannerHeight = bottomBannerHeight,
