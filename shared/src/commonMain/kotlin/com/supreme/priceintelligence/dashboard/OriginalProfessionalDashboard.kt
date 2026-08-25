@@ -81,6 +81,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -714,6 +716,12 @@ internal fun ProfessionalDashboardSearchOverlay(
 
     val keyboardVisible = keyboardClearance > 0.dp
 
+    val focusManager =
+        LocalFocusManager.current
+
+    val keyboardController =
+        LocalSoftwareKeyboardController.current
+
     val bannerClearanceGap =
         if (bottomBannerHeight > 0.dp) 20.dp else 0.dp
 
@@ -769,18 +777,37 @@ internal fun ProfessionalDashboardSearchOverlay(
         mutableStateOf(false)
     }
 
-    LaunchedEffect(keyboardVisible, isFocused) {
+    var keyboardDismissRequested by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(
+        keyboardVisible,
+        isFocused,
+        keyboardDismissRequested
+    ) {
         when {
             keyboardVisible -> {
                 keyboardWasVisible = true
             }
 
-            keyboardWasVisible && isFocused -> {
+            keyboardDismissRequested &&
+                !keyboardVisible &&
+                isFocused -> {
+                keyboardDismissRequested = false
+                keyboardWasVisible = false
+                onDismissFocus()
+            }
+
+            keyboardWasVisible &&
+                !keyboardVisible &&
+                isFocused -> {
                 keyboardWasVisible = false
                 onDismissFocus()
             }
 
             !isFocused -> {
+                keyboardDismissRequested = false
                 keyboardWasVisible = false
             }
         }
@@ -876,7 +903,13 @@ internal fun ProfessionalDashboardSearchOverlay(
                                 MutableInteractionSource()
                             },
                         indication = null,
-                        onClick = onDismissFocus
+                        onClick = {
+                            keyboardDismissRequested =
+                                true
+
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                        }
                     )
             )
         }
@@ -1120,12 +1153,8 @@ internal fun ProfessionalDashboardSearchOverlay(
                         .fillMaxHeight()
                         .focusRequester(searchFocusRequester)
                         .onFocusChanged { focusState ->
-                            when {
-                                focusState.isFocused ->
-                                    onFocusChange(true)
-
-                                keyboardVisible ->
-                                    onFocusChange(false)
+                            if (focusState.isFocused) {
+                                onFocusChange(true)
                             }
                         },
                     trailingIcon = {
