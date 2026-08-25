@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
@@ -162,10 +163,28 @@ fun OriginalAppBackground(
         label = "filterPulseAlpha"
     )
 
+    val appBackgroundBrush =
+        if (MaterialTheme.supremeColors.isDark) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.background,
+                    MaterialTheme.colorScheme.background
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFFFFCF6),
+                    MaterialTheme.colorScheme.background,
+                    Color(0xFFF1EADF)
+                )
+            )
+        }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(appBackgroundBrush)
     ) {
         Canvas(
             modifier = Modifier.fillMaxSize()
@@ -338,6 +357,15 @@ fun OriginalBottomNavigation(
                 bottom = 8.dp
             )
             .height(72.dp)
+            .shadow(
+                elevation =
+                    if (MaterialTheme.supremeColors.isDark) {
+                        0.dp
+                    } else {
+                        8.dp
+                    },
+                shape = navigationShape
+            )
             .clip(navigationShape)
             .background(MaterialTheme.supremeColors.field)
             .border(
@@ -396,6 +424,27 @@ private fun OriginalNavigationItem(
         label = "navigationItemColor"
     )
 
+    val itemBackground by animateColorAsState(
+        targetValue =
+            if (
+                selected &&
+                !MaterialTheme.supremeColors.isDark
+            ) {
+                MaterialTheme.colorScheme.primaryContainer.copy(
+                    alpha = 0.72f
+                )
+            } else {
+                Color.Transparent
+            },
+        animationSpec =
+            if (reduceMotionEnabled) {
+                snap()
+            } else {
+                tween(durationMillis = 180)
+            },
+        label = "navigationItemBackground"
+    )
+
     val iconScale by animateFloatAsState(
         targetValue =
             if (selected && !reduceMotionEnabled) {
@@ -415,6 +464,12 @@ private fun OriginalNavigationItem(
     Column(
         modifier = modifier
             .fillMaxHeight()
+            .padding(
+                horizontal = 6.dp,
+                vertical = 6.dp
+            )
+            .clip(RoundedCornerShape(10.dp))
+            .background(itemBackground)
             .selectable(
                 selected = selected,
                 enabled = enabled,

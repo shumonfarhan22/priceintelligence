@@ -1,6 +1,8 @@
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,14 +37,18 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -64,7 +70,8 @@ internal fun OriginalProductEditorDialog(
     onAmazonUrlChanged: (String) -> Unit,
     onFlipkartUrlChanged: (String) -> Unit,
     onClear: () -> Unit,
-    onSave: () -> Unit,
+    onSave: (onSaved: () -> Unit) -> Unit,
+    reduceMotionEnabled: Boolean,
     onDismiss: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
@@ -73,6 +80,59 @@ internal fun OriginalProductEditorDialog(
     val barcodeFocusRequester = remember { FocusRequester() }
     val amazonFocusRequester = remember { FocusRequester() }
     val flipkartFocusRequester = remember { FocusRequester() }
+
+    val dialogMotionProgress = remember {
+        Animatable(0f)
+    }
+
+    var dismissRequested by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(
+        dismissRequested,
+        reduceMotionEnabled
+    ) {
+        if (dismissRequested) {
+            if (reduceMotionEnabled) {
+                dialogMotionProgress.snapTo(0f)
+            } else {
+                dialogMotionProgress.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(
+                        durationMillis = 170
+                    )
+                )
+            }
+
+            onDismiss()
+        } else {
+            if (reduceMotionEnabled) {
+                dialogMotionProgress.snapTo(1f)
+            } else {
+                dialogMotionProgress.snapTo(0f)
+                dialogMotionProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 210
+                    )
+                )
+            }
+        }
+    }
+
+    val requestDismiss: () -> Unit = {
+        if (!dismissRequested) {
+            dismissRequested = true
+        }
+    }
+
+    val dialogScrimAlpha =
+        if (MaterialTheme.supremeColors.isDark) {
+            0.78f
+        } else {
+            0.52f
+        }
 
     val glowPrimary by animateColorAsState(
         targetValue = when {
@@ -103,20 +163,16 @@ internal fun OriginalProductEditorDialog(
     )
 
     KeyboardAwareEditorDialog(
-        onDismissRequest = onDismiss
+        onDismissRequest = requestDismiss
     ) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     MaterialTheme.supremeColors.scrim.copy(
-                        alpha = if (
-                            MaterialTheme.supremeColors.isDark
-                        ) {
-                            0.78f
-                        } else {
-                            0.52f
-                        }
+                        alpha =
+                            dialogScrimAlpha *
+                                dialogMotionProgress.value
                     )
                 )
                 .imePadding(),
@@ -126,6 +182,9 @@ internal fun OriginalProductEditorDialog(
                 modifier = Modifier
                     .fillMaxWidth(0.96f)
                     .height(600.dp)
+                    .graphicsLayer {
+                        alpha = dialogMotionProgress.value
+                    }
                     .background(
                         Brush.radialGradient(
                             colors = listOf(
@@ -144,13 +203,29 @@ internal fun OriginalProductEditorDialog(
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
                     .heightIn(max = availableDialogHeight)
-                    .wrapContentHeight(),
+                    .wrapContentHeight()
+                    .graphicsLayer {
+                        val progress =
+                            dialogMotionProgress.value
+
+                        alpha = progress
+                        scaleX =
+                            0.96f + (0.04f * progress)
+                        scaleY =
+                            0.96f + (0.04f * progress)
+                    },
                 shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.supremeColors.panel,
+                color = MaterialTheme.supremeColors.panelStrong,
                 border = BorderStroke(
                     width = 1.dp,
                     color = MaterialTheme.supremeColors.border
-                )
+                ),
+                shadowElevation =
+                    if (MaterialTheme.supremeColors.isDark) {
+                        0.dp
+                    } else {
+                        14.dp
+                    }
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth()
@@ -179,7 +254,7 @@ internal fun OriginalProductEditorDialog(
                         )
 
                         IconButton(
-                            onClick = onDismiss
+                            onClick = requestDismiss
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
@@ -379,7 +454,9 @@ internal fun OriginalProductEditorDialog(
                             }
 
                             Button(
-                                onClick = onSave,
+                                onClick = {
+                                    onSave(requestDismiss)
+                                },
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(50.dp),

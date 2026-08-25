@@ -217,6 +217,47 @@ fun OriginalDashboardScreen(
     )
 
     val dashboardListState = rememberLazyListState()
+
+    var previousDashboardPage by remember {
+        mutableStateOf(state.currentPage)
+    }
+
+    var previousDashboardSearch by remember {
+        mutableStateOf(state.searchQuery)
+    }
+
+    LaunchedEffect(
+        state.currentPage,
+        state.searchQuery
+    ) {
+        val pageChanged =
+            state.currentPage != previousDashboardPage
+
+        val submittedSearchChanged =
+            state.searchQuery != previousDashboardSearch
+
+        previousDashboardPage = state.currentPage
+        previousDashboardSearch = state.searchQuery
+
+        if (
+            (
+                pageChanged ||
+                    submittedSearchChanged
+            ) &&
+            (
+                dashboardListState.firstVisibleItemIndex != 0 ||
+                    dashboardListState
+                        .firstVisibleItemScrollOffset != 0
+            )
+        ) {
+            if (reduceMotionEnabled) {
+                dashboardListState.scrollToItem(0)
+            } else {
+                dashboardListState.animateScrollToItem(0)
+            }
+        }
+    }
+
     var compactDashboardHeaderVisible by rememberSaveable {
         mutableStateOf(false)
     }
@@ -562,6 +603,8 @@ fun OriginalDashboardScreen(
                                 state.refreshCollapseTick,
                             activeFilter =
                                 state.priceFilter,
+                            reduceMotionEnabled =
+                                reduceMotionEnabled,
                             onFilterToggle =
                                 viewModel::setPriceFilter
                         )
@@ -601,12 +644,7 @@ fun OriginalDashboardScreen(
                                             } else {
                                                 tween(durationMillis = 160)
                                             },
-                                        placementSpec =
-                                            if (reduceMotionEnabled) {
-                                                null
-                                            } else {
-                                                tween(durationMillis = 220)
-                                            },
+                                        placementSpec = null,
                                         fadeOutSpec =
                                             if (reduceMotionEnabled) {
                                                 null
@@ -715,6 +753,7 @@ fun OriginalDashboardScreen(
             isFocused = searchFocused,
             bottomBannerHeight = bottomBannerHeight,
             additionalBannerHeight = networkBannerClearance,
+            reduceMotionEnabled = reduceMotionEnabled,
             onQueryChange = { query ->
                 viewModel.onSearchQueryChanged(query)
             },

@@ -6,6 +6,7 @@
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -78,6 +79,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -100,6 +102,7 @@ import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.dashboard.formatIndianPrice
 import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.settings.AppThemeMode
+import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import io.github.vinceglb.filekit.PlatformFile
@@ -437,6 +440,8 @@ fun OriginalInventoryScreen(
                                     groupName = groupName,
                                     productCount = products.size,
                                     expanded = expanded,
+                                    reduceMotionEnabled =
+                                        reduceMotionEnabled,
                                     onClick = {
                                         viewModel.toggleGroup(groupName)
                                     }
@@ -557,6 +562,7 @@ fun OriginalInventoryScreen(
             form = state.form,
             statusMessage = state.statusMessage,
             statusIsError = state.statusIsError,
+            reduceMotionEnabled = reduceMotionEnabled,
             onProductNameChanged = { value ->
                 viewModel.onFormFieldChanged(productName = value)
             },
@@ -579,10 +585,8 @@ fun OriginalInventoryScreen(
             onClear = {
                 viewModel.clearFormFields()
             },
-            onSave = {
-                viewModel.saveProduct {
-                    editorOpen = false
-                }
+            onSave = { onSaved ->
+                viewModel.saveProduct(onSaved)
             },
             onDismiss = {
                 viewModel.clearForm()
@@ -597,6 +601,7 @@ fun OriginalInventoryScreen(
             onThemeModeChanged = onThemeModeChanged,
             enabled = advancedModeEnabled,
             onEnabledChanged = onAdvancedModeChanged,
+            reduceMotionEnabled = reduceMotionEnabled,
             onDismiss = {
                 settingsOpen = false
             }
@@ -1141,22 +1146,86 @@ private fun AdvancedModeDialog(
     onThemeModeChanged: (AppThemeMode) -> Unit,
     enabled: Boolean,
     onEnabledChanged: (Boolean) -> Unit,
+    reduceMotionEnabled: Boolean,
     onDismiss: () -> Unit
 ) {
+    val dialogMotionProgress = remember {
+        Animatable(0f)
+    }
+
+    var dismissRequested by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(
+        dismissRequested,
+        reduceMotionEnabled
+    ) {
+        if (dismissRequested) {
+            if (reduceMotionEnabled) {
+                dialogMotionProgress.snapTo(0f)
+            } else {
+                dialogMotionProgress.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(
+                        durationMillis = 160
+                    )
+                )
+            }
+
+            onDismiss()
+        } else {
+            if (reduceMotionEnabled) {
+                dialogMotionProgress.snapTo(1f)
+            } else {
+                dialogMotionProgress.snapTo(0f)
+                dialogMotionProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 200
+                    )
+                )
+            }
+        }
+    }
+
+    val requestDismiss: () -> Unit = {
+        if (!dismissRequested) {
+            dismissRequested = true
+        }
+    }
+
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = requestDismiss,
         properties = DialogProperties(
             usePlatformDefaultWidth = false
         )
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.90f),
+            modifier = Modifier
+                .fillMaxWidth(0.90f)
+                .graphicsLayer {
+                    val progress =
+                        dialogMotionProgress.value
+
+                    alpha = progress
+                    scaleX =
+                        0.96f + (0.04f * progress)
+                    scaleY =
+                        0.96f + (0.04f * progress)
+                },
             shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outline
-            )
+            ),
+            shadowElevation =
+                if (MaterialTheme.supremeColors.isDark) {
+                    0.dp
+                } else {
+                    14.dp
+                }
         ) {
             Column(
                 modifier = Modifier.padding(17.dp)
@@ -1181,7 +1250,9 @@ private fun AdvancedModeDialog(
                         modifier = Modifier.weight(1f)
                     )
 
-                    IconButton(onClick = onDismiss) {
+                    IconButton(
+                        onClick = requestDismiss
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = "Close settings"

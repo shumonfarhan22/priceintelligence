@@ -63,18 +63,18 @@ internal val SupremeDarkColors = SupremeColors(
 
 internal val SupremeLightColors = SupremeColors(
     isDark = false,
-    panel = Color(0xFFFFFDF8),
+    panel = Color(0xFFFFFEFC),
     panelStrong = Color.White,
-    panelMuted = Color(0xFFEEE8DE),
-    field = Color(0xFFFFFDF8),
-    border = Color(0xFFDED4C3),
-    divider = Color(0xFFE8E0D4),
+    panelMuted = Color(0xFFF2EBE0),
+    field = Color(0xFFFFFEFC),
+    border = Color(0xFFE4D9C8),
+    divider = Color(0xFFEEE5D8),
     warning = Color(0xFF9A6700),
-    warningContainer = Color(0xFFF6E2A5),
-    competitive = Color(0xFF2F7D55),
-    competitiveContainer = Color(0xFFDDEBDD),
-    navigationUnselected = Color(0xFF8A8177),
-    imagePanel = Color.White,
+    warningContainer = Color(0xFFFFF0C2),
+    competitive = Color(0xFF237A4B),
+    competitiveContainer = Color(0xFFE2F1E7),
+    navigationUnselected = Color(0xFF756D63),
+    imagePanel = Color(0xFFFAF7F1),
     scrim = Color.Black
 )
 

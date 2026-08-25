@@ -1,7 +1,15 @@
 package com.supreme.priceintelligence.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,6 +70,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -653,6 +662,7 @@ internal fun ProfessionalDashboardSearchOverlay(
     isFocused: Boolean,
     bottomBannerHeight: Dp,
     additionalBannerHeight: Dp,
+    reduceMotionEnabled: Boolean,
     onQueryChange: (String) -> Unit,
     onSubmit: (String) -> Unit,
     onScanClick: () -> Unit,
@@ -691,9 +701,37 @@ internal fun ProfessionalDashboardSearchOverlay(
                 bottomBannerHeight +
                 additionalBannerHeight
 
-    val searchBarBottom = max(
+    val targetSearchBarBottom = max(
         restingSearchBarBottom,
         keyboardSearchBarBottom
+    )
+
+    val searchBarBottom by animateDpAsState(
+        targetValue = targetSearchBarBottom,
+        animationSpec = if (reduceMotionEnabled) {
+            snap()
+        } else {
+            tween(durationMillis = 180)
+        },
+        label = "dashboardSearchBarPosition"
+    )
+
+    val focusScrimAlpha by animateFloatAsState(
+        targetValue = if (isFocused) {
+            if (query.isBlank()) {
+                0.82f
+            } else {
+                0.35f
+            }
+        } else {
+            0f
+        },
+        animationSpec = if (reduceMotionEnabled) {
+            snap()
+        } else {
+            tween(durationMillis = 160)
+        },
+        label = "dashboardSearchScrim"
     )
 
     var keyboardWasVisible by remember {
@@ -720,21 +758,7 @@ internal fun ProfessionalDashboardSearchOverlay(
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        if (isFocused) {
-            // A blank, focused search box (before typing) still gets the
-            // heavy curtain — there's nothing behind it to show yet. Once
-            // there's a query, lighten it so the already-filtered product
-            // list is visible through it, instead of hidden until you
-            // dismiss the search box.
-            val scrimAlpha = if (query.isBlank()) 0.82f else 0.35f
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = scrimAlpha))
-                    .clickable(onClick = onDismissFocus)
-            )
-        } else {
+        if (!isFocused) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -763,9 +787,33 @@ internal fun ProfessionalDashboardSearchOverlay(
                     .fillMaxWidth()
                     .height(searchBarBottom + 96.dp)
                     .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
+                        interactionSource =
+                            remember {
+                                MutableInteractionSource()
+                            },
                         indication = null,
                         onClick = {}
+                    )
+            )
+        }
+
+        if (focusScrimAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color.Black.copy(
+                            alpha = focusScrimAlpha
+                        )
+                    )
+                    .clickable(
+                        enabled = isFocused,
+                        interactionSource =
+                            remember {
+                                MutableInteractionSource()
+                            },
+                        indication = null,
+                        onClick = onDismissFocus
                     )
             )
         }
@@ -780,9 +828,50 @@ internal fun ProfessionalDashboardSearchOverlay(
                     bottom = searchBarBottom
                 )
         ) {
-            if (
-                isFocused &&
-                suggestions.isNotEmpty()
+            AnimatedVisibility(
+                visible =
+                    isFocused &&
+                        suggestions.isNotEmpty(),
+                enter = if (reduceMotionEnabled) {
+                    fadeIn(
+                        animationSpec = tween(
+                            durationMillis = 0
+                        )
+                    )
+                } else {
+                    fadeIn(
+                        animationSpec = tween(
+                            durationMillis = 150
+                        )
+                    ) + slideInVertically(
+                        animationSpec = tween(
+                            durationMillis = 190
+                        ),
+                        initialOffsetY = { height ->
+                            height / 5
+                        }
+                    )
+                },
+                exit = if (reduceMotionEnabled) {
+                    fadeOut(
+                        animationSpec = tween(
+                            durationMillis = 0
+                        )
+                    )
+                } else {
+                    fadeOut(
+                        animationSpec = tween(
+                            durationMillis = 120
+                        )
+                    ) + slideOutVertically(
+                        animationSpec = tween(
+                            durationMillis = 150
+                        ),
+                        targetOffsetY = { height ->
+                            height / 5
+                        }
+                    )
+                }
             ) {
                 Surface(
                     modifier = Modifier
@@ -890,6 +979,17 @@ internal fun ProfessionalDashboardSearchOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
+                    .shadow(
+                        elevation =
+                            if (
+                                MaterialTheme.supremeColors.isDark
+                            ) {
+                                0.dp
+                            } else {
+                                6.dp
+                            },
+                        shape = RoundedCornerShape(12.dp)
+                    )
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.supremeColors.field)
                     .border(

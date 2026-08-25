@@ -1,5 +1,9 @@
 package com.supreme.priceintelligence.dashboard
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.EmojiEvents
-import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Search
@@ -38,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -148,6 +152,7 @@ fun DashboardDecisionSummaryCard(
     collapseSignal: Boolean = false,
     refreshTick: Int = 0,
     activeFilter: PricePositionFilter? = null,
+    reduceMotionEnabled: Boolean = false,
     onFilterToggle: (PricePositionFilter) -> Unit = {}
 ) {
     var isCardExpanded by remember { mutableStateOf(false) }
@@ -180,16 +185,39 @@ fun DashboardDecisionSummaryCard(
     val reviewColor = MaterialTheme.colorScheme.error
     val freshnessColor = MaterialTheme.supremeColors.warning
 
+    val cardChevronRotation by animateFloatAsState(
+        targetValue = if (isCardExpanded) 180f else 0f,
+        animationSpec = if (reduceMotionEnabled) {
+            snap()
+        } else {
+            tween(durationMillis = 200)
+        },
+        label = "shopOverviewChevron"
+    )
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp)
+            .animateContentSize(
+                animationSpec = if (reduceMotionEnabled) {
+                    snap()
+                } else {
+                    tween(durationMillis = 220)
+                }
+            ),
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.supremeColors.panel,
         border = BorderStroke(
             width = 1.dp,
             color = MaterialTheme.supremeColors.border
-        )
+        ),
+        shadowElevation =
+            if (MaterialTheme.supremeColors.isDark) {
+                0.dp
+            } else {
+                4.dp
+            }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -245,14 +273,18 @@ fun DashboardDecisionSummaryCard(
                     Spacer(modifier = Modifier.width(6.dp))
 
                     Icon(
-                        imageVector = if (isCardExpanded) {
-                            Icons.Rounded.ExpandLess
+                        imageVector = Icons.Rounded.ExpandMore,
+                        contentDescription = if (isCardExpanded) {
+                            "Collapse"
                         } else {
-                            Icons.Rounded.ExpandMore
+                            "Expand"
                         },
-                        contentDescription = if (isCardExpanded) "Collapse" else "Expand",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier
+                            .size(20.dp)
+                            .graphicsLayer {
+                                rotationZ = cardChevronRotation
+                            }
                     )
                 }
             }
@@ -278,7 +310,11 @@ fun DashboardDecisionSummaryCard(
                 ExpandToggleRow(
                     label = "Breakdown",
                     expanded = isBreakdownExpanded,
-                    onClick = { isBreakdownExpanded = !isBreakdownExpanded }
+                    reduceMotionEnabled = reduceMotionEnabled,
+                    onClick = {
+                        isBreakdownExpanded =
+                            !isBreakdownExpanded
+                    }
                 )
 
                 if (isBreakdownExpanded) {
@@ -355,9 +391,16 @@ fun DashboardDecisionSummaryCard(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     ExpandToggleRow(
-                        label = "Top priorities (${summary.priorityProducts.size})",
+                        label =
+                            "Top priorities " +
+                                "(${summary.priorityProducts.size})",
                         expanded = isPriorityListExpanded,
-                        onClick = { isPriorityListExpanded = !isPriorityListExpanded }
+                        reduceMotionEnabled =
+                            reduceMotionEnabled,
+                        onClick = {
+                            isPriorityListExpanded =
+                                !isPriorityListExpanded
+                        }
                     )
 
                     if (isPriorityListExpanded) {
@@ -386,8 +429,19 @@ fun DashboardDecisionSummaryCard(
 private fun ExpandToggleRow(
     label: String,
     expanded: Boolean,
+    reduceMotionEnabled: Boolean,
     onClick: () -> Unit
 ) {
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = if (reduceMotionEnabled) {
+            snap()
+        } else {
+            tween(durationMillis = 180)
+        },
+        label = "shopOverviewSectionChevron"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -405,10 +459,18 @@ private fun ExpandToggleRow(
         )
 
         Icon(
-            imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-            contentDescription = if (expanded) "Collapse" else "Expand",
+            imageVector = Icons.Rounded.ExpandMore,
+            contentDescription = if (expanded) {
+                "Collapse"
+            } else {
+                "Expand"
+            },
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier
+                .size(18.dp)
+                .graphicsLayer {
+                    rotationZ = chevronRotation
+                }
         )
     }
 }

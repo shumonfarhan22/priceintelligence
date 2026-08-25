@@ -7,6 +7,7 @@ package com.supreme.priceintelligence.inventory
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -172,11 +173,16 @@ internal fun ProfessionalInventoryGroupHeader(
     groupName: String,
     productCount: Int,
     expanded: Boolean,
+    reduceMotionEnabled: Boolean,
     onClick: () -> Unit
 ) {
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
-        animationSpec = tween(durationMillis = 220),
+        animationSpec = if (reduceMotionEnabled) {
+            snap()
+        } else {
+            tween(durationMillis = 200)
+        },
         label = "inventoryGroupChevron"
     )
 
@@ -258,7 +264,7 @@ internal fun ProfessionalInventoryProductRow(
         -80.dp.toPx()
     }
     val rightEdgeWidth = with(density) {
-        120.dp.toPx()
+        56.dp.toPx()
     }
 
     LaunchedEffect(selectionMode) {
@@ -404,10 +410,16 @@ internal fun ProfessionalInventoryProductRow(
                             onHorizontalDrag = { change, dragAmount ->
                                 val startedNearRightEdge =
                                     change.position.x >=
-                                            size.width - rightEdgeWidth
+                                        size.width - rightEdgeWidth
+
+                                val isOpeningSwipe =
+                                    dragAmount < 0f
 
                                 if (
-                                    startedNearRightEdge ||
+                                    (
+                                        startedNearRightEdge &&
+                                            isOpeningSwipe
+                                    ) ||
                                     offsetX.value < 0f
                                 ) {
                                     change.consume()

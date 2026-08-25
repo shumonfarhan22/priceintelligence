@@ -1,11 +1,17 @@
 package com.supreme.priceintelligence.dashboard
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -498,7 +504,13 @@ internal fun OriginalProfessionalProductDetailDialog(
                     width = 1.dp,
                     color =
                         MaterialTheme.supremeColors.border
-                )
+                ),
+                shadowElevation =
+                    if (MaterialTheme.supremeColors.isDark) {
+                        0.dp
+                    } else {
+                        14.dp
+                    }
             ) {
                 Column(
                     modifier = Modifier
@@ -885,6 +897,8 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 isLoading = card.isRefreshing,
                                 isBlocked = amazonBlocked,
                                 needsLightLogoBackground = true,
+                                reduceMotionEnabled =
+                                    reduceMotionEnabled,
                                 modifier = Modifier.weight(1f)
                             )
 
@@ -897,6 +911,8 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 isLoading = card.isRefreshing,
                                 isBlocked = flipkartBlocked,
                                 needsLightLogoBackground = false,
+                                reduceMotionEnabled =
+                                    reduceMotionEnabled,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -1192,6 +1208,7 @@ private fun ProfessionalRetailerPriceCard(
     isLoading: Boolean,
     isBlocked: Boolean = false,
     needsLightLogoBackground: Boolean,
+    reduceMotionEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     val activePrice = livePrice ?: savedPrice
@@ -1277,6 +1294,17 @@ private fun ProfessionalRetailerPriceCard(
             null
     }
 
+    val priceDisplay =
+        (
+            if (activePrice != null) {
+                "$arrow${formatIndianPrice(activePrice)}"
+            } else if (isLoading) {
+                "Checking…"
+            } else {
+                "Unavailable"
+            }
+        ) to (activePrice != null)
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -1324,25 +1352,60 @@ private fun ProfessionalRetailerPriceCard(
 
         Spacer(modifier = Modifier.height(9.dp))
 
-        Text(
-            text = if (activePrice != null) {
-                "$arrow${formatIndianPrice(activePrice)}"
-            } else if (isLoading) {
-                "Checking…"
-            } else {
-                "Unavailable"
+        AnimatedContent(
+            targetState = priceDisplay,
+            transitionSpec = {
+                if (reduceMotionEnabled) {
+                    EnterTransition.None togetherWith
+                        ExitTransition.None
+                } else {
+                    (
+                        slideInVertically(
+                            animationSpec = tween(
+                                durationMillis = 180
+                            )
+                        ) { height ->
+                            height / 3
+                        } +
+                            fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = 150
+                                )
+                            )
+                    ) togetherWith (
+                        slideOutVertically(
+                            animationSpec = tween(
+                                durationMillis = 140
+                            )
+                        ) { height ->
+                            -height / 3
+                        } +
+                            fadeOut(
+                                animationSpec = tween(
+                                    durationMillis = 120
+                                )
+                            )
+                    )
+                }
             },
-            color = priceColor,
-            fontSize = if (activePrice != null) {
-                18.sp
-            } else {
-                12.sp
-            },
-            lineHeight = 21.sp,
-            fontWeight = FontWeight.ExtraBold,
-            textAlign = TextAlign.Center,
-            maxLines = 1
-        )
+            modifier = Modifier.fillMaxWidth(),
+            label = "retailerPriceChange"
+        ) { displayedPrice ->
+            Text(
+                text = displayedPrice.first,
+                color = priceColor,
+                fontSize = if (displayedPrice.second) {
+                    18.sp
+                } else {
+                    12.sp
+                },
+                lineHeight = 21.sp,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1
+            )
+        }
 
         if (source != null) {
             Spacer(modifier = Modifier.height(3.dp))
