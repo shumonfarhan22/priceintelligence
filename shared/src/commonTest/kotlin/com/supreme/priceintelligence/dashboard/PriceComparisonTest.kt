@@ -4,7 +4,9 @@ import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.network.ScrapeResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PriceComparisonTest {
 
@@ -62,6 +64,116 @@ class PriceComparisonTest {
         assertEquals("₹999", formatIndianPrice(999.0))
         assertEquals("₹12,345.50", formatIndianPrice(12_345.5))
         assertEquals("₹1,23,45,678.25", formatIndianPrice(12_345_678.25))
+    }
+
+    @Test
+    fun freshnessSummarySeparatesCurrentStaleMissingAndUnlinkedProducts() {
+        val nowMillis =
+            PRICE_FRESHNESS_WINDOW_MILLIS * 10L
+
+        val current = inventoryItem(
+            id = 1,
+            name = "Current price",
+            shopPrice = 1_000.0,
+            amazonPrice = 900.0
+        ).copy(
+            amazonUrl = "https://amazon.in/current",
+            amazonLastChecked =
+                nowMillis -
+                    PRICE_FRESHNESS_WINDOW_MILLIS / 2L
+        )
+
+        val stale = inventoryItem(
+            id = 2,
+            name = "Stale price",
+            shopPrice = 1_000.0,
+            amazonPrice = 900.0
+        ).copy(
+            amazonUrl = "https://amazon.in/stale",
+            amazonLastChecked =
+                nowMillis -
+                    PRICE_FRESHNESS_WINDOW_MILLIS
+        )
+
+        val missingPrice = inventoryItem(
+            id = 3,
+            name = "Missing saved price",
+            shopPrice = 1_000.0,
+            amazonPrice = null
+        ).copy(
+            amazonUrl = "https://amazon.in/missing"
+        )
+
+        val withoutLinks = inventoryItem(
+            id = 4,
+            name = "Without retailer links",
+            shopPrice = 1_000.0,
+            amazonPrice = null
+        )
+
+        val summary = listOf(
+            current,
+            stale,
+            missingPrice,
+            withoutLinks
+        ).buildPriceFreshnessSummary(
+            nowMillis = nowMillis
+        )
+
+        assertEquals(4, summary.totalProductCount)
+        assertEquals(3, summary.linkedProductCount)
+        assertEquals(1, summary.currentProductCount)
+        assertEquals(2, summary.needsCheckCount)
+        assertEquals(
+            1,
+            summary.missingRetailerLinksCount
+        )
+
+        assertFalse(
+            current.needsPriceCheck(nowMillis)
+        )
+        assertTrue(
+            stale.needsPriceCheck(nowMillis)
+        )
+        assertTrue(
+            missingPrice.needsPriceCheck(nowMillis)
+        )
+        assertFalse(
+            withoutLinks.needsPriceCheck(nowMillis)
+        )
+    }
+
+    @Test
+    fun freshnessRequiresEveryConfiguredRetailerToBeCurrent() {
+        val nowMillis =
+            PRICE_FRESHNESS_WINDOW_MILLIS * 10L
+
+        val item = inventoryItem(
+            id = 5,
+            name = "Two retailer product",
+            shopPrice = 1_000.0,
+            amazonPrice = 900.0
+        ).copy(
+            amazonUrl = "https://amazon.in/two-retailers",
+            amazonLastChecked = nowMillis,
+            flipkartUrl =
+                "https://flipkart.com/two-retailers",
+            flipkartLastPrice = 950.0,
+            flipkartLastChecked =
+                nowMillis -
+                    PRICE_FRESHNESS_WINDOW_MILLIS -
+                    1L
+        )
+
+        assertTrue(
+            item.needsPriceCheck(nowMillis)
+        )
+
+        assertFalse(
+            item.copy(
+                flipkartLastChecked = nowMillis
+            ).needsPriceCheck(nowMillis)
+        )
     }
 
     @Test

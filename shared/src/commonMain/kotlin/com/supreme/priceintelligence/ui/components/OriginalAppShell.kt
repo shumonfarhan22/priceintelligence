@@ -114,9 +114,9 @@ fun OriginalAppBackground(
         label = "networkPulseAlpha"
     )
 
-    // A separate, whole-screen pulse for the dashboard's Competitive/Review
-    // KPI taps — distinct from the small corner glow above, which is only
-    // about network status.
+    // A separate, whole-screen pulse for Dashboard comparison and freshness
+    // filter taps. This is distinct from the small corner glow above, which
+    // only communicates network status.
     var filterPulseVisible by remember {
         mutableStateOf(false)
     }
@@ -133,9 +133,17 @@ fun OriginalAppBackground(
 
     val filterPulseColor by animateColorAsState(
         targetValue = when (filterBloom) {
-            PricePositionFilter.COMPETITIVE -> MaterialTheme.colorScheme.primary
-            PricePositionFilter.REVIEW -> MaterialTheme.colorScheme.error
-            null -> Color.Transparent
+            PricePositionFilter.COMPETITIVE ->
+                MaterialTheme.colorScheme.primary
+
+            PricePositionFilter.REVIEW ->
+                MaterialTheme.colorScheme.error
+
+            PricePositionFilter.NEEDS_CHECK ->
+                Color(0xFFF59E0B)
+
+            null ->
+                Color.Transparent
         },
         animationSpec = tween(
             durationMillis = 250,

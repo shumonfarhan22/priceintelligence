@@ -2,6 +2,7 @@ package com.supreme.priceintelligence.dashboard
 
 import androidx.lifecycle.viewModelScope
 import com.supreme.priceintelligence.data.FakeInventoryDao
+import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.network.PriceFetcher
@@ -22,8 +23,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(
+    ExperimentalCoroutinesApi::class,
+    ExperimentalTime::class
+)
 class DashboardViewModelTest {
     private val dispatcher = StandardTestDispatcher()
 
@@ -179,6 +185,111 @@ class DashboardViewModelTest {
 
         viewModel.viewModelScope.cancel()
     }
+
+    @Test
+    fun needsCheckFilterShowsOnlyStaleOrMissingLinkedPrices() =
+        runTest(dispatcher) {
+            val nowMillis =
+                Clock.System
+                    .now()
+                    .toEpochMilliseconds()
+
+            val current = InventoryItem(
+                id = 1,
+                productName = "Current product",
+                shopPrice = 1_000.0,
+                amazonUrl =
+                    "https://amazon.in/current-product",
+                amazonLastPrice = 900.0,
+                amazonLastChecked = nowMillis,
+                createdAt = 1L,
+                updatedAt = 1L
+            )
+
+            val stale = InventoryItem(
+                id = 2,
+                productName = "Stale product",
+                shopPrice = 1_000.0,
+                amazonUrl =
+                    "https://amazon.in/stale-product",
+                amazonLastPrice = 900.0,
+                amazonLastChecked =
+                    nowMillis -
+                        PRICE_FRESHNESS_WINDOW_MILLIS -
+                        1L,
+                createdAt = 1L,
+                updatedAt = 1L
+            )
+
+            val missingPrice = InventoryItem(
+                id = 3,
+                productName = "Missing price product",
+                shopPrice = 1_000.0,
+                flipkartUrl =
+                    "https://flipkart.com/missing-product",
+                createdAt = 1L,
+                updatedAt = 1L
+            )
+
+            val withoutLinks = InventoryItem(
+                id = 4,
+                productName = "Without retailer links",
+                shopPrice = 1_000.0,
+                createdAt = 1L,
+                updatedAt = 1L
+            )
+
+            val viewModel = DashboardViewModel(
+                repository = InventoryRepository(
+                    FakeInventoryDao(
+                        current,
+                        stale,
+                        missingPrice,
+                        withoutLinks
+                    )
+                ),
+                scraper = FakePriceFetcher(emptyMap()),
+                networkMonitor =
+                    FakeNetworkMonitor(
+                        isConnected = true
+                    )
+            )
+
+            advanceUntilIdle()
+
+            viewModel.setPriceFilter(
+                PricePositionFilter.NEEDS_CHECK
+            )
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(
+                    "Missing price product",
+                    "Stale product"
+                ),
+                viewModel.uiState.value.pageItems
+                    .map { card ->
+                        card.item.productName
+                    }
+                    .sorted()
+            )
+            assertEquals(
+                2,
+                viewModel.uiState.value.totalMatchCount
+            )
+
+            viewModel.setPriceFilter(
+                PricePositionFilter.NEEDS_CHECK
+            )
+            advanceUntilIdle()
+
+            assertEquals(
+                4,
+                viewModel.uiState.value.totalMatchCount
+            )
+
+            viewModel.viewModelScope.cancel()
+        }
 }
 
 private class FakePriceFetcher(

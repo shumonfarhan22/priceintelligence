@@ -52,9 +52,13 @@ enum class SortOrder { MOST_VIEWED, BEST_SAVING, ALPHABETICAL, RECENT }
 
 enum class BloomState { SUCCESS, ERROR, WARNING, NONE }
 
-// Tapping the Competitive or Review KPI card on the decision summary sets
-// this, filtering the visible product list down to just that bucket.
-enum class PricePositionFilter { COMPETITIVE, REVIEW }
+// Tapping a comparison or freshness card filters the visible product list
+// down to that actionable group. Tapping the active filter clears it.
+enum class PricePositionFilter {
+    COMPETITIVE,
+    REVIEW,
+    NEEDS_CHECK
+}
 
 data class DashboardUiState(
     val searchQuery: String = "",
@@ -349,28 +353,59 @@ class DashboardViewModel(
         val priceFilter = state.priceFilter
 
         if (priceFilter != null) {
-            // The database can sort and page by text/sort order, but not by
-            // a computed price position — that depends on live results too.
-            // So pull every matching product once and filter/page it here.
-            val allMatching = repository.getAllMatching("")
-            val liveById = state.pageItems.associateBy { card -> card.item.id }
+            // Price-position and freshness filters depend on calculated data,
+            // so load the inventory once, preserve the selected sort order,
+            // then filter and page the result safely in memory.
+            val allMatching = repository.getPaged(
+                sortOrder = sortString,
+                limit = Int.MAX_VALUE,
+                offset = 0
+            )
+            val liveById =
+                state.pageItems.associateBy { card ->
+                    card.item.id
+                }
+            val freshnessNow =
+                Clock.System.now().toEpochMilliseconds()
 
             val filtered = allMatching.filter { item ->
-                val liveCard = liveById[item.id]
-                val amazonPrice = liveCard?.amazonResult?.price ?: item.amazonLastPrice
-                val flipkartPrice = liveCard?.flipkartResult?.price ?: item.flipkartLastPrice
-                val position = compareWithOnlinePrices(
-                    shopPrice = item.shopPrice,
-                    amazonPrice = amazonPrice,
-                    flipkartPrice = flipkartPrice
-                ).shopPosition
-
                 when (priceFilter) {
-                    PricePositionFilter.COMPETITIVE ->
-                        position == ShopPricePosition.LOWER || position == ShopPricePosition.MATCHED
+                    PricePositionFilter.NEEDS_CHECK ->
+                        item.needsPriceCheck(
+                            nowMillis = freshnessNow
+                        )
 
-                    PricePositionFilter.REVIEW ->
-                        position == ShopPricePosition.HIGHER
+                    PricePositionFilter.COMPETITIVE,
+                    PricePositionFilter.REVIEW -> {
+                        val liveCard = liveById[item.id]
+                        val amazonPrice =
+                            liveCard?.amazonResult?.price
+                                ?: item.amazonLastPrice
+                        val flipkartPrice =
+                            liveCard?.flipkartResult?.price
+                                ?: item.flipkartLastPrice
+
+                        val position = compareWithOnlinePrices(
+                            shopPrice = item.shopPrice,
+                            amazonPrice = amazonPrice,
+                            flipkartPrice = flipkartPrice
+                        ).shopPosition
+
+                        when (priceFilter) {
+                            PricePositionFilter.COMPETITIVE ->
+                                position ==
+                                    ShopPricePosition.LOWER ||
+                                    position ==
+                                    ShopPricePosition.MATCHED
+
+                            PricePositionFilter.REVIEW ->
+                                position ==
+                                    ShopPricePosition.HIGHER
+
+                            PricePositionFilter.NEEDS_CHECK ->
+                                false
+                        }
+                    }
                 }
             }
 
@@ -518,7 +553,15 @@ class DashboardViewModel(
                         }.awaitAll()
                     }
                 }
-                refreshWholeShopSnapshot()
+
+                if (_uiState.value.priceFilter == null) {
+                    refreshWholeShopSnapshot()
+                } else {
+                    // Reapply the active filter after saving successful checks.
+                    // A product that is now current can leave Needs Check
+                    // immediately instead of remaining in a stale result list.
+                    fetchPageFromDatabase(1)
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {

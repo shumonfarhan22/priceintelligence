@@ -1,4 +1,7 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    kotlin.time.ExperimentalTime::class
+)
 
 package com.supreme.priceintelligence.dashboard
 
@@ -123,11 +126,47 @@ fun OriginalDashboardScreen(
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
 
+    val priceFreshnessSummary = remember(
+        state.allMatchingItems
+    ) {
+        state.allMatchingItems.buildPriceFreshnessSummary(
+            nowMillis =
+                kotlin.time.Clock.System
+                    .now()
+                    .toEpochMilliseconds()
+        )
+    }
+
     var sortMenuOpen by remember { mutableStateOf(false) }
     var searchFocused by remember { mutableStateOf(false) }
     var scannerOpen by rememberSaveable { mutableStateOf(false) }
     var selectedProductId by rememberSaveable { mutableStateOf<Long?>(null) }
     var cameraPermissionDenied by rememberSaveable { mutableStateOf(false) }
+
+    var priceFreshnessCardVisible by rememberSaveable {
+        mutableStateOf(true)
+    }
+
+    var priceFreshnessCardPinned by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(
+        state.allMatchingItems.isNotEmpty(),
+        priceFreshnessCardPinned
+    ) {
+        if (
+            state.allMatchingItems.isNotEmpty() &&
+            priceFreshnessCardVisible &&
+            !priceFreshnessCardPinned
+        ) {
+            delay(5000.milliseconds)
+
+            if (!priceFreshnessCardPinned) {
+                priceFreshnessCardVisible = false
+            }
+        }
+    }
 
     var showNetworkBanner by remember {
         mutableStateOf(false)
@@ -400,14 +439,121 @@ fun OriginalDashboardScreen(
                     )
                 }
 
-                if (advancedModeEnabled && state.searchQuery.isBlank() && state.allMatchingItems.isNotEmpty()) {
-                    item(key = "advanced-summary") {
+                if (
+                    state.searchQuery.isBlank() &&
+                    state.allMatchingItems.isNotEmpty()
+                ) {
+                    item(
+                        key = "price-freshness",
+                        contentType = "price-freshness-card"
+                    ) {
+                        AnimatedVisibility(
+                            visible =
+                                priceFreshnessCardVisible,
+                            enter =
+                                if (reduceMotionEnabled) {
+                                    fadeIn(
+                                        animationSpec = tween(
+                                            durationMillis = 0
+                                        )
+                                    )
+                                } else {
+                                    fadeIn(
+                                        animationSpec = tween(
+                                            durationMillis = 180
+                                        )
+                                    ) + slideInVertically(
+                                        animationSpec = tween(
+                                            durationMillis = 220
+                                        ),
+                                        initialOffsetY = { height ->
+                                            -height / 3
+                                        }
+                                    )
+                                },
+                            exit =
+                                if (reduceMotionEnabled) {
+                                    fadeOut(
+                                        animationSpec = tween(
+                                            durationMillis = 0
+                                        )
+                                    )
+                                } else {
+                                    fadeOut(
+                                        animationSpec = tween(
+                                            durationMillis = 160
+                                        )
+                                    ) + slideOutVertically(
+                                        animationSpec = tween(
+                                            durationMillis = 200
+                                        ),
+                                        targetOffsetY = { height ->
+                                            -height / 3
+                                        }
+                                    )
+                                }
+                        ) {
+                            DashboardPriceFreshnessCard(
+                                summary =
+                                    priceFreshnessSummary,
+                                active =
+                                    state.priceFilter ==
+                                        PricePositionFilter
+                                            .NEEDS_CHECK,
+                                onToggle = {
+                                    priceFreshnessCardPinned =
+                                        true
+
+                                    viewModel.setPriceFilter(
+                                        PricePositionFilter
+                                            .NEEDS_CHECK
+                                    )
+                                },
+                                onDismiss = {
+                                    priceFreshnessCardVisible =
+                                        false
+
+                                    if (
+                                        state.priceFilter ==
+                                            PricePositionFilter
+                                                .NEEDS_CHECK
+                                    ) {
+                                        viewModel.setPriceFilter(
+                                            PricePositionFilter
+                                                .NEEDS_CHECK
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (
+                    advancedModeEnabled &&
+                    state.searchQuery.isBlank() &&
+                    state.allMatchingItems.isNotEmpty()
+                ) {
+                    item(
+                        key = "advanced-summary",
+                        contentType = "advanced-summary-card"
+                    ) {
                         DashboardDecisionSummaryCard(
-                            summary = state.allMatchingItems.buildDecisionSummary(state.pageItems),
-                            collapseSignal = decisionCardShouldCollapse,
-                            refreshTick = state.refreshCollapseTick,
-                            activeFilter = state.priceFilter,
-                            onFilterToggle = viewModel::setPriceFilter
+                            summary =
+                                state.allMatchingItems
+                                    .buildDecisionSummary(
+                                        state.pageItems
+                                    ),
+                            freshnessSummary =
+                                priceFreshnessSummary,
+                            collapseSignal =
+                                decisionCardShouldCollapse,
+                            refreshTick =
+                                state.refreshCollapseTick,
+                            activeFilter =
+                                state.priceFilter,
+                            onFilterToggle =
+                                viewModel::setPriceFilter
                         )
                     }
                 }
@@ -591,6 +737,7 @@ fun OriginalDashboardScreen(
             card = selectedCard,
             networkState = state.bloomState,
             advancedModeEnabled = advancedModeEnabled,
+            reduceMotionEnabled = reduceMotionEnabled,
             isHistoryLoading =
                 selectedCard.item.id in state.historyLoadingProductIds,
             onRefresh = {

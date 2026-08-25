@@ -6,6 +6,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -34,7 +38,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
@@ -56,8 +59,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -85,6 +90,7 @@ internal fun OriginalProfessionalProductDetailDialog(
     card: ProductCardUiState,
     networkState: BloomState,
     advancedModeEnabled: Boolean,
+    reduceMotionEnabled: Boolean,
     isHistoryLoading: Boolean,
     priceHistory: List<PriceHistoryEntry>,
     onRefresh: () -> Unit,
@@ -99,6 +105,24 @@ internal fun OriginalProfessionalProductDetailDialog(
     var isPriceHistoryExpanded by rememberSaveable {
         mutableStateOf(false)
     }
+
+    val historyChevronRotation by animateFloatAsState(
+        targetValue =
+            if (isPriceHistoryExpanded) {
+                180f
+            } else {
+                0f
+            },
+        animationSpec = tween(
+            durationMillis =
+                if (reduceMotionEnabled) {
+                    0
+                } else {
+                    180
+                }
+        ),
+        label = "priceHistoryChevronRotation"
+    )
 
     var showNetworkBanner by remember {
         mutableStateOf(false)
@@ -116,6 +140,47 @@ internal fun OriginalProfessionalProductDetailDialog(
     val networkSpeedText = rememberNetworkSpeedText(
         isActive = card.isRefreshing
     )
+
+    val fetchSpotlightPosition = remember {
+        Animatable(-0.18f)
+    }
+
+    LaunchedEffect(
+        card.isRefreshing,
+        reduceMotionEnabled
+    ) {
+        when {
+            !card.isRefreshing -> {
+                fetchSpotlightPosition.snapTo(-0.18f)
+            }
+
+            reduceMotionEnabled -> {
+                fetchSpotlightPosition.snapTo(0.12f)
+            }
+
+            else -> {
+                fetchSpotlightPosition.snapTo(-0.18f)
+
+                while (true) {
+                    fetchSpotlightPosition.animateTo(
+                        targetValue = 1.18f,
+                        animationSpec = tween(
+                            durationMillis = 1500,
+                            easing = LinearEasing
+                        )
+                    )
+
+                    fetchSpotlightPosition.animateTo(
+                        targetValue = -0.18f,
+                        animationSpec = tween(
+                            durationMillis = 1500,
+                            easing = LinearEasing
+                        )
+                    )
+                }
+            }
+        }
+    }
 
     var fetchStartedAt by remember {
         mutableStateOf<TimeMark?>(null)
@@ -216,6 +281,9 @@ internal fun OriginalProfessionalProductDetailDialog(
 
     val glowPrimary by animateColorAsState(
         targetValue = when {
+            card.isRefreshing ->
+                Color.Transparent
+
             !showDetailBloom ->
                 Color.Transparent
 
@@ -233,6 +301,9 @@ internal fun OriginalProfessionalProductDetailDialog(
 
     val glowSecondary by animateColorAsState(
         targetValue = when {
+            card.isRefreshing ->
+                Color.Transparent
+
             !showDetailBloom ->
                 Color.Transparent
 
@@ -267,8 +338,54 @@ internal fun OriginalProfessionalProductDetailDialog(
             "Prices not checked"
     }
 
+    val dialogMotionProgress = remember {
+        Animatable(0f)
+    }
+
+    var dismissRequested by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(
+        dismissRequested,
+        reduceMotionEnabled
+    ) {
+        if (dismissRequested) {
+            if (reduceMotionEnabled) {
+                dialogMotionProgress.snapTo(0f)
+            } else {
+                dialogMotionProgress.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(
+                        durationMillis = 180
+                    )
+                )
+            }
+
+            onDismiss()
+        } else {
+            if (reduceMotionEnabled) {
+                dialogMotionProgress.snapTo(1f)
+            } else {
+                dialogMotionProgress.snapTo(0f)
+                dialogMotionProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 220
+                    )
+                )
+            }
+        }
+    }
+
+    val requestDismiss = {
+        if (!dismissRequested) {
+            dismissRequested = true
+        }
+    }
+
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = requestDismiss,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = false
@@ -299,7 +416,17 @@ internal fun OriginalProfessionalProductDetailDialog(
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
                     .wrapContentHeight()
-                    .heightIn(max = 760.dp),
+                    .heightIn(max = 760.dp)
+                    .graphicsLayer {
+                        val progress =
+                            dialogMotionProgress.value
+
+                        alpha = progress
+                        scaleX =
+                            0.96f + (0.04f * progress)
+                        scaleY =
+                            0.96f + (0.04f * progress)
+                    },
                 shape = RoundedCornerShape(24.dp),
                 color = Color.White.copy(alpha = 0.04f),
                 border = BorderStroke(
@@ -308,7 +435,49 @@ internal fun OriginalProfessionalProductDetailDialog(
                 )
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .drawBehind {
+                            if (card.isRefreshing) {
+                                val spotlightCenterY =
+                                    size.height *
+                                        fetchSpotlightPosition.value
+
+                                val spotlightHalfHeight =
+                                    84.dp.toPx()
+
+                                drawRect(
+                                    brush =
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                Color(0xFFF59E0B)
+                                                    .copy(
+                                                        alpha =
+                                                            0.025f
+                                                    ),
+                                                Color(0xFFFBBF24)
+                                                    .copy(
+                                                        alpha =
+                                                            0.11f
+                                                    ),
+                                                Color(0xFFF59E0B)
+                                                    .copy(
+                                                        alpha =
+                                                            0.025f
+                                                    ),
+                                                Color.Transparent
+                                            ),
+                                            startY =
+                                                spotlightCenterY -
+                                                    spotlightHalfHeight,
+                                            endY =
+                                                spotlightCenterY +
+                                                    spotlightHalfHeight
+                                        )
+                                )
+                            }
+                        }
                 ) {
                     Row(
                         modifier = Modifier
@@ -394,7 +563,7 @@ internal fun OriginalProfessionalProductDetailDialog(
                         }
 
                         IconButton(
-                            onClick = onDismiss,
+                            onClick = requestDismiss,
                             modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
@@ -715,29 +884,78 @@ internal fun OriginalProfessionalProductDetailDialog(
                             }
 
                             Icon(
-                                imageVector = if (isPriceHistoryExpanded) {
-                                    Icons.Rounded.ExpandLess
-                                } else {
-                                    Icons.Rounded.ExpandMore
-                                },
-                                contentDescription = if (isPriceHistoryExpanded) {
-                                    "Collapse"
-                                } else {
-                                    "Expand"
-                                },
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Rounded.ExpandMore,
+                                contentDescription =
+                                    if (isPriceHistoryExpanded) {
+                                        "Collapse"
+                                    } else {
+                                        "Expand"
+                                    },
+                                tint =
+                                    MaterialTheme.colorScheme
+                                        .onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .graphicsLayer {
+                                        rotationZ =
+                                            historyChevronRotation
+                                    }
                             )
                         }
 
-                        if (isPriceHistoryExpanded) {
-                            Spacer(modifier = Modifier.height(10.dp))
+                        AnimatedVisibility(
+                            visible = isPriceHistoryExpanded,
+                            enter =
+                                if (reduceMotionEnabled) {
+                                    fadeIn(
+                                        animationSpec = tween(
+                                            durationMillis = 80
+                                        )
+                                    )
+                                } else {
+                                    expandVertically(
+                                        animationSpec = tween(
+                                            durationMillis = 220
+                                        ),
+                                        expandFrom = Alignment.Top
+                                    ) + fadeIn(
+                                        animationSpec = tween(
+                                            durationMillis = 160
+                                        )
+                                    )
+                                },
+                            exit =
+                                if (reduceMotionEnabled) {
+                                    fadeOut(
+                                        animationSpec = tween(
+                                            durationMillis = 80
+                                        )
+                                    )
+                                } else {
+                                    shrinkVertically(
+                                        animationSpec = tween(
+                                            durationMillis = 180
+                                        ),
+                                        shrinkTowards = Alignment.Top
+                                    ) + fadeOut(
+                                        animationSpec = tween(
+                                            durationMillis = 120
+                                        )
+                                    )
+                                }
+                        ) {
+                            Column {
+                                Spacer(
+                                    modifier =
+                                        Modifier.height(10.dp)
+                                )
 
-                            PriceHistorySection(
-                                entries = priceHistory,
-                                isLoading = isHistoryLoading,
-                                shopPrice = item.shopPrice
-                            )
+                                PriceHistorySection(
+                                    entries = priceHistory,
+                                    isLoading = isHistoryLoading,
+                                    shopPrice = item.shopPrice
+                                )
+                            }
                         }
                     }
                     }

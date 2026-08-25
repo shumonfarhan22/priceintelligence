@@ -137,6 +137,7 @@ fun List<InventoryItem>.buildDecisionSummary(
 @Composable
 fun DashboardDecisionSummaryCard(
     summary: DashboardDecisionSummary,
+    freshnessSummary: PriceFreshnessSummary,
     modifier: Modifier = Modifier,
     collapseSignal: Boolean = false,
     refreshTick: Int = 0,
@@ -171,6 +172,7 @@ fun DashboardDecisionSummaryCard(
 
     val competitiveColor = MaterialTheme.colorScheme.primary
     val reviewColor = MaterialTheme.colorScheme.error
+    val freshnessColor = Color(0xFFF59E0B)
 
     Surface(
         modifier = modifier
@@ -278,23 +280,63 @@ fun DashboardDecisionSummaryCard(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement =
+                            Arrangement.spacedBy(6.dp)
                     ) {
                         DecisionMetric(
-                            value = summary.shopCompetitiveCount,
+                            value =
+                                summary.shopCompetitiveCount,
                             label = "Competitive",
                             color = competitiveColor,
-                            selected = activeFilter == PricePositionFilter.COMPETITIVE,
-                            onClick = { onFilterToggle(PricePositionFilter.COMPETITIVE) },
+                            selected =
+                                activeFilter ==
+                                    PricePositionFilter.COMPETITIVE,
+                            onClick = {
+                                onFilterToggle(
+                                    PricePositionFilter.COMPETITIVE
+                                )
+                            },
                             modifier = Modifier.weight(1f)
                         )
 
                         DecisionMetric(
-                            value = summary.onlineCheaperCount,
+                            value =
+                                freshnessSummary.needsCheckCount,
+                            label = "Needs check",
+                            color = freshnessColor,
+                            selected =
+                                activeFilter ==
+                                    PricePositionFilter.NEEDS_CHECK,
+                            onClick =
+                                if (
+                                    freshnessSummary.needsCheckCount > 0 ||
+                                    activeFilter ==
+                                        PricePositionFilter.NEEDS_CHECK
+                                ) {
+                                    {
+                                        onFilterToggle(
+                                            PricePositionFilter.NEEDS_CHECK
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        DecisionMetric(
+                            value =
+                                summary.onlineCheaperCount,
                             label = "Review",
                             color = reviewColor,
-                            selected = activeFilter == PricePositionFilter.REVIEW,
-                            onClick = { onFilterToggle(PricePositionFilter.REVIEW) },
+                            selected =
+                                activeFilter ==
+                                    PricePositionFilter.REVIEW,
+                            onClick = {
+                                onFilterToggle(
+                                    PricePositionFilter.REVIEW
+                                )
+                            },
                             modifier = Modifier.weight(1f)
                         )
                     }
