@@ -527,10 +527,6 @@ fun OriginalDashboardScreen(
             additionalBannerHeight = networkBannerClearance,
             onQueryChange = { query ->
                 viewModel.onSearchQueryChanged(query)
-
-                if (query.isBlank()) {
-                    viewModel.onSearchSubmitted("")
-                }
             },
             onSubmit = { query ->
                 viewModel.onSearchSubmitted(query)
@@ -540,9 +536,11 @@ fun OriginalDashboardScreen(
             onScanClick = permissionRequester::requestPermission,
             onFocusChange = { focused ->
                 searchFocused = focused
+                viewModel.onSearchFocusChanged(focused)
             },
             onDismissFocus = {
                 searchFocused = false
+                viewModel.onSearchFocusChanged(false)
                 focusManager.clearFocus()
             }
         )

@@ -674,14 +674,13 @@ internal fun ProfessionalDashboardSearchOverlay(
         ) {
             if (
                 isFocused &&
-                suggestions.isNotEmpty() &&
-                query.isNotBlank()
+                suggestions.isNotEmpty()
             ) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp)
-                        .heightIn(max = 220.dp),
+                        .heightIn(max = 260.dp),
                     shape = RoundedCornerShape(16.dp),
                     color = Color(0xFF14181D).copy(alpha = 0.98f),
                     border = androidx.compose.foundation.BorderStroke(
@@ -695,13 +694,39 @@ internal fun ProfessionalDashboardSearchOverlay(
                                 vertical = 4.dp
                             )
                     ) {
-                        items(suggestions) { suggestion ->
+                        item(
+                            contentType =
+                                "dashboard-search-suggestion-heading"
+                        ) {
                             Text(
-                                text = suggestion,
-                                color = TextPrimary,
-                                fontSize = 14.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                                text =
+                                    if (query.isBlank()) {
+                                        "Popular inventory products"
+                                    } else {
+                                        "Suggested inventory products"
+                                    },
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    top = 8.dp,
+                                    bottom = 4.dp
+                                )
+                            )
+                        }
+
+                        items(
+                            items = suggestions,
+                            key = { suggestion ->
+                                suggestion.lowercase()
+                            },
+                            contentType = {
+                                "dashboard-search-suggestion"
+                            }
+                        ) { suggestion ->
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
@@ -709,9 +734,45 @@ internal fun ProfessionalDashboardSearchOverlay(
                                     }
                                     .padding(
                                         horizontal = 16.dp,
-                                        vertical = 12.dp
+                                        vertical = 10.dp
+                                    ),
+                                verticalAlignment =
+                                    Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector =
+                                        Icons.Rounded.Search,
+                                    contentDescription = null,
+                                    tint = Brand,
+                                    modifier = Modifier.size(18.dp)
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.width(12.dp)
+                                )
+
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = suggestion,
+                                        color = TextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight =
+                                            FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow =
+                                            TextOverflow.Ellipsis
                                     )
-                            )
+
+                                    Text(
+                                        text = "Tap to search inventory",
+                                        color = TextMuted,
+                                        fontSize = 11.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     }
                 }

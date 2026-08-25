@@ -132,31 +132,88 @@ class DashboardViewModel(
     }
 
     fun onSearchQueryChanged(query: String) {
-        _uiState.update { it.copy(searchQuery = query) }
-
-        suggestionJob?.cancel()
-        suggestionJob = viewModelScope.launch {
-            delay(250.milliseconds)
-            if (query == _uiState.value.searchQuery) {
-                _uiState.update {
-                    it.copy(suggestions = repository.getNameSuggestions(query))
-                }
-            }
+        _uiState.update {
+            it.copy(searchQuery = query)
         }
 
-        // Wait briefly until typing pauses. This prevents a complete database
-        // search after every single letter while still updating results
-        // automatically as the user types.
+        requestSearchSuggestions(
+            query = query,
+            debounceMillis =
+                if (query.isBlank()) {
+                    0L
+                } else {
+                    200L
+                }
+        )
+
+        // Wait briefly until typing pauses. Clearing the search remains
+        // immediate, while normal typing avoids a database search after
+        // every single letter.
         runSearch(
             query = query,
             showLoadingIndicator = false,
-            debounceMillis = 300L
+            debounceMillis =
+                if (query.isBlank()) {
+                    0L
+                } else {
+                    300L
+                }
         )
+    }
+
+    fun onSearchFocusChanged(focused: Boolean) {
+        if (focused) {
+            requestSearchSuggestions(
+                query = _uiState.value.searchQuery,
+                debounceMillis = 0L
+            )
+        } else {
+            suggestionJob?.cancel()
+            _uiState.update {
+                it.copy(suggestions = emptyList())
+            }
+        }
+    }
+
+    private fun requestSearchSuggestions(
+        query: String,
+        debounceMillis: Long
+    ) {
+        suggestionJob?.cancel()
+        suggestionJob = viewModelScope.launch {
+            if (debounceMillis > 0L) {
+                delay(debounceMillis.milliseconds)
+            }
+
+            try {
+                val suggestions =
+                    repository.getNameSuggestions(query)
+
+                if (query == _uiState.value.searchQuery) {
+                    _uiState.update {
+                        it.copy(suggestions = suggestions)
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (query == _uiState.value.searchQuery) {
+                    _uiState.update {
+                        it.copy(suggestions = emptyList())
+                    }
+                }
+            }
+        }
     }
 
     fun onSearchSubmitted(query: String) {
         suggestionJob?.cancel()
-        _uiState.update { it.copy(searchQuery = query, suggestions = emptyList()) }
+        _uiState.update {
+            it.copy(
+                searchQuery = query,
+                suggestions = emptyList()
+            )
+        }
         runSearch(query)
     }
 

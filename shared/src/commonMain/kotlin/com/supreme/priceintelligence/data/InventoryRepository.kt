@@ -44,6 +44,65 @@ private fun databaseSearchWords(value: String): DatabaseSearchWords? {
     )
 }
 
+internal fun rankNameSuggestions(
+    query: String,
+    candidates: List<String>,
+    limit: Int
+): List<String> {
+    if (limit <= 0) return emptyList()
+
+    val normalizedQuery = query.trim().lowercase()
+    val finalQueryWord =
+        normalizedQuery.substringAfterLast(" ")
+
+    return candidates
+        .asSequence()
+        .map { candidate ->
+            candidate.trim()
+        }
+        .filter { candidate ->
+            candidate.isNotBlank()
+        }
+        .distinctBy { candidate ->
+            candidate.lowercase()
+        }
+        .filterNot { candidate ->
+            normalizedQuery.isNotEmpty() &&
+                    candidate.equals(
+                        normalizedQuery,
+                        ignoreCase = true
+                    )
+        }
+        .sortedWith(
+            compareBy<String> { candidate ->
+                val normalizedCandidate =
+                    candidate.lowercase()
+
+                when {
+                    normalizedQuery.isEmpty() -> 0
+
+                    normalizedCandidate.startsWith(
+                        normalizedQuery
+                    ) -> 0
+
+                    normalizedCandidate
+                        .split(Regex("\\s+"))
+                        .any { word ->
+                            word.startsWith(finalQueryWord)
+                        } -> 1
+
+                    normalizedCandidate.contains(
+                        normalizedQuery
+                    ) -> 2
+
+                    else -> 3
+                }
+            }
+        )
+        .take(limit)
+        .toList()
+}
+
 private fun priceHistoryDayKey(timestamp: Long): Long =
     (timestamp + INDIA_UTC_OFFSET_MILLIS) / CALENDAR_DAY_MILLIS
 
@@ -151,65 +210,105 @@ class InventoryRepository(private val dao: InventoryDao) {
         }
     }
 
-    /** Returns a small, popularity-ranked autocomplete list. */
-    suspend fun getNameSuggestions(prefix: String, limit: Int = 6): List<String> {
+    /**
+     * Returns useful Dashboard suggestions. An empty search shows popular
+     * inventory products. Barcode and retailer-link searches resolve directly
+     * to their matching product names.
+     */
+    suspend fun getNameSuggestions(
+        prefix: String,
+        limit: Int = 6
+    ): List<String> {
+        val safeLimit = limit.coerceAtLeast(0)
+        if (safeLimit == 0) return emptyList()
+
         val trimmed = prefix.trim()
-        if (trimmed.isEmpty()) return emptyList()
+        val candidateLimit = (safeLimit * 4).coerceAtLeast(20)
+
+        if (trimmed.isEmpty()) {
+            return rankNameSuggestions(
+                query = trimmed,
+                candidates = dao.getAllRankedPaged(
+                    limit = candidateLimit,
+                    offset = 0
+                ).map { item ->
+                    item.productName
+                },
+                limit = safeLimit
+            )
+        }
+
+        if (trimmed.all { character -> character.isDigit() }) {
+            val barcodeMatches = dao.findByBarcode(trimmed)
+
+            if (barcodeMatches.isNotEmpty()) {
+                return rankNameSuggestions(
+                    query = trimmed,
+                    candidates = barcodeMatches.map { item ->
+                        item.productName
+                    },
+                    limit = safeLimit
+                )
+            }
+        }
 
         if (looksLikeUrl(trimmed)) {
             val urlMatches = dao.searchUrlPaged(
                 query = trimmed,
-                limit = limit,
+                limit = candidateLimit,
                 offset = 0
             )
+
             if (urlMatches.isNotEmpty()) {
-                return urlMatches
-                    .map { item -> item.productName }
-                    .distinct()
+                return rankNameSuggestions(
+                    query = trimmed,
+                    candidates = urlMatches.map { item ->
+                        item.productName
+                    },
+                    limit = safeLimit
+                )
             }
         }
 
         val databaseWords = databaseSearchWords(trimmed)
-        if (databaseWords != null) {
-            return dao.searchNameSuggestions(
-                prefix = trimmed,
-                word1 = databaseWords.word1,
-                word2 = databaseWords.word2,
-                word3 = databaseWords.word3,
-                word4 = databaseWords.word4,
-                word5 = databaseWords.word5,
-                word6 = databaseWords.word6,
-                limit = limit
-            )
-        }
 
-        val words = trimmed
-            .split(Regex("\\s+"))
-            .filter { word -> word.isNotBlank() }
-        val exactPrefix = trimmed.lowercase()
+        val candidates =
+            if (databaseWords != null) {
+                dao.searchNameSuggestions(
+                    prefix = trimmed,
+                    word1 = databaseWords.word1,
+                    word2 = databaseWords.word2,
+                    word3 = databaseWords.word3,
+                    word4 = databaseWords.word4,
+                    word5 = databaseWords.word5,
+                    word6 = databaseWords.word6,
+                    limit = candidateLimit
+                )
+            } else {
+                val words = trimmed
+                    .split(Regex("\\s+"))
+                    .filter { word -> word.isNotBlank() }
 
-        val rows = dao.getAllRanked()
-            .filter { item ->
-                words.all { word ->
-                    item.productName.contains(word, ignoreCase = true)
-                }
+                dao.getAllRanked()
+                    .filter { item ->
+                        words.all { word ->
+                            item.productName.contains(
+                                word,
+                                ignoreCase = true
+                            )
+                        }
+                    }
+                    .take(candidateLimit)
+                    .map { item ->
+                        item.productName
+                    }
             }
-            .sortedWith(
-                compareBy { item ->
-                    if (item.productName.lowercase().startsWith(exactPrefix)) 0 else 1
-                }
-            )
-            .take(limit)
 
-        val seen = LinkedHashSet<String>()
-        val names = mutableListOf<String>()
-        for (row in rows) {
-            val key = row.productName.lowercase()
-            if (seen.add(key)) {
-                names.add(row.productName)
-            }
-        }
-        return names
+        return rankNameSuggestions(
+            query = trimmed,
+            candidates = candidates,
+            limit = safeLimit
+        )
     }
 
     suspend fun incrementSearchCount(id: Long) =

@@ -58,8 +58,56 @@ class InventoryRepositoryTest {
         val repository = InventoryRepository(FakeInventoryDao(phone, case, charger))
 
         assertEquals(
-            listOf("Samsung Galaxy S25 Ultra", "Clear Phone Case for Samsung"),
+            listOf(
+                "Samsung Galaxy S25 Ultra",
+                "Clear Phone Case for Samsung"
+            ),
             repository.getNameSuggestions("Samsung")
+        )
+    }
+
+    @Test
+    fun blankSuggestionsShowPopularInventoryProducts() = runTest {
+        val repository =
+            InventoryRepository(
+                FakeInventoryDao(phone, case, charger)
+            )
+
+        assertEquals(
+            listOf(
+                "Clear Phone Case for Samsung",
+                "Samsung Galaxy S25 Ultra",
+                "Apple USB C Charger"
+            ),
+            repository.getNameSuggestions("")
+        )
+    }
+
+    @Test
+    fun barcodeSuggestionReturnsItsProductName() = runTest {
+        val repository =
+            InventoryRepository(
+                FakeInventoryDao(phone, case, charger)
+            )
+
+        assertEquals(
+            listOf("Samsung Galaxy S25 Ultra"),
+            repository.getNameSuggestions("8901000000001")
+        )
+    }
+
+    @Test
+    fun completedProductNameIsNotRepeatedAsASuggestion() = runTest {
+        val repository =
+            InventoryRepository(
+                FakeInventoryDao(phone, case, charger)
+            )
+
+        assertEquals(
+            emptyList(),
+            repository.getNameSuggestions(
+                "Samsung Galaxy S25 Ultra"
+            )
         )
     }
 
