@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -98,6 +99,7 @@ import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.dashboard.formatIndianPrice
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.settings.AppThemeMode
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import io.github.vinceglb.filekit.PlatformFile
@@ -115,6 +117,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun OriginalInventoryScreen(
     viewModel: InventoryViewModel,
+    themeMode: AppThemeMode,
+    onThemeModeChanged: (AppThemeMode) -> Unit,
     advancedModeEnabled: Boolean,
     onAdvancedModeChanged: (Boolean) -> Unit,
     bottomBannerHeight: Dp = 0.dp,
@@ -589,6 +593,8 @@ fun OriginalInventoryScreen(
 
     if (settingsOpen) {
         AdvancedModeDialog(
+            themeMode = themeMode,
+            onThemeModeChanged = onThemeModeChanged,
             enabled = advancedModeEnabled,
             onEnabledChanged = onAdvancedModeChanged,
             onDismiss = {
@@ -822,7 +828,11 @@ private fun OriginalInventoryGroupHeader(
             .fillMaxWidth()
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(
+                    alpha = 0.55f
+                )
+            )
             .semantics {
                 role = Role.Button
                 stateDescription = if (expanded) {
@@ -1127,6 +1137,8 @@ private fun CompactInventoryEmptyState(
 
 @Composable
 private fun AdvancedModeDialog(
+    themeMode: AppThemeMode,
+    onThemeModeChanged: (AppThemeMode) -> Unit,
     enabled: Boolean,
     onEnabledChanged: (Boolean) -> Unit,
     onDismiss: () -> Unit
@@ -1138,9 +1150,9 @@ private fun AdvancedModeDialog(
         )
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.88f),
+            modifier = Modifier.fillMaxWidth(0.90f),
             shape = RoundedCornerShape(18.dp),
-            color = Color(0xFF151A20),
+            color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outline
@@ -1177,7 +1189,90 @@ private fun AdvancedModeDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(9.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Appearance",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Choose how the app should look",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AppThemeMode.entries.forEach { option ->
+                        val isSelected = option == themeMode
+
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    onThemeModeChanged(option)
+                                }
+                                .semantics {
+                                    role = Role.RadioButton
+                                    selected = isSelected
+                                },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outline
+                                }
+                            )
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 13.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = option.displayName(),
+                                    color = if (isSelected) {
+                                        MaterialTheme
+                                            .colorScheme
+                                            .onPrimaryContainer
+                                    } else {
+                                        MaterialTheme
+                                            .colorScheme
+                                            .onSurfaceVariant
+                                    },
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(7.dp))
+
+                Text(
+                    text = "System follows the light or dark setting of your phone.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Row(
                     modifier = Modifier
@@ -1219,3 +1314,10 @@ private fun AdvancedModeDialog(
         }
     }
 }
+
+private fun AppThemeMode.displayName(): String =
+    when (this) {
+        AppThemeMode.SYSTEM -> "System"
+        AppThemeMode.LIGHT -> "Light"
+        AppThemeMode.DARK -> "Dark"
+    }

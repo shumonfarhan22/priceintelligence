@@ -77,6 +77,7 @@ import com.supreme.priceintelligence.rememberUrlOpener
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.logo_amazon
 import com.supreme.priceintelligence.resources.logo_flipkart
+import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -288,13 +289,13 @@ internal fun OriginalProfessionalProductDetailDialog(
                 Color.Transparent
 
             anyOnlinePriceIsLower ->
-                Color(0xFFE11D48)
+                MaterialTheme.colorScheme.error
 
             availablePrices.isNotEmpty() ->
-                Color(0xFF10B981)
+                MaterialTheme.supremeColors.competitive
 
             else ->
-                Color(0xFF1E2128)
+                MaterialTheme.colorScheme.surface
         },
         label = "professionalDetailGlowPrimary"
     )
@@ -308,13 +309,13 @@ internal fun OriginalProfessionalProductDetailDialog(
                 Color.Transparent
 
             anyOnlinePriceIsLower ->
-                Color(0xFFEF4444)
+                MaterialTheme.colorScheme.error
 
             availablePrices.isNotEmpty() ->
-                Color(0xFF34D399)
+                MaterialTheme.supremeColors.competitive
 
             else ->
-                Color(0xFF1E2128)
+                MaterialTheme.colorScheme.surface
         },
         label = "professionalDetailGlowSecondary"
     )
@@ -394,7 +395,11 @@ internal fun OriginalProfessionalProductDetailDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF0B0F14).copy(alpha = 0.98f)),
+                .background(
+                    MaterialTheme.colorScheme.background.copy(
+                        alpha = 0.98f
+                    )
+                ),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -428,10 +433,10 @@ internal fun OriginalProfessionalProductDetailDialog(
                             0.96f + (0.04f * progress)
                     },
                 shape = RoundedCornerShape(24.dp),
-                color = Color.White.copy(alpha = 0.04f),
+                color = MaterialTheme.supremeColors.panel,
                 border = BorderStroke(
                     width = 1.dp,
-                    color = Color.White.copy(alpha = 0.10f)
+                    color = MaterialTheme.supremeColors.border
                 )
             ) {
                 Column(
@@ -497,7 +502,10 @@ internal fun OriginalProfessionalProductDetailDialog(
                             if (card.isRefreshing) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(12.dp),
-                                    color = Color(0xFF94A3B8),
+                                    color =
+                                        MaterialTheme
+                                            .colorScheme
+                                            .onSurfaceVariant,
                                     strokeWidth = 1.5.dp
                                 )
 
@@ -506,7 +514,10 @@ internal fun OriginalProfessionalProductDetailDialog(
 
                             Text(
                                 text = statusText,
-                                color = Color(0xFF64748B),
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1
@@ -569,7 +580,10 @@ internal fun OriginalProfessionalProductDetailDialog(
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Close product details",
-                                tint = Color(0xFF94A3B8),
+                                tint =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                 modifier = Modifier.size(28.dp)
                             )
                         }
@@ -661,12 +675,18 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 .weight(1.8f)
                                 .fillMaxHeight()
                                 .background(
-                                    color = Color.White.copy(alpha = 0.02f),
+                                    color =
+                                        MaterialTheme
+                                            .supremeColors
+                                            .panelMuted,
                                     shape = RoundedCornerShape(16.dp)
                                 )
                                 .border(
                                     width = 1.dp,
-                                    color = Color.White.copy(alpha = 0.06f),
+                                    color =
+                                        MaterialTheme
+                                            .supremeColors
+                                            .border,
                                     shape = RoundedCornerShape(16.dp)
                                 )
                                 .padding(12.dp)
@@ -686,7 +706,7 @@ internal fun OriginalProfessionalProductDetailDialog(
 
                             Text(
                                 text = item.productName,
-                                color = Color(0xFFCBD5E1),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
                                 fontWeight = FontWeight.Normal,
@@ -699,13 +719,16 @@ internal fun OriginalProfessionalProductDetailDialog(
 
                             Text(
                                 text = "Supreme Price",
-                                color = Color(0xFF94A3B8),
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
                                 fontSize = 11.sp
                             )
 
                             Text(
                                 text = formatIndianPrice(item.shopPrice),
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1
@@ -790,10 +813,10 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 onClick = refreshWithNetworkFeedback
                             ),
                         shape = RoundedCornerShape(12.dp),
-                        color = Color.White.copy(alpha = 0.05f),
+                        color = MaterialTheme.supremeColors.panelMuted,
                         border = BorderStroke(
                             width = 1.dp,
-                            color = Color.White.copy(alpha = 0.10f)
+                            color = MaterialTheme.supremeColors.border
                         )
                     ) {
                         Row(
@@ -814,7 +837,7 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 Icon(
                                     imageVector = Icons.Rounded.Refresh,
                                     contentDescription = null,
-                                    tint = Color(0xFF34D399),
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -828,9 +851,11 @@ internal fun OriginalProfessionalProductDetailDialog(
                                     "Refresh Live Prices"
                                 },
                                 color = if (card.isRefreshing) {
-                                    Color(0xFF94A3B8)
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant
                                 } else {
-                                    Color.White
+                                    MaterialTheme.colorScheme.onSurface
                                 },
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium
@@ -846,7 +871,7 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 .fillMaxWidth()
                                 .height(1.dp)
                                 .background(
-                                    Color.White.copy(alpha = 0.08f)
+                                    MaterialTheme.supremeColors.divider
                                 )
                         )
 
@@ -1072,24 +1097,24 @@ private fun ProfessionalRetailerPriceCard(
 
     val priceColor = when {
         difference == null ->
-            Color(0xFF94A3B8)
+            MaterialTheme.colorScheme.onSurfaceVariant
 
         difference > 0.01 ->
-            Color(0xFFFCA5A5)
+            MaterialTheme.colorScheme.error
 
         else ->
-            Color(0xFF6EE7B7)
+            MaterialTheme.supremeColors.competitive
     }
 
     val borderColor = when {
         difference == null ->
-            Color.White.copy(alpha = 0.06f)
+            MaterialTheme.supremeColors.border
 
         difference > 0.01 ->
-            Color(0xFFE11D48).copy(alpha = 0.55f)
+            MaterialTheme.colorScheme.error.copy(alpha = 0.55f)
 
         else ->
-            Color(0xFF10B981).copy(alpha = 0.55f)
+            MaterialTheme.supremeColors.competitive.copy(alpha = 0.55f)
     }
 
     val arrow = when {
@@ -1121,7 +1146,7 @@ private fun ProfessionalRetailerPriceCard(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                color = Color.White.copy(alpha = 0.04f),
+                color = MaterialTheme.supremeColors.panelMuted,
                 shape = RoundedCornerShape(16.dp)
             )
             .border(
@@ -1202,7 +1227,7 @@ private fun ProfessionalRetailerPriceCard(
 
         Text(
             text = differenceText,
-            color = Color(0xFF94A3B8),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 10.sp,
             lineHeight = 13.sp,
             textAlign = TextAlign.Center,
@@ -1226,7 +1251,7 @@ private fun ProfessionalRetailerLink(
         color = Color.Transparent,
         border = BorderStroke(
             width = 1.dp,
-            color = Color.White.copy(alpha = 0.10f)
+            color = MaterialTheme.supremeColors.border
         )
     ) {
         Row(
@@ -1240,7 +1265,7 @@ private fun ProfessionalRetailerLink(
             Icon(
                 imageVector = Icons.Rounded.Language,
                 contentDescription = null,
-                tint = Color(0xFF94A3B8),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
 
@@ -1248,7 +1273,7 @@ private fun ProfessionalRetailerLink(
 
             Text(
                 text = label,
-                color = Color(0xFFF8FAFC),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 12.sp
             )
         }

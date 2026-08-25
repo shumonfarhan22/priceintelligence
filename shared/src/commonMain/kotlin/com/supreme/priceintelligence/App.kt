@@ -57,8 +57,9 @@ import com.supreme.priceintelligence.ui.components.OriginalBannerKind
 import com.supreme.priceintelligence.ui.components.OriginalBottomNavigation
 import com.supreme.priceintelligence.ui.components.OriginalDashboardHeader
 import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
-import com.supreme.priceintelligence.ui.theme.PriceIntelligenceTheme
 import com.supreme.priceintelligence.settings.AppPreferences
+import com.supreme.priceintelligence.settings.AppThemeMode
+import com.supreme.priceintelligence.ui.theme.PriceIntelligenceTheme
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -66,9 +67,23 @@ import kotlin.time.Duration.Companion.milliseconds
 fun App(
     databaseBuilder: RoomDatabase.Builder<AppDatabase>,
     networkMonitor: NetworkMonitor,
-    appPreferences: AppPreferences
+    appPreferences: AppPreferences,
+    onThemeApplied: (
+        themeMode: AppThemeMode,
+        isDarkTheme: Boolean
+    ) -> Unit = { _, _ -> }
 ) {
-    PriceIntelligenceTheme {
+    var themeMode by remember {
+        mutableStateOf(appPreferences.themeMode)
+    }
+
+    PriceIntelligenceTheme(
+        themeMode = themeMode
+    ) { isDarkTheme ->
+        LaunchedEffect(themeMode, isDarkTheme) {
+            onThemeApplied(themeMode, isDarkTheme)
+        }
+
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
@@ -299,6 +314,12 @@ fun App(
                                     AppDestination.Inventory ->
                                         OriginalInventoryScreen(
                                             viewModel = inventoryViewModel,
+                                            themeMode = themeMode,
+                                            onThemeModeChanged = { selectedMode ->
+                                                themeMode = selectedMode
+                                                appPreferences.themeMode =
+                                                    selectedMode
+                                            },
                                             advancedModeEnabled =
                                                 advancedModeEnabled,
                                             onAdvancedModeChanged = { enabled ->

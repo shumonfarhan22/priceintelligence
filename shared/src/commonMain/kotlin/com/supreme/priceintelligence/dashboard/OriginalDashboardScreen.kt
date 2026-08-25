@@ -108,6 +108,7 @@ import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.ui.components.OriginalBannerKind
 import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
+import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import org.jetbrains.compose.resources.DrawableResource
@@ -652,7 +653,9 @@ fun OriginalDashboardScreen(
         ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF0B0F14).copy(alpha = 0.98f),
+                color = MaterialTheme.colorScheme.background.copy(
+                    alpha = 0.98f
+                ),
                 shadowElevation = 4.dp
             ) {
                 Box(
@@ -888,7 +891,7 @@ private fun CompactDashboardFeedback(
                 if (isError) {
                     MaterialTheme.colorScheme.errorContainer
                 } else {
-                    Color(0xFF3C2A08)
+                    MaterialTheme.supremeColors.warningContainer
                 }
             )
             .semantics {
@@ -903,7 +906,7 @@ private fun CompactDashboardFeedback(
             tint = if (isError) {
                 MaterialTheme.colorScheme.error
             } else {
-                Color(0xFFF59E0B)
+                MaterialTheme.supremeColors.warning
             },
             modifier = Modifier.size(17.dp)
         )

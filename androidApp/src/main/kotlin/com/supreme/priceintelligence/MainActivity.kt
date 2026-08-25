@@ -19,10 +19,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
-        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
@@ -49,7 +46,16 @@ class MainActivity : ComponentActivity() {
             App(
                 databaseBuilder = databaseBuilder,
                 networkMonitor = networkMonitor,
-                appPreferences = appPreferences
+                appPreferences = appPreferences,
+                onThemeApplied = { _, isDarkTheme ->
+                    WindowCompat.getInsetsController(
+                        window,
+                        window.decorView
+                    ).apply {
+                        isAppearanceLightStatusBars = !isDarkTheme
+                        isAppearanceLightNavigationBars = !isDarkTheme
+                    }
+                }
             )
         }
     }

@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.ui.theme.supremeColors
 
 internal const val PRICE_FRESHNESS_WINDOW_MILLIS =
     24L * 60L * 60L * 1000L
@@ -154,11 +155,11 @@ internal fun DashboardPriceFreshnessCard(
         }
 
     val accentColor = when {
-        active -> Color(0xFFF59E0B)
-        needsCheck > 0 -> Color(0xFFF59E0B)
+        active -> MaterialTheme.supremeColors.warning
+        needsCheck > 0 -> MaterialTheme.supremeColors.warning
         summary.linkedProductCount == 0 ->
             MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.supremeColors.competitive
     }
 
     val title = when {

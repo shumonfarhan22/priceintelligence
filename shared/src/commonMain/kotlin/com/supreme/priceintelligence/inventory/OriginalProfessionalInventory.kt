@@ -37,6 +37,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -71,13 +72,33 @@ import com.supreme.priceintelligence.data.InventoryItem
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private val ProfessionalInventoryCard = Color(0xFF1E2128)
-private val ProfessionalInventoryBorder = Color(0xFF313540)
-private val ProfessionalInventoryText = Color(0xFFF8FAFC)
-private val ProfessionalInventoryMuted = Color(0xFF94A3B8)
-private val ProfessionalInventoryEmerald = Color(0xFF10B981)
-private val ProfessionalInventoryBackground = Color(0xFF0B0F14)
-private val ProfessionalInventoryDelete = Color(0xFFEF4444)
+private val ProfessionalInventoryCard: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surface
+
+private val ProfessionalInventoryBorder: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.outline
+
+private val ProfessionalInventoryText: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurface
+
+private val ProfessionalInventoryMuted: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+private val ProfessionalInventoryEmerald: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.primary
+
+private val ProfessionalInventoryBackground: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.background
+
+private val ProfessionalInventoryDelete: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.error
 
 @Composable
 internal fun ProfessionalInventorySearchField(
@@ -164,7 +185,11 @@ internal fun ProfessionalInventoryGroupHeader(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.05f))
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(
+                    alpha = 0.55f
+                )
+            )
             .clickable(onClick = onClick)
             .semantics {
                 role = Role.Button
@@ -505,7 +530,7 @@ private fun ProfessionalInventoryProductImage(
             .background(Color(0xFFF8FAFC))
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.12f),
+                color = MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(8.dp)
             ),
         contentAlignment = Alignment.Center

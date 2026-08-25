@@ -49,6 +49,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.ui.theme.supremeColors
 
 @Composable
 internal fun OriginalProductEditorDialog(
@@ -79,10 +80,10 @@ internal fun OriginalProductEditorDialog(
                 Color.Transparent
 
             statusIsError ->
-                Color(0xFFE11D48)
+                MaterialTheme.colorScheme.error
 
             else ->
-                Color(0xFF10B981)
+                MaterialTheme.supremeColors.competitive
         },
         label = "editorGlowPrimary"
     )
@@ -107,7 +108,11 @@ internal fun OriginalProductEditorDialog(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF0B0F14).copy(alpha = 0.98f))
+                .background(
+                    MaterialTheme.colorScheme.background.copy(
+                        alpha = 0.98f
+                    )
+                )
                 .imePadding(),
             contentAlignment = Alignment.Center
         ) {
@@ -135,10 +140,10 @@ internal fun OriginalProductEditorDialog(
                     .heightIn(max = availableDialogHeight)
                     .wrapContentHeight(),
                 shape = RoundedCornerShape(24.dp),
-                color = Color.White.copy(alpha = 0.04f),
+                color = MaterialTheme.supremeColors.panel,
                 border = BorderStroke(
                     width = 1.dp,
-                    color = Color.White.copy(alpha = 0.10f)
+                    color = MaterialTheme.supremeColors.border
                 )
             ) {
                 Column(
@@ -437,13 +442,13 @@ private fun OriginalEditorField(
             keyboardActions = keyboardActions,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor =
-                    Color.White.copy(alpha = 0.06f),
+                    MaterialTheme.supremeColors.panelMuted,
                 unfocusedContainerColor =
-                    Color.White.copy(alpha = 0.02f),
+                    MaterialTheme.supremeColors.panel,
                 focusedBorderColor =
                     MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor =
-                    Color.White.copy(alpha = 0.10f),
+                    MaterialTheme.supremeColors.border,
                 focusedTextColor =
                     MaterialTheme.colorScheme.onSurface,
                 unfocusedTextColor =

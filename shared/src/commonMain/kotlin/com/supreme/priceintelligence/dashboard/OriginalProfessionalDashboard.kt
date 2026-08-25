@@ -44,6 +44,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -73,11 +74,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
-import com.supreme.priceintelligence.ui.theme.Brand
-import com.supreme.priceintelligence.ui.theme.SurfaceAlt
-import com.supreme.priceintelligence.ui.theme.TextLight
-import com.supreme.priceintelligence.ui.theme.TextMuted
-import com.supreme.priceintelligence.ui.theme.TextPrimary
+import com.supreme.priceintelligence.ui.theme.supremeColors
 import org.jetbrains.compose.resources.painterResource
 
 private enum class DashboardCardGlow {
@@ -85,6 +82,26 @@ private enum class DashboardCardGlow {
     ALERT,
     SAFE
 }
+
+private val Brand: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.primary
+
+private val SurfaceAlt: Color
+    @Composable
+    get() = MaterialTheme.supremeColors.border
+
+private val TextPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurface
+
+private val TextMuted: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+private val TextLight: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
 
 @Composable
 internal fun ProfessionalDashboardBranding(
@@ -245,7 +262,8 @@ internal fun ProfessionalDashboardResultsRow(
                         onDismissRequest = {
                             onSortMenuChanged(false)
                         },
-                        containerColor = Color(0xFF14181D)
+                        containerColor =
+                            MaterialTheme.supremeColors.panelStrong
                     ) {
                         val availableOrders = if (advancedModeEnabled) {
                             SortOrder.entries
@@ -377,10 +395,10 @@ internal fun ProfessionalDashboardProductCard(
                 Color.Transparent
 
             DashboardCardGlow.ALERT ->
-                Color(0xFFE11D48)
+                MaterialTheme.colorScheme.error
 
             DashboardCardGlow.SAFE ->
-                Color(0xFF10B981)
+                MaterialTheme.supremeColors.competitive
         },
         animationSpec = tween(durationMillis = 500),
         label = "dashboardCardPrimaryGlow"
@@ -403,13 +421,13 @@ internal fun ProfessionalDashboardProductCard(
 
     val borderColor = when (glow) {
         DashboardCardGlow.NEUTRAL ->
-            Color.White.copy(alpha = 0.08f)
+            MaterialTheme.supremeColors.border
 
         DashboardCardGlow.ALERT ->
-            Color(0xFFE11D48).copy(alpha = 0.50f)
+            MaterialTheme.colorScheme.error.copy(alpha = 0.50f)
 
         DashboardCardGlow.SAFE ->
-            Color(0xFF10B981).copy(alpha = 0.50f)
+            MaterialTheme.supremeColors.competitive.copy(alpha = 0.50f)
     }
 
     Box(
@@ -439,7 +457,7 @@ internal fun ProfessionalDashboardProductCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.04f))
+                .background(MaterialTheme.supremeColors.panel)
                 .border(
                     width = 1.dp,
                     color = borderColor,
@@ -639,11 +657,11 @@ internal fun ProfessionalDashboardSearchOverlay(
                                 Color.Transparent,
                                 Color.Transparent,
                                 Color.Transparent,
-                                Color(0xFF0B0F14)
+                                MaterialTheme.colorScheme.background
                                     .copy(alpha = 0.10f),
-                                Color(0xFF0B0F14)
+                                MaterialTheme.colorScheme.background
                                     .copy(alpha = 0.58f),
-                                Color(0xFF0B0F14)
+                                MaterialTheme.colorScheme.background
                             )
                         )
                     )
@@ -682,7 +700,7 @@ internal fun ProfessionalDashboardSearchOverlay(
                         .padding(bottom = 8.dp)
                         .heightIn(max = 260.dp),
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF14181D).copy(alpha = 0.98f),
+                    color = MaterialTheme.supremeColors.panelStrong,
                     border = androidx.compose.foundation.BorderStroke(
                         width = 1.dp,
                         color = SurfaceAlt
@@ -783,10 +801,10 @@ internal fun ProfessionalDashboardSearchOverlay(
                     .fillMaxWidth()
                     .height(56.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0F1216))
+                    .background(MaterialTheme.supremeColors.field)
                     .border(
                         width = 1.dp,
-                        color = Color(0xFF1F252B),
+                        color = MaterialTheme.supremeColors.border,
                         shape = RoundedCornerShape(12.dp)
                     ),
                 verticalAlignment = Alignment.CenterVertically

@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.ui.theme.supremeColors
 
 data class PriorityProduct(
     val productName: String,
@@ -170,19 +171,19 @@ fun DashboardDecisionSummaryCard(
         }
     }
 
-    val competitiveColor = MaterialTheme.colorScheme.primary
+    val competitiveColor = MaterialTheme.supremeColors.competitive
     val reviewColor = MaterialTheme.colorScheme.error
-    val freshnessColor = Color(0xFFF59E0B)
+    val freshnessColor = MaterialTheme.supremeColors.warning
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         shape = RoundedCornerShape(18.dp),
-        color = Color.White.copy(alpha = 0.04f),
+        color = MaterialTheme.supremeColors.panel,
         border = BorderStroke(
             width = 1.dp,
-            color = Color.White.copy(alpha = 0.10f)
+            color = MaterialTheme.supremeColors.border
         )
     ) {
         Column(
@@ -437,7 +438,7 @@ private fun DecisionMeterBar(
             .fillMaxWidth()
             .height(16.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.06f))
+            .background(MaterialTheme.supremeColors.panelMuted)
             .clickable(onClick = onTap),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
@@ -445,7 +446,7 @@ private fun DecisionMeterBar(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.06f))
+                    .background(MaterialTheme.supremeColors.panelMuted)
             )
         } else {
             if (competitiveCount > 0) {
@@ -543,7 +544,7 @@ private fun PriorityProductRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        color = Color.White.copy(alpha = 0.035f),
+        color = MaterialTheme.supremeColors.panel,
         border = BorderStroke(
             width = 1.dp,
             color = reviewColor.copy(alpha = 0.25f)
@@ -627,7 +628,7 @@ private fun DecisionPricePoint(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(alpha = 0.04f))
+            .background(MaterialTheme.supremeColors.panelMuted)
             .padding(
                 horizontal = 8.dp,
                 vertical = 8.dp

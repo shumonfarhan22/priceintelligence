@@ -20,7 +20,19 @@ class AndroidAppPreferences(
                 .apply()
         }
 
+    override var themeMode: AppThemeMode
+        get() = AppThemeMode.fromStoredValue(
+            preferences.getString(THEME_MODE_KEY, null)
+        )
+        set(value) {
+            preferences
+                .edit()
+                .putString(THEME_MODE_KEY, value.name)
+                .apply()
+        }
+
     private companion object {
         const val ADVANCED_MODE_KEY = "advanced_mode_enabled"
+        const val THEME_MODE_KEY = "theme_mode"
     }
 }

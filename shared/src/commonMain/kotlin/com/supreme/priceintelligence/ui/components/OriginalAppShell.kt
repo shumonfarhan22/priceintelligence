@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.dashboard.PricePositionFilter
 import com.supreme.priceintelligence.resources.Res
+import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.resources.app_logo
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
@@ -134,13 +135,13 @@ fun OriginalAppBackground(
     val filterPulseColor by animateColorAsState(
         targetValue = when (filterBloom) {
             PricePositionFilter.COMPETITIVE ->
-                MaterialTheme.colorScheme.primary
+                MaterialTheme.supremeColors.competitive
 
             PricePositionFilter.REVIEW ->
                 MaterialTheme.colorScheme.error
 
             PricePositionFilter.NEEDS_CHECK ->
-                Color(0xFFF59E0B)
+                MaterialTheme.supremeColors.warning
 
             null ->
                 Color.Transparent
@@ -338,10 +339,10 @@ fun OriginalBottomNavigation(
             )
             .height(72.dp)
             .clip(navigationShape)
-            .background(Color(0xFF0F1216))
+            .background(MaterialTheme.supremeColors.field)
             .border(
                 width = 1.dp,
-                color = Color(0xFF1F252B),
+                color = MaterialTheme.supremeColors.border,
                 shape = navigationShape
             )
             .selectableGroup(),
@@ -364,7 +365,7 @@ fun OriginalBottomNavigation(
                     modifier = Modifier
                         .width(1.dp)
                         .height(24.dp)
-                        .background(Color(0xFF2A313C))
+                        .background(MaterialTheme.supremeColors.divider)
                 )
             }
         }
@@ -384,7 +385,7 @@ private fun OriginalNavigationItem(
         targetValue = if (selected) {
             MaterialTheme.colorScheme.primary
         } else {
-            Color(0xFF7C8794)
+            MaterialTheme.supremeColors.navigationUnselected
         },
         animationSpec =
             if (reduceMotionEnabled) {

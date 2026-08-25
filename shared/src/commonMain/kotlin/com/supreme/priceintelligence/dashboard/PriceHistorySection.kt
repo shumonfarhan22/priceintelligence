@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.PriceHistoryEntry
 import com.supreme.priceintelligence.data.PriceRetailer
+import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
 import kotlin.time.Clock
@@ -142,11 +143,11 @@ private fun LoadingPriceHistory() {
 private fun EmptyPriceHistory() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.04f),
+        color = MaterialTheme.supremeColors.panel,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(
             width = 1.dp,
-            color = Color.White.copy(alpha = 0.08f)
+            color = MaterialTheme.supremeColors.border
         )
     ) {
         Text(
@@ -170,7 +171,7 @@ private fun RetailerPriceHistoryCard(
     }
     val movementText = movementDescription(summary)
     val movementColor = when (summary.movement) {
-        PriceMovement.LOWER -> MaterialTheme.colorScheme.primary
+        PriceMovement.LOWER -> MaterialTheme.supremeColors.competitive
         PriceMovement.HIGHER -> MaterialTheme.colorScheme.error
         PriceMovement.UNCHANGED,
         PriceMovement.UNKNOWN -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -178,11 +179,11 @@ private fun RetailerPriceHistoryCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.04f),
+        color = MaterialTheme.supremeColors.panel,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(
             width = 1.dp,
-            color = Color.White.copy(alpha = 0.09f)
+            color = MaterialTheme.supremeColors.border
         )
     ) {
         Column(
@@ -312,10 +313,10 @@ private fun PriceHistoryLineGraph(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.16f))
+            .background(MaterialTheme.supremeColors.panelMuted)
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.06f),
+                color = MaterialTheme.supremeColors.border,
                 shape = RoundedCornerShape(12.dp)
             )
             .padding(10.dp),
