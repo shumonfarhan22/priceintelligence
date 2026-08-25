@@ -8,21 +8,18 @@ import com.supreme.priceintelligence.network.IosNetworkMonitor
 import com.supreme.priceintelligence.settings.AppThemeMode
 import com.supreme.priceintelligence.settings.IosAppPreferences
 import platform.UIKit.UIUserInterfaceStyle
-import platform.UIKit.UIUserInterfaceStyleDark
-import platform.UIKit.UIUserInterfaceStyleLight
-import platform.UIKit.UIUserInterfaceStyleUnspecified
 import platform.UIKit.UIViewController
 
 private fun AppThemeMode.toIosInterfaceStyle(): UIUserInterfaceStyle =
     when (this) {
         AppThemeMode.SYSTEM ->
-            UIUserInterfaceStyleUnspecified
+            UIUserInterfaceStyle.UIUserInterfaceStyleUnspecified
 
         AppThemeMode.LIGHT ->
-            UIUserInterfaceStyleLight
+            UIUserInterfaceStyle.UIUserInterfaceStyleLight
 
         AppThemeMode.DARK ->
-            UIUserInterfaceStyleDark
+            UIUserInterfaceStyle.UIUserInterfaceStyleDark
     }
 
 fun MainViewController(): UIViewController {
