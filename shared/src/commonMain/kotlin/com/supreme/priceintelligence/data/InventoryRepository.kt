@@ -453,8 +453,16 @@ class InventoryRepository(private val dao: InventoryDao) {
         limit: Int = MAX_PRICE_HISTORY_PER_RETAILER * PriceRetailer.entries.size
     ): List<PriceHistoryEntry> = dao.getPriceHistory(
         itemId = itemId,
-        limit = limit.coerceIn(1, MAX_PRICE_HISTORY_PER_RETAILER * PriceRetailer.entries.size)
+        limit = limit.coerceIn(
+            1,
+            MAX_PRICE_HISTORY_PER_RETAILER *
+                PriceRetailer.entries.size
+        )
     )
+
+    suspend fun getAllPriceHistory():
+        List<PriceHistoryEntry> =
+        dao.getAllPriceHistory()
 
     private suspend fun cleanOldPriceHistoryWhenNeeded(checkedAt: Long) {
         priceHistoryCleanupMutex.withLock {

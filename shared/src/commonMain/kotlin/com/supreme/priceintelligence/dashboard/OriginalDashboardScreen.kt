@@ -69,6 +69,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.snapshotFlow
@@ -142,6 +143,9 @@ fun OriginalDashboardScreen(
     var searchFocused by remember { mutableStateOf(false) }
     var scannerOpen by rememberSaveable { mutableStateOf(false) }
     var selectedProductId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var shopPriceMovementOpen by rememberSaveable {
+        mutableStateOf(false)
+    }
     var cameraPermissionDenied by rememberSaveable { mutableStateOf(false) }
 
     var priceFreshnessCardVisible by remember {
@@ -218,6 +222,30 @@ fun OriginalDashboardScreen(
 
     val dashboardListState = rememberLazyListState()
 
+    val dashboardInteractionActive =
+        searchFocused ||
+            scannerOpen ||
+            selectedProductId != null ||
+            shopPriceMovementOpen ||
+            state.isLoading ||
+            dashboardListState.isScrollInProgress
+
+    LaunchedEffect(dashboardInteractionActive) {
+        viewModel.setAutomaticRefreshPaused(
+            reason = "dashboard-interaction",
+            paused = dashboardInteractionActive
+        )
+    }
+
+    DisposableEffect(viewModel) {
+        onDispose {
+            viewModel.setAutomaticRefreshPaused(
+                reason = "dashboard-interaction",
+                paused = false
+            )
+        }
+    }
+
     var previousDashboardPage by remember {
         mutableStateOf(state.currentPage)
     }
@@ -250,11 +278,7 @@ fun OriginalDashboardScreen(
                         .firstVisibleItemScrollOffset != 0
             )
         ) {
-            if (reduceMotionEnabled) {
-                dashboardListState.scrollToItem(0)
-            } else {
-                dashboardListState.animateScrollToItem(0)
-            }
+            dashboardListState.scrollToItem(0)
         }
     }
 
@@ -605,6 +629,12 @@ fun OriginalDashboardScreen(
                                 state.priceFilter,
                             reduceMotionEnabled =
                                 reduceMotionEnabled,
+                            onPriceMovementClick = {
+                                shopPriceMovementOpen =
+                                    true
+                                viewModel
+                                    .loadShopPriceMovement()
+                            },
                             onFilterToggle =
                                 viewModel::setPriceFilter
                         )
@@ -634,42 +664,22 @@ fun OriginalDashboardScreen(
                                 "dashboard-product-card"
                             }
                         ) { card ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .animateItem(
-                                        fadeInSpec =
-                                            if (reduceMotionEnabled) {
-                                                null
-                                            } else {
-                                                tween(durationMillis = 160)
-                                            },
-                                        placementSpec = null,
-                                        fadeOutSpec =
-                                            if (reduceMotionEnabled) {
-                                                null
-                                            } else {
-                                                tween(durationMillis = 120)
-                                            }
-                                    )
-                            ) {
-                                ProfessionalDashboardProductCard(
-                                    card = card,
-                                    showResultLight =
-                                        card.item.id in
-                                            state.manualResultLightProductIds,
-                                    onClick = {
-                                        viewModel.recordProductViewed(card.item.id)
-                                        selectedProductId = card.item.id
-                                        searchFocused = false
-                                        focusManager.clearFocus()
+                            ProfessionalDashboardProductCard(
+                                card = card,
+                                showResultLight =
+                                    card.item.id in
+                                        state.manualResultLightProductIds,
+                                onClick = {
+                                    viewModel.recordProductViewed(card.item.id)
+                                    selectedProductId = card.item.id
+                                    searchFocused = false
+                                    focusManager.clearFocus()
 
-                                        if (advancedModeEnabled) {
-                                            viewModel.loadPriceHistory(card.item.id)
-                                        }
+                                    if (advancedModeEnabled) {
+                                        viewModel.loadPriceHistory(card.item.id)
                                     }
-                                )
-                            }
+                                }
+                            )
                         }
 
                         if (state.totalPages > 1) {
@@ -832,6 +842,25 @@ fun OriginalDashboardScreen(
             priceHistory = state.priceHistoryByProduct[
                 selectedCard.item.id
             ].orEmpty()
+        )
+    }
+
+    if (shopPriceMovementOpen) {
+        ShopPriceMovementDialog(
+            snapshot =
+                state.shopPriceMovement,
+            isLoading =
+                state.isShopPriceMovementLoading,
+            errorMessage =
+                state.shopPriceMovementError,
+            reduceMotionEnabled =
+                reduceMotionEnabled,
+            onRefresh =
+                viewModel::loadShopPriceMovement,
+            onDismiss = {
+                shopPriceMovementOpen =
+                    false
+            }
         )
     }
 }

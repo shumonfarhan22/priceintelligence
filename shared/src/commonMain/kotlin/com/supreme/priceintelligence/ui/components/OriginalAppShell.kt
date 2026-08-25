@@ -164,22 +164,12 @@ fun OriginalAppBackground(
     )
 
     val appBackgroundBrush =
-        if (MaterialTheme.supremeColors.isDark) {
-            Brush.verticalGradient(
-                colors = listOf(
-                    MaterialTheme.colorScheme.background,
-                    MaterialTheme.colorScheme.background
-                )
+        Brush.verticalGradient(
+            colors = listOf(
+                MaterialTheme.colorScheme.background,
+                MaterialTheme.colorScheme.background
             )
-        } else {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFFFFFCF6),
-                    MaterialTheme.colorScheme.background,
-                    Color(0xFFF1EADF)
-                )
-            )
-        }
+        )
 
     Box(
         modifier = Modifier
@@ -362,7 +352,7 @@ fun OriginalBottomNavigation(
                     if (MaterialTheme.supremeColors.isDark) {
                         0.dp
                     } else {
-                        8.dp
+                        4.dp
                     },
                 shape = navigationShape
             )
@@ -430,9 +420,7 @@ private fun OriginalNavigationItem(
                 selected &&
                 !MaterialTheme.supremeColors.isDark
             ) {
-                MaterialTheme.colorScheme.primaryContainer.copy(
-                    alpha = 0.72f
-                )
+                MaterialTheme.colorScheme.primaryContainer
             } else {
                 Color.Transparent
             },

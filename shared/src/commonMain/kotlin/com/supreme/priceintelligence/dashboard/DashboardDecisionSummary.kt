@@ -23,10 +23,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.ShowChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -153,6 +155,7 @@ fun DashboardDecisionSummaryCard(
     refreshTick: Int = 0,
     activeFilter: PricePositionFilter? = null,
     reduceMotionEnabled: Boolean = false,
+    onPriceMovementClick: () -> Unit = {},
     onFilterToggle: (PricePositionFilter) -> Unit = {}
 ) {
     var isCardExpanded by remember { mutableStateOf(false) }
@@ -216,7 +219,7 @@ fun DashboardDecisionSummaryCard(
             if (MaterialTheme.supremeColors.isDark) {
                 0.dp
             } else {
-                4.dp
+                2.dp
             }
     ) {
         Column(
@@ -385,6 +388,16 @@ fun DashboardDecisionSummaryCard(
                             modifier = Modifier.weight(1f)
                         )
                     }
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(8.dp)
+                    )
+
+                    PriceMovementAction(
+                        onClick =
+                            onPriceMovementClick
+                    )
                 }
 
                 if (summary.priorityProducts.isNotEmpty()) {
@@ -421,6 +434,107 @@ fun DashboardDecisionSummaryCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PriceMovementAction(
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        shape = RoundedCornerShape(13.dp),
+        color =
+            MaterialTheme
+                .colorScheme
+                .primary
+                .copy(alpha = 0.10f),
+        border = BorderStroke(
+            width = 1.dp,
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .primary
+                    .copy(alpha = 0.35f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 12.dp,
+                    vertical = 11.dp
+                ),
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(
+                        MaterialTheme
+                            .colorScheme
+                            .primary
+                            .copy(alpha = 0.18f)
+                    ),
+                contentAlignment =
+                    Alignment.Center
+            ) {
+                Icon(
+                    imageVector =
+                        Icons.Rounded.ShowChart,
+                    contentDescription = null,
+                    tint =
+                        MaterialTheme
+                            .colorScheme
+                            .primary,
+                    modifier =
+                        Modifier.size(19.dp)
+                )
+            }
+
+            Spacer(
+                modifier = Modifier.width(10.dp)
+            )
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "Price Movement",
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurface,
+                    fontSize = 12.sp,
+                    fontWeight =
+                        FontWeight.Bold
+                )
+
+                Text(
+                    text =
+                        "View retailer changes and 30-day graphs",
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant,
+                    fontSize = 10.sp
+                )
+            }
+
+            Icon(
+                imageVector =
+                    Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant,
+                modifier = Modifier.size(19.dp)
+            )
         }
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -35,6 +37,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -43,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room3.RoomDatabase
 import com.supreme.priceintelligence.dashboard.OriginalDashboardScreen
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
+import com.supreme.priceintelligence.dashboard.PriceChangeNotifier
 import com.supreme.priceintelligence.data.AppDatabase
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.getRoomDatabase
@@ -68,6 +73,7 @@ fun App(
     databaseBuilder: RoomDatabase.Builder<AppDatabase>,
     networkMonitor: NetworkMonitor,
     appPreferences: AppPreferences,
+    priceChangeNotifier: PriceChangeNotifier,
     onThemeApplied: (
         themeMode: AppThemeMode,
         isDarkTheme: Boolean
@@ -106,7 +112,9 @@ fun App(
                     repository = repository,
                     scraper = priceScraper,
                     networkMonitor = networkMonitor,
-                    appPreferences = appPreferences
+                    appPreferences = appPreferences,
+                    priceChangeNotifier =
+                        priceChangeNotifier
                 )
             }
             val inventoryState by inventoryViewModel.uiState.collectAsState()
@@ -119,9 +127,24 @@ fun App(
             var advancedModeEnabled by remember {
                 mutableStateOf(appPreferences.advancedModeEnabled)
             }
+            var priceChangeNotificationsEnabled by remember {
+                mutableStateOf(
+                    appPreferences
+                        .priceChangeNotificationsEnabled
+                )
+            }
             val destination = AppDestination.entries.firstOrNull { item ->
                 item.name == destinationName
             } ?: AppDestination.Dashboard
+
+            LaunchedEffect(destination) {
+                dashboardViewModel.setAutomaticRefreshPaused(
+                    reason = "main-destination",
+                    paused =
+                        destination !=
+                            AppDestination.Dashboard
+                )
+            }
 
             val density = LocalDensity.current
 
@@ -343,6 +366,21 @@ fun App(
                                                     .advancedModeEnabled =
                                                     enabled
                                             },
+                                            priceChangeNotificationsEnabled =
+                                                priceChangeNotificationsEnabled,
+                                            onPriceChangeNotificationsChanged =
+                                                { enabled ->
+                                                    priceChangeNotificationsEnabled =
+                                                        enabled
+                                                    appPreferences
+                                                        .priceChangeNotificationsEnabled =
+                                                        enabled
+
+                                                    if (enabled) {
+                                                        priceChangeNotifier
+                                                            .requestPermission()
+                                                    }
+                                                },
                                             bottomBannerHeight =
                                                 bottomBannerHeight,
                                             reduceMotionEnabled =
@@ -355,6 +393,38 @@ fun App(
                             }
                         }
                     }
+
+                    Box(
+                        modifier = Modifier
+                            .align(
+                                androidx.compose.ui.Alignment.BottomCenter
+                            )
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(
+                                            alpha =
+                                                if (isDarkTheme) {
+                                                    0.12f
+                                                } else {
+                                                    0.04f
+                                                }
+                                        ),
+                                        Color.Black.copy(
+                                            alpha =
+                                                if (isDarkTheme) {
+                                                    0.48f
+                                                } else {
+                                                    0.14f
+                                                }
+                                        )
+                                    )
+                                )
+                            )
+                    )
 
                     OriginalStatusBanner(
                         message = inventoryState.statusMessage,

@@ -34,29 +34,29 @@ private val SupremeDarkColorScheme = darkColorScheme(
 )
 
 private val SupremeLightColorScheme = lightColorScheme(
-    primary = Color(0xFF9A6700),
+    primary = Color(0xFF835A00),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFF0C2),
-    onPrimaryContainer = Color(0xFF4B3300),
-    secondary = Color(0xFF7B5D2E),
+    primaryContainer = Color(0xFFF0DFB0),
+    onPrimaryContainer = Color(0xFF4C3400),
+    secondary = Color(0xFF6B5330),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFF4E7CA),
-    onSecondaryContainer = Color(0xFF493614),
-    tertiary = Color(0xFF237A4B),
+    secondaryContainer = Color(0xFFE9DDC8),
+    onSecondaryContainer = Color(0xFF3C2D18),
+    tertiary = Color(0xFF126A43),
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFE2F1E7),
-    onTertiaryContainer = Color(0xFF153D29),
-    background = Color(0xFFF6F1E8),
-    onBackground = Color(0xFF1C1915),
-    surface = Color(0xFFFFFEFC),
-    onSurface = Color(0xFF1C1915),
-    surfaceVariant = Color(0xFFF2EBE0),
-    onSurfaceVariant = Color(0xFF665F56),
-    error = Color(0xFFB54838),
+    tertiaryContainer = Color(0xFFDCEADF),
+    onTertiaryContainer = Color(0xFF123B29),
+    background = Color(0xFFF2EDE4),
+    onBackground = Color(0xFF1D1B17),
+    surface = Color(0xFFFAF8F3),
+    onSurface = Color(0xFF1D1B17),
+    surfaceVariant = Color(0xFFEBE3D7),
+    onSurfaceVariant = Color(0xFF5C5852),
+    error = Color(0xFFA43C31),
     onError = Color.White,
-    errorContainer = Color(0xFFF7DDD7),
-    onErrorContainer = Color(0xFF6C231A),
-    outline = Color(0xFFE4D9C8)
+    errorContainer = Color(0xFFF2DDD8),
+    onErrorContainer = Color(0xFF66241E),
+    outline = Color(0xFFB8AA96)
 )
 
 @Composable

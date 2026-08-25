@@ -2,12 +2,15 @@ package com.supreme.priceintelligence.dashboard
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -34,6 +37,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -71,6 +75,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -82,12 +88,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 
 private enum class DashboardCardGlow {
@@ -114,7 +120,13 @@ private val TextMuted: Color
 
 private val TextLight: Color
     @Composable
-    get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+    get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+        alpha = if (MaterialTheme.supremeColors.isDark) {
+            0.72f
+        } else {
+            0.88f
+        }
+    )
 
 @Composable
 internal fun ProfessionalDashboardBranding(
@@ -539,7 +551,9 @@ internal fun ProfessionalDashboardProductCard(
                 modifier = Modifier
                     .size(96.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFF8FAFC)),
+                    .background(
+                        MaterialTheme.supremeColors.imagePanel
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -592,7 +606,14 @@ internal fun ProfessionalDashboardProductCard(
                             .border(
                                 width = 1.dp,
                                 color = Brand.copy(
-                                    alpha = 0.30f
+                                    alpha =
+                                        if (
+                                            MaterialTheme.supremeColors.isDark
+                                        ) {
+                                            0.30f
+                                        } else {
+                                            0.48f
+                                        }
                                 ),
                                 shape =
                                     RoundedCornerShape(8.dp)
@@ -619,7 +640,14 @@ internal fun ProfessionalDashboardProductCard(
                                     item.shopPrice
                                 )
                             }",
-                            color = Brand,
+                            color =
+                                if (
+                                    MaterialTheme.supremeColors.isDark
+                                ) {
+                                    Brand
+                                } else {
+                                    TextPrimary
+                                },
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
@@ -695,26 +723,15 @@ internal fun ProfessionalDashboardSearchOverlay(
                 bannerClearanceGap +
                 additionalBannerHeight
 
-    val keyboardSearchBarBottom =
-        keyboardClearance +
-                8.dp +
-                bottomBannerHeight +
-                additionalBannerHeight
-
-    val targetSearchBarBottom = max(
-        restingSearchBarBottom,
-        keyboardSearchBarBottom
-    )
-
-    val searchBarBottom by animateDpAsState(
-        targetValue = targetSearchBarBottom,
-        animationSpec = if (reduceMotionEnabled) {
-            snap()
+    val searchBarBottom =
+        if (isFocused || keyboardVisible) {
+            maxOf(
+                restingSearchBarBottom,
+                keyboardClearance + 8.dp
+            )
         } else {
-            tween(durationMillis = 180)
-        },
-        label = "dashboardSearchBarPosition"
-    )
+            restingSearchBarBottom
+        }
 
     val focusScrimAlpha by animateFloatAsState(
         targetValue = if (isFocused) {
@@ -733,6 +750,20 @@ internal fun ProfessionalDashboardSearchOverlay(
         },
         label = "dashboardSearchScrim"
     )
+
+    val searchFocusRequester = remember {
+        FocusRequester()
+    }
+
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            if (!reduceMotionEnabled) {
+                delay(90)
+            }
+
+            searchFocusRequester.requestFocus()
+        }
+    }
 
     var keyboardWasVisible by remember {
         mutableStateOf(false)
@@ -758,43 +789,75 @@ internal fun ProfessionalDashboardSearchOverlay(
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        if (!isFocused) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                MaterialTheme.colorScheme.background
-                                    .copy(alpha = 0.10f),
-                                MaterialTheme.colorScheme.background
-                                    .copy(alpha = 0.58f),
-                                MaterialTheme.colorScheme.background
-                            )
-                        )
+        AnimatedVisibility(
+            visible = !isFocused,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(
+                    end = 16.dp,
+                    bottom = restingSearchBarBottom
+                ),
+            enter = if (reduceMotionEnabled) {
+                fadeIn(
+                    animationSpec = tween(durationMillis = 0)
+                )
+            } else {
+                fadeIn(
+                    animationSpec = tween(
+                        durationMillis = 70,
+                        delayMillis = 40
                     )
-            )
-
+                ) + scaleIn(
+                    animationSpec = tween(durationMillis = 110),
+                    initialScale = 0.82f
+                )
+            },
+            exit = if (reduceMotionEnabled) {
+                fadeOut(
+                    animationSpec = tween(durationMillis = 0)
+                )
+            } else {
+                fadeOut(
+                    animationSpec = tween(durationMillis = 70)
+                ) + scaleOut(
+                    animationSpec = tween(durationMillis = 110),
+                    targetScale = 0.82f
+                )
+            }
+        ) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(searchBarBottom + 96.dp)
-                    .clickable(
-                        interactionSource =
-                            remember {
-                                MutableInteractionSource()
+                    .size(56.dp)
+                    .shadow(
+                        elevation =
+                            if (
+                                MaterialTheme.supremeColors.isDark
+                            ) {
+                                0.dp
+                            } else {
+                                4.dp
                             },
-                        indication = null,
-                        onClick = {}
+                        shape = CircleShape
                     )
-            )
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.supremeColors.border,
+                        shape = CircleShape
+                    )
+                    .clickable {
+                        onFocusChange(true)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = "Open product search",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(25.dp)
+                )
+            }
         }
 
         if (focusScrimAlpha > 0f) {
@@ -831,6 +894,7 @@ internal fun ProfessionalDashboardSearchOverlay(
             AnimatedVisibility(
                 visible =
                     isFocused &&
+                        keyboardVisible &&
                         suggestions.isNotEmpty(),
                 enter = if (reduceMotionEnabled) {
                     fadeIn(
@@ -975,30 +1039,61 @@ internal fun ProfessionalDashboardSearchOverlay(
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .shadow(
-                        elevation =
-                            if (
-                                MaterialTheme.supremeColors.isDark
-                            ) {
-                                0.dp
-                            } else {
-                                6.dp
-                            },
-                        shape = RoundedCornerShape(12.dp)
+            AnimatedVisibility(
+                visible = isFocused,
+                modifier = Modifier.align(Alignment.End),
+                enter = if (reduceMotionEnabled) {
+                    fadeIn(
+                        animationSpec = tween(durationMillis = 0)
                     )
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.supremeColors.field)
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.supremeColors.border,
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                verticalAlignment = Alignment.CenterVertically
+                } else {
+                    fadeIn(
+                        animationSpec = tween(durationMillis = 90)
+                    ) + expandHorizontally(
+                        animationSpec = tween(durationMillis = 180),
+                        expandFrom = Alignment.End
+                    )
+                },
+                exit = if (reduceMotionEnabled) {
+                    fadeOut(
+                        animationSpec = tween(durationMillis = 0)
+                    )
+                } else {
+                    fadeOut(
+                        animationSpec = tween(
+                            durationMillis = 90,
+                            delayMillis = 90
+                        )
+                    ) + shrinkHorizontally(
+                        animationSpec = tween(durationMillis = 180),
+                        shrinkTowards = Alignment.End
+                    )
+                }
             ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .shadow(
+                            elevation =
+                                if (
+                                    MaterialTheme.supremeColors.isDark
+                                ) {
+                                    0.dp
+                                } else {
+                                    3.dp
+                                },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.supremeColors.field)
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.supremeColors.border,
+                            shape = RoundedCornerShape(12.dp)
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 Icon(
                     imageVector = Icons.Rounded.Search,
                     contentDescription = "Search products",
@@ -1023,8 +1118,15 @@ internal fun ProfessionalDashboardSearchOverlay(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        .focusRequester(searchFocusRequester)
                         .onFocusChanged { focusState ->
-                            onFocusChange(focusState.isFocused)
+                            when {
+                                focusState.isFocused ->
+                                    onFocusChange(true)
+
+                                keyboardVisible ->
+                                    onFocusChange(false)
+                            }
                         },
                     trailingIcon = {
                         if (query.isNotEmpty()) {
@@ -1072,25 +1174,26 @@ internal fun ProfessionalDashboardSearchOverlay(
                         .background(SurfaceAlt)
                 )
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(56.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topEnd = 12.dp,
-                                bottomEnd = 12.dp
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(56.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topEnd = 12.dp,
+                                    bottomEnd = 12.dp
+                                )
                             )
+                            .clickable(onClick = onScanClick),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.CameraAlt,
+                            contentDescription = "Scan barcode",
+                            tint = Brand,
+                            modifier = Modifier.size(22.dp)
                         )
-                        .clickable(onClick = onScanClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.CameraAlt,
-                        contentDescription = "Scan barcode",
-                        tint = Brand,
-                        modifier = Modifier.size(22.dp)
-                    )
+                    }
                 }
             }
         }

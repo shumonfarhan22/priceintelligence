@@ -550,8 +550,20 @@ internal class FakeInventoryDao(vararg initialItems: InventoryItem) : InventoryD
     override suspend fun getPriceHistory(itemId: Long, limit: Int): List<PriceHistoryEntry> =
         priceHistory
             .filter { it.inventoryItemId == itemId }
-            .sortedWith(compareByDescending<PriceHistoryEntry> { it.checkedAt }.thenByDescending { it.id })
+            .sortedWith(
+                compareByDescending<PriceHistoryEntry> {
+                    it.checkedAt
+                }.thenByDescending { it.id }
+            )
             .take(limit)
+
+    override suspend fun getAllPriceHistory():
+        List<PriceHistoryEntry> =
+        priceHistory.sortedWith(
+            compareBy<PriceHistoryEntry> {
+                it.checkedAt
+            }.thenBy { it.id }
+        )
 
     override suspend fun deletePriceHistoryOlderThan(cutoffTimestamp: Long) {
         priceHistoryCleanupCallCount += 1

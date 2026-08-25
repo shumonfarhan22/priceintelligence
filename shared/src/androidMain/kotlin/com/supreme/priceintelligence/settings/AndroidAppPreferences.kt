@@ -46,10 +46,44 @@ class AndroidAppPreferences(
                 .apply()
         }
 
+    override var smartRefreshProfile: String
+        get() = preferences.getString(
+            SMART_REFRESH_PROFILE_KEY,
+            ""
+        ).orEmpty()
+        set(value) {
+            preferences
+                .edit()
+                .putString(
+                    SMART_REFRESH_PROFILE_KEY,
+                    value
+                )
+                .apply()
+        }
+
+    override var priceChangeNotificationsEnabled: Boolean
+        get() = preferences.getBoolean(
+            PRICE_CHANGE_NOTIFICATIONS_KEY,
+            false
+        )
+        set(value) {
+            preferences
+                .edit()
+                .putBoolean(
+                    PRICE_CHANGE_NOTIFICATIONS_KEY,
+                    value
+                )
+                .apply()
+        }
+
     private companion object {
         const val ADVANCED_MODE_KEY = "advanced_mode_enabled"
         const val THEME_MODE_KEY = "theme_mode"
         const val AUTOMATIC_PRICE_REFRESH_LEDGER_KEY =
             "automatic_price_refresh_ledger"
+        const val SMART_REFRESH_PROFILE_KEY =
+            "smart_refresh_profile"
+        const val PRICE_CHANGE_NOTIFICATIONS_KEY =
+            "price_change_notifications_enabled"
     }
 }

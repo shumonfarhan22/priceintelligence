@@ -3,6 +3,7 @@ package com.supreme.priceintelligence
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.window.ComposeUIViewController
+import com.supreme.priceintelligence.dashboard.IosPriceChangeNotifier
 import com.supreme.priceintelligence.data.getDatabaseBuilder
 import com.supreme.priceintelligence.network.IosNetworkMonitor
 import com.supreme.priceintelligence.settings.AppThemeMode
@@ -35,6 +36,10 @@ fun MainViewController(): UIViewController {
             IosNetworkMonitor()
         }
 
+        val priceChangeNotifier = remember {
+            IosPriceChangeNotifier()
+        }
+
         DisposableEffect(networkMonitor) {
             onDispose {
                 networkMonitor.stop()
@@ -45,6 +50,7 @@ fun MainViewController(): UIViewController {
             databaseBuilder = databaseBuilder,
             networkMonitor = networkMonitor,
             appPreferences = appPreferences,
+            priceChangeNotifier = priceChangeNotifier,
             onThemeApplied = { themeMode, _ ->
                 controllerReference?.let { activeController ->
                     activeController.overrideUserInterfaceStyle =

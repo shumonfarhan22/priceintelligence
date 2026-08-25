@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.dashboard.formatIndianPrice
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -192,9 +193,13 @@ internal fun ProfessionalInventoryGroupHeader(
             .padding(vertical = 4.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(
-                    alpha = 0.55f
-                )
+                if (MaterialTheme.supremeColors.isDark) {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(
+                        alpha = 0.55f
+                    )
+                } else {
+                    MaterialTheme.supremeColors.panelMuted
+                }
             )
             .clickable(onClick = onClick)
             .semantics {
@@ -487,7 +492,14 @@ internal fun ProfessionalInventoryProductRow(
                         .border(
                             width = 1.dp,
                             color = ProfessionalInventoryEmerald.copy(
-                                alpha = 0.30f
+                                alpha =
+                                    if (
+                                        MaterialTheme.supremeColors.isDark
+                                    ) {
+                                        0.30f
+                                    } else {
+                                        0.48f
+                                    }
                             ),
                             shape = RoundedCornerShape(6.dp)
                         )
@@ -510,7 +522,14 @@ internal fun ProfessionalInventoryProductRow(
                         text = "Supreme Price: ${
                             formatIndianPrice(item.shopPrice)
                         }",
-                        color = ProfessionalInventoryEmerald,
+                        color =
+                            if (
+                                MaterialTheme.supremeColors.isDark
+                            ) {
+                                ProfessionalInventoryEmerald
+                            } else {
+                                ProfessionalInventoryText
+                            },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -539,7 +558,9 @@ private fun ProfessionalInventoryProductImage(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF8FAFC))
+            .background(
+                MaterialTheme.supremeColors.imagePanel
+            )
             .border(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outline,

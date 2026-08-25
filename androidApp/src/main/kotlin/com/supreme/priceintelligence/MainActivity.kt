@@ -9,6 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
+import com.supreme.priceintelligence.dashboard.AndroidPriceChangeNotifier
 import com.supreme.priceintelligence.data.getDatabaseBuilder
 import com.supreme.priceintelligence.network.AndroidNetworkMonitor
 import com.supreme.priceintelligence.settings.AndroidAppPreferences
@@ -37,6 +38,10 @@ class MainActivity : ComponentActivity() {
                 AndroidAppPreferences(applicationContext)
             }
 
+            val priceChangeNotifier = remember {
+                AndroidPriceChangeNotifier(this)
+            }
+
             DisposableEffect(networkMonitor) {
                 onDispose {
                     networkMonitor.stop()
@@ -47,6 +52,7 @@ class MainActivity : ComponentActivity() {
                 databaseBuilder = databaseBuilder,
                 networkMonitor = networkMonitor,
                 appPreferences = appPreferences,
+                priceChangeNotifier = priceChangeNotifier,
                 onThemeApplied = { _, isDarkTheme ->
                     WindowCompat.getInsetsController(
                         window,

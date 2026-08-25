@@ -199,6 +199,12 @@ interface InventoryDao {
     suspend fun getPriceHistory(itemId: Long, limit: Int): List<PriceHistoryEntry>
 
     @Query(
+        "SELECT * FROM price_history " +
+            "ORDER BY checked_at ASC, id ASC"
+    )
+    suspend fun getAllPriceHistory(): List<PriceHistoryEntry>
+
+    @Query(
         "DELETE FROM price_history " +
             "WHERE checked_at < :cutoffTimestamp"
     )

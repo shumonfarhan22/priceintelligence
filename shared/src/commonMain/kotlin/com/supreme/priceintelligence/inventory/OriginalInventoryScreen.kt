@@ -124,6 +124,8 @@ fun OriginalInventoryScreen(
     onThemeModeChanged: (AppThemeMode) -> Unit,
     advancedModeEnabled: Boolean,
     onAdvancedModeChanged: (Boolean) -> Unit,
+    priceChangeNotificationsEnabled: Boolean,
+    onPriceChangeNotificationsChanged: (Boolean) -> Unit,
     bottomBannerHeight: Dp = 0.dp,
     reduceMotionEnabled: Boolean = false,
     modifier: Modifier = Modifier
@@ -601,6 +603,10 @@ fun OriginalInventoryScreen(
             onThemeModeChanged = onThemeModeChanged,
             enabled = advancedModeEnabled,
             onEnabledChanged = onAdvancedModeChanged,
+            priceChangeNotificationsEnabled =
+                priceChangeNotificationsEnabled,
+            onPriceChangeNotificationsChanged =
+                onPriceChangeNotificationsChanged,
             reduceMotionEnabled = reduceMotionEnabled,
             onDismiss = {
                 settingsOpen = false
@@ -1146,6 +1152,8 @@ private fun AdvancedModeDialog(
     onThemeModeChanged: (AppThemeMode) -> Unit,
     enabled: Boolean,
     onEnabledChanged: (Boolean) -> Unit,
+    priceChangeNotificationsEnabled: Boolean,
+    onPriceChangeNotificationsChanged: (Boolean) -> Unit,
     reduceMotionEnabled: Boolean,
     onDismiss: () -> Unit
 ) {
@@ -1378,6 +1386,47 @@ private fun AdvancedModeDialog(
 
                 Text(
                     text = "The original compact design stays unchanged when this is off.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 58.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Price change alerts",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            text = "Notify me when the daily check finds a new Amazon or Flipkart price",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Switch(
+                        checked =
+                            priceChangeNotificationsEnabled,
+                        onCheckedChange =
+                            onPriceChangeNotificationsChanged
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Manual price checks do not send notifications.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp
                 )

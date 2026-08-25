@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Duration.Companion.milliseconds
@@ -77,6 +79,11 @@ data class DashboardUiState(
     val pageSize: Int = 10,
     val priceHistoryByProduct: Map<Long, List<PriceHistoryEntry>> = emptyMap(),
     val historyLoadingProductIds: Set<Long> = emptySet(),
+    val shopPriceMovement:
+        ShopPriceMovementSnapshot =
+        ShopPriceMovementSnapshot(),
+    val isShopPriceMovementLoading: Boolean = false,
+    val shopPriceMovementError: String? = null,
     val isLoading: Boolean = false,
     val isRefreshingPage: Boolean = false,
     val isConnected: Boolean = false,
@@ -95,7 +102,9 @@ class DashboardViewModel(
     private val repository: InventoryRepository,
     private val scraper: PriceFetcher,
     private val networkMonitor: NetworkMonitor,
-    private val appPreferences: AppPreferences? = null
+    private val appPreferences: AppPreferences? = null,
+    private val priceChangeNotifier: PriceChangeNotifier =
+        NoOpPriceChangeNotifier
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -107,9 +116,13 @@ class DashboardViewModel(
     private var automaticRefreshJob: Job? = null
     private var manualRefreshJob: Job? = null
     private var pageRefreshJob: Job? = null
+    private var shopPriceMovementJob: Job? = null
     private val historyJobs = mutableMapOf<Long, Job>()
     private val manualResultLightJobs =
         mutableMapOf<Long, Job>()
+    private val smartRefreshProfileMutex = Mutex()
+    private val automaticRefreshPauseReasons =
+        mutableSetOf<String>()
 
     init {
         runSearch("")
@@ -290,6 +303,29 @@ class DashboardViewModel(
         )
 
         startAutomaticDailyRefreshIfPossible()
+    }
+
+    fun setAutomaticRefreshPaused(
+        reason: String,
+        paused: Boolean
+    ) {
+        if (reason.isBlank()) {
+            return
+        }
+
+        if (paused) {
+            automaticRefreshPauseReasons += reason
+
+            val runningJob = automaticRefreshJob
+            automaticRefreshJob = null
+            runningJob?.cancel()
+        } else {
+            automaticRefreshPauseReasons -= reason
+
+            if (automaticRefreshPauseReasons.isEmpty()) {
+                startAutomaticDailyRefreshIfPossible()
+            }
+        }
     }
 
     fun setSortOrder(order: SortOrder) {
@@ -544,6 +580,76 @@ class DashboardViewModel(
         }
     }
 
+    fun loadShopPriceMovement() {
+        if (
+            shopPriceMovementJob?.isActive ==
+            true
+        ) {
+            return
+        }
+
+        val newJob = viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    isShopPriceMovementLoading =
+                        true,
+                    shopPriceMovementError = null
+                )
+            }
+
+            try {
+                val items =
+                    repository.getAllMatching("")
+
+                val history =
+                    repository.getAllPriceHistory()
+
+                val snapshot =
+                    buildShopPriceMovementSnapshot(
+                        items = items,
+                        history = history,
+                        nowMillis =
+                            Clock.System.now()
+                                .toEpochMilliseconds()
+                    )
+
+                _uiState.update { state ->
+                    state.copy(
+                        shopPriceMovement =
+                            snapshot,
+                        shopPriceMovementError =
+                            null
+                    )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                _uiState.update { state ->
+                    state.copy(
+                        shopPriceMovementError =
+                            "Price movement could not be loaded"
+                    )
+                }
+            } finally {
+                _uiState.update { state ->
+                    state.copy(
+                        isShopPriceMovementLoading =
+                            false
+                    )
+                }
+
+                if (
+                    shopPriceMovementJob ===
+                    coroutineContext[Job]
+                ) {
+                    shopPriceMovementJob = null
+                }
+            }
+        }
+
+        shopPriceMovementJob = newJob
+    }
+
     fun recordProductViewed(productId: Long) {
         if (productId <= 0L) return
 
@@ -726,6 +832,7 @@ class DashboardViewModel(
 
         if (
             !_uiState.value.isConnected ||
+            automaticRefreshPauseReasons.isNotEmpty() ||
             automaticRefreshJob?.isActive == true ||
             manualRefreshJob?.isActive == true ||
             pageRefreshJob?.isActive == true
@@ -734,12 +841,19 @@ class DashboardViewModel(
         }
 
         val newJob = viewModelScope.launch {
-            try {
-                // Give launch, database loading, and immediate user actions
-                // priority before starting background work.
-                delay(4000.milliseconds)
+            val automaticPriceChanges =
+                mutableListOf<DetectedPriceChange>()
 
-                if (!_uiState.value.isConnected) {
+            try {
+                // Keep launch and normal user interaction completely smooth.
+                delay(6000.milliseconds)
+
+                if (
+                    !_uiState.value.isConnected ||
+                    automaticRefreshPauseReasons.isNotEmpty() ||
+                    manualRefreshJob?.isActive == true ||
+                    pageRefreshJob?.isActive == true
+                ) {
                     return@launch
                 }
 
@@ -754,35 +868,53 @@ class DashboardViewModel(
                         nowMillis = now
                     )
 
+                val smartProfile =
+                    readSmartRefreshProfile(
+                        preferences.smartRefreshProfile
+                    )
+
                 val pendingProducts =
-                    repository.getAllMatching("")
-                        .filter { item ->
-                            item.hasRetailerLink()
-                        }
-                        .filter { item ->
-                            item.id !in attemptedProductIds
-                        }
-                        .filterNot { item ->
-                            item.wasCheckedToday(now)
-                        }
+                    buildSmartRefreshPlan(
+                        products =
+                            repository.getAllMatching(""),
+                        profile = smartProfile,
+                        attemptedProductIds =
+                            attemptedProductIds,
+                        nowMillis = now
+                    )
 
                 pendingProducts.forEachIndexed {
                         index,
                         item ->
 
-                    if (!_uiState.value.isConnected) {
+                    if (
+                        !_uiState.value.isConnected ||
+                        automaticRefreshPauseReasons.isNotEmpty() ||
+                        manualRefreshJob?.isActive == true ||
+                        pageRefreshJob?.isActive == true
+                    ) {
                         return@launch
                     }
 
                     scrapeOne(
                         productId = item.id,
-                        showFailureFeedback = false
+                        showFailureFeedback = false,
+                        onPriceChangesDetected = { changes ->
+                            automaticPriceChanges.addAll(
+                                changes
+                            )
+                        }
                     )
 
                     markAutomaticRefreshAttempt(item.id)
 
                     if (index < pendingProducts.lastIndex) {
-                        delay(15000.milliseconds)
+                        delay(
+                            smartRefreshSpacingMillis(
+                                productId = item.id,
+                                nowMillis = now
+                            ).milliseconds
+                        )
                     }
                 }
 
@@ -790,8 +922,23 @@ class DashboardViewModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                // Automatic work must never interrupt normal app use.
+                // Smart automatic work must never interrupt normal app use.
             } finally {
+                if (
+                    preferences
+                        .priceChangeNotificationsEnabled &&
+                    automaticPriceChanges.isNotEmpty()
+                ) {
+                    try {
+                        priceChangeNotifier
+                            .publishPriceChanges(
+                                automaticPriceChanges
+                            )
+                    } catch (_: Exception) {
+                        // A notification failure must never affect saved prices.
+                    }
+                }
+
                 if (
                     automaticRefreshJob ===
                     coroutineContext[Job]
@@ -830,42 +977,55 @@ class DashboardViewModel(
             )
     }
 
-    private fun InventoryItem.hasRetailerLink(): Boolean =
-        !amazonUrl.isNullOrBlank() ||
-            !flipkartUrl.isNullOrBlank()
-
-    private fun InventoryItem.wasCheckedToday(
+    private suspend fun rememberSmartRefreshOutcome(
+        productId: Long,
+        succeeded: Boolean,
+        priceMoved: Boolean,
         nowMillis: Long
-    ): Boolean {
-        val currentDay =
-            automaticRefreshDayKey(nowMillis)
+    ) {
+        val preferences = appPreferences ?: return
 
-        val linkedCheckTimes = buildList {
-            if (!amazonUrl.isNullOrBlank()) {
-                amazonLastChecked?.let(::add)
+        try {
+            smartRefreshProfileMutex.withLock {
+                val currentProfile =
+                    readSmartRefreshProfile(
+                        preferences.smartRefreshProfile
+                    )
+
+                val updatedProfile =
+                    updateSmartRefreshOutcome(
+                        records = currentProfile,
+                        productId = productId,
+                        succeeded = succeeded,
+                        priceMoved = priceMoved,
+                        nowMillis = nowMillis
+                    )
+
+                preferences.smartRefreshProfile =
+                    writeSmartRefreshProfile(
+                        updatedProfile
+                    )
             }
-
-            if (!flipkartUrl.isNullOrBlank()) {
-                flipkartLastChecked?.let(::add)
-            }
-        }
-
-        return linkedCheckTimes.any { checkedAt ->
-            checkedAt > 0L &&
-                automaticRefreshDayKey(checkedAt) ==
-                    currentDay
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // Learning is optional and must never break a price check.
         }
     }
 
     private suspend fun scrapeOne(
         productId: Long,
-        showFailureFeedback: Boolean = true
+        showFailureFeedback: Boolean = true,
+        onPriceChangesDetected:
+            (List<DetectedPriceChange>) -> Unit = {}
     ): Boolean {
         val item =
             repository.getProductById(productId)
                 ?: return false
 
         setCardRefreshing(productId, true)
+
+        var smartOutcomeRecorded = false
 
         try {
             val (amazonResult, flipkartResult) = coroutineScope {
@@ -879,13 +1039,47 @@ class DashboardViewModel(
                         ?.takeIf { url -> url.isNotBlank() }
                         ?.let { url -> scraper.fetchPrice(url) }
                 }
-                amazonDeferred.await() to flipkartDeferred.await()
+                amazonDeferred.await() to
+                    flipkartDeferred.await()
             }
 
             val hasRetailerUrl =
-                !item.amazonUrl.isNullOrBlank() || !item.flipkartUrl.isNullOrBlank()
+                !item.amazonUrl.isNullOrBlank() ||
+                    !item.flipkartUrl.isNullOrBlank()
+
             val hasLivePrice =
-                amazonResult?.price != null || flipkartResult?.price != null
+                amazonResult?.price != null ||
+                    flipkartResult?.price != null
+
+            val priceMoved =
+                hasMeaningfulPriceMovement(
+                    oldPrice = item.amazonLastPrice,
+                    newPrice = amazonResult?.price
+                ) ||
+                    hasMeaningfulPriceMovement(
+                        oldPrice = item.flipkartLastPrice,
+                        newPrice = flipkartResult?.price
+                    )
+
+            val now =
+                Clock.System.now().toEpochMilliseconds()
+
+            val detectedPriceChanges =
+                detectPriceChanges(
+                    item = item,
+                    amazonPrice = amazonResult?.price,
+                    flipkartPrice =
+                        flipkartResult?.price,
+                    detectedAt = now
+                )
+
+            rememberSmartRefreshOutcome(
+                productId = productId,
+                succeeded = hasLivePrice,
+                priceMoved = priceMoved,
+                nowMillis = now
+            )
+            smartOutcomeRecorded = true
 
             if (
                 !hasLivePrice &&
@@ -895,43 +1089,92 @@ class DashboardViewModel(
                 _uiState.update {
                     it.copy(bloomState = BloomState.WARNING)
                 }
+
                 viewModelScope.launch {
                     delay(4000.milliseconds)
-                    if (_uiState.value.bloomState == BloomState.WARNING) {
-                        _uiState.update { it.copy(bloomState = BloomState.NONE) }
+
+                    if (
+                        _uiState.value.bloomState ==
+                        BloomState.WARNING
+                    ) {
+                        _uiState.update {
+                            it.copy(
+                                bloomState = BloomState.NONE
+                            )
+                        }
                     }
                 }
             }
 
-            val now = Clock.System.now().toEpochMilliseconds()
+            val savedPriceChanges =
+                mutableListOf<DetectedPriceChange>()
+
             amazonResult?.price?.let { price ->
-                repository.recordPriceCheck(
-                    itemId = productId,
-                    retailer = PriceRetailer.AMAZON,
-                    price = price,
-                    checkedAt = now
-                )
+                val wasSaved =
+                    repository.recordPriceCheck(
+                        itemId = productId,
+                        retailer = PriceRetailer.AMAZON,
+                        price = price,
+                        checkedAt = now
+                    )
+
+                if (wasSaved) {
+                    detectedPriceChanges
+                        .firstOrNull { change ->
+                            change.retailer ==
+                                PriceRetailer.AMAZON
+                        }
+                        ?.let(savedPriceChanges::add)
+                }
             }
+
             flipkartResult?.price?.let { price ->
-                repository.recordPriceCheck(
-                    itemId = productId,
-                    retailer = PriceRetailer.FLIPKART,
-                    price = price,
-                    checkedAt = now
+                val wasSaved =
+                    repository.recordPriceCheck(
+                        itemId = productId,
+                        retailer = PriceRetailer.FLIPKART,
+                        price = price,
+                        checkedAt = now
+                    )
+
+                if (wasSaved) {
+                    detectedPriceChanges
+                        .firstOrNull { change ->
+                            change.retailer ==
+                                PriceRetailer.FLIPKART
+                        }
+                        ?.let(savedPriceChanges::add)
+                }
+            }
+
+            if (savedPriceChanges.isNotEmpty()) {
+                onPriceChangesDetected(
+                    savedPriceChanges
                 )
             }
 
-            val refreshedHistory = if (hasLivePrice) {
-                repository.getPriceHistory(productId)
-            } else {
-                null
-            }
+            val historyIsCurrentlyNeeded =
+                _uiState.value
+                    .priceHistoryByProduct
+                    .containsKey(productId)
 
-            val preferredImageUrl = selectPreferredProductImageUrl(
-                savedImageUrl = item.imageUrl,
-                amazonImageUrl = amazonResult?.image,
-                flipkartImageUrl = flipkartResult?.image
-            )
+            val refreshedHistory =
+                if (
+                    hasLivePrice &&
+                    historyIsCurrentlyNeeded
+                ) {
+                    repository.getPriceHistory(productId)
+                } else {
+                    null
+                }
+
+            val preferredImageUrl =
+                selectPreferredProductImageUrl(
+                    savedImageUrl = item.imageUrl,
+                    amazonImageUrl = amazonResult?.image,
+                    flipkartImageUrl =
+                        flipkartResult?.image
+                )
 
             if (
                 preferredImageUrl != null &&
@@ -943,54 +1186,113 @@ class DashboardViewModel(
                 )
             }
 
-            // Reload the current database row after saving the price and image.
-            // This preserves any edit made while the network request was running.
-            // It also prevents a late result from recreating a deleted product.
+            // Reload the row after saving. This preserves edits made while
+            // the request was running and safely handles deletion races.
             val updatedItem =
                 repository.getProductById(productId)
                     ?: return false
 
             _uiState.update { state ->
-                state.copy(
-                    priceHistoryByProduct = if (refreshedHistory == null) {
-                        state.priceHistoryByProduct
-                    } else {
-                        state.priceHistoryByProduct + (productId to refreshedHistory)
-                    },
-                    pageItems = state.pageItems.map { card ->
-                        if (card.item.id == productId) {
-                            card.copy(
-                                item = updatedItem,
-                                isRefreshing = false,
-                                amazonResult = amazonResult,
-                                flipkartResult = flipkartResult
-                            )
-                        } else card
+                val productIsVisible =
+                    state.pageItems.any { card ->
+                        card.item.id == productId
                     }
-                )
+
+                if (
+                    !productIsVisible &&
+                    refreshedHistory == null
+                ) {
+                    state
+                } else {
+                    state.copy(
+                        priceHistoryByProduct =
+                            if (refreshedHistory == null) {
+                                state.priceHistoryByProduct
+                            } else {
+                                state.priceHistoryByProduct +
+                                    (
+                                        productId to
+                                            refreshedHistory
+                                        )
+                            },
+                        pageItems =
+                            state.pageItems.map { card ->
+                                if (
+                                    card.item.id ==
+                                    productId
+                                ) {
+                                    card.copy(
+                                        item = updatedItem,
+                                        isRefreshing = false,
+                                        amazonResult =
+                                            amazonResult,
+                                        flipkartResult =
+                                            flipkartResult
+                                    )
+                                } else {
+                                    card
+                                }
+                            }
+                    )
+                }
             }
 
             return hasLivePrice
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
-            // A single failed check — a database hiccup, unexpected data,
-            // anything unforeseen — should never crash the whole app. This
-            // product just keeps showing its last known price, the same as
-            // a plain network failure already does.
+            if (!smartOutcomeRecorded) {
+                rememberSmartRefreshOutcome(
+                    productId = productId,
+                    succeeded = false,
+                    priceMoved = false,
+                    nowMillis =
+                        Clock.System.now()
+                            .toEpochMilliseconds()
+                )
+            }
+
+            // One unexpected retailer or database failure must never crash
+            // the app. The last saved price remains available.
             return false
         } finally {
-            setCardRefreshing(productId, false)
+            setCardRefreshing(
+                productId = productId,
+                isRefreshing = false
+            )
         }
     }
 
-    private fun setCardRefreshing(productId: Long, isRefreshing: Boolean) {
+    private fun setCardRefreshing(
+        productId: Long,
+        isRefreshing: Boolean
+    ) {
         _uiState.update { state ->
-            state.copy(
-                pageItems = state.pageItems.map { card ->
-                    if (card.item.id == productId) card.copy(isRefreshing = isRefreshing) else card
+            val productIsVisible =
+                state.pageItems.any { card ->
+                    card.item.id == productId
                 }
-            )
+
+            if (!productIsVisible) {
+                state
+            } else {
+                state.copy(
+                    pageItems =
+                        state.pageItems.map { card ->
+                            if (
+                                card.item.id ==
+                                productId
+                            ) {
+                                card.copy(
+                                    isRefreshing =
+                                        isRefreshing
+                                )
+                            } else {
+                                card
+                            }
+                        }
+                )
+            }
         }
     }
 }
