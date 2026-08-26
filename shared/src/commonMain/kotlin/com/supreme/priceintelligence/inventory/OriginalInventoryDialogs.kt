@@ -24,8 +24,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Calculate
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -80,6 +82,14 @@ internal fun OriginalProductEditorDialog(
     val barcodeFocusRequester = remember { FocusRequester() }
     val amazonFocusRequester = remember { FocusRequester() }
     val flipkartFocusRequester = remember { FocusRequester() }
+
+    var calculatorTarget by remember {
+        mutableStateOf<PriceEditorField?>(null)
+    }
+
+    var browserSite by remember {
+        mutableStateOf<RetailerBrowserSite?>(null)
+    }
 
     val dialogMotionProgress = remember {
         Animatable(0f)
@@ -295,49 +305,97 @@ internal fun OriginalProductEditorDialog(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement =
+                                Arrangement.spacedBy(12.dp)
                         ) {
                             OriginalEditorField(
                                 label = "Purchase Cost (Optional)",
                                 placeholder = "₹ 0.00",
                                 value = form.purchaseCost,
-                                onValueChange = onPurchaseCostChanged,
+                                onValueChange =
+                                    onPurchaseCostChanged,
                                 modifier = Modifier
                                     .weight(1f)
                                     .focusRequester(
                                         purchaseCostFocusRequester
                                     ),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal,
-                                    imeAction = ImeAction.Next
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onNext = {
-                                        sellingPriceFocusRequester
-                                            .requestFocus()
+                                keyboardOptions =
+                                    KeyboardOptions(
+                                        keyboardType =
+                                            KeyboardType.Decimal,
+                                        imeAction =
+                                            ImeAction.Next
+                                    ),
+                                keyboardActions =
+                                    KeyboardActions(
+                                        onNext = {
+                                            sellingPriceFocusRequester
+                                                .requestFocus()
+                                        }
+                                    ),
+                                trailingIcon = {
+                                    IconButton(
+                                        onClick = {
+                                            focusManager.clearFocus()
+                                            calculatorTarget =
+                                                PriceEditorField.PURCHASE_COST
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector =
+                                                Icons.Rounded.Calculate,
+                                            contentDescription =
+                                                "Open Purchase Cost calculator",
+                                            tint =
+                                                MaterialTheme.colorScheme.primary
+                                        )
                                     }
-                                )
+                                }
                             )
 
                             OriginalEditorField(
                                 label = "Selling Price",
                                 placeholder = "₹ 0.00",
                                 value = form.shopPrice,
-                                onValueChange = onShopPriceChanged,
+                                onValueChange =
+                                    onShopPriceChanged,
                                 modifier = Modifier
                                     .weight(1f)
                                     .focusRequester(
                                         sellingPriceFocusRequester
                                     ),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal,
-                                    imeAction = ImeAction.Next
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onNext = {
-                                        barcodeFocusRequester.requestFocus()
+                                keyboardOptions =
+                                    KeyboardOptions(
+                                        keyboardType =
+                                            KeyboardType.Decimal,
+                                        imeAction =
+                                            ImeAction.Next
+                                    ),
+                                keyboardActions =
+                                    KeyboardActions(
+                                        onNext = {
+                                            barcodeFocusRequester
+                                                .requestFocus()
+                                        }
+                                    ),
+                                trailingIcon = {
+                                    IconButton(
+                                        onClick = {
+                                            focusManager.clearFocus()
+                                            calculatorTarget =
+                                                PriceEditorField.SELLING_PRICE
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector =
+                                                Icons.Rounded.Calculate,
+                                            contentDescription =
+                                                "Open Selling Price calculator",
+                                            tint =
+                                                MaterialTheme.colorScheme.primary
+                                        )
                                     }
-                                )
+                                }
                             )
                         }
 
@@ -348,23 +406,30 @@ internal fun OriginalProductEditorDialog(
                             onValueChange = onBarcodeChanged,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .focusRequester(barcodeFocusRequester),
+                                .focusRequester(
+                                    barcodeFocusRequester
+                                ),
                             keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
+                                keyboardType =
+                                    KeyboardType.Number,
                                 imeAction = ImeAction.Next
                             ),
-                            keyboardActions = KeyboardActions(
-                                onNext = {
-                                    amazonFocusRequester.requestFocus()
-                                }
-                            ),
+                            keyboardActions =
+                                KeyboardActions(
+                                    onNext = {
+                                        amazonFocusRequester
+                                            .requestFocus()
+                                    }
+                                ),
                             trailingIcon = {
                                 IconButton(
                                     onClick = onScanBarcode
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.CameraAlt,
-                                        contentDescription = "Scan barcode",
+                                        imageVector =
+                                            Icons.Rounded.CameraAlt,
+                                        contentDescription =
+                                            "Scan barcode",
                                         tint =
                                             MaterialTheme.colorScheme.primary
                                     )
@@ -376,38 +441,85 @@ internal fun OriginalProductEditorDialog(
                             label = "Amazon URL (Optional)",
                             placeholder = "https://amazon.in/...",
                             value = form.amazonUrl,
-                            onValueChange = onAmazonUrlChanged,
+                            onValueChange =
+                                onAmazonUrlChanged,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .focusRequester(amazonFocusRequester),
+                                .focusRequester(
+                                    amazonFocusRequester
+                                ),
                             keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Uri,
+                                keyboardType =
+                                    KeyboardType.Uri,
                                 imeAction = ImeAction.Next
                             ),
-                            keyboardActions = KeyboardActions(
-                                onNext = {
-                                    flipkartFocusRequester.requestFocus()
+                            keyboardActions =
+                                KeyboardActions(
+                                    onNext = {
+                                        flipkartFocusRequester
+                                            .requestFocus()
+                                    }
+                                ),
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        browserSite =
+                                            RetailerBrowserSite.AMAZON
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                            Icons.Rounded.Language,
+                                        contentDescription =
+                                            "Browse Amazon India",
+                                        tint =
+                                            MaterialTheme.colorScheme.primary
+                                    )
                                 }
-                            )
+                            }
                         )
 
                         OriginalEditorField(
                             label = "Flipkart URL (Optional)",
                             placeholder = "https://flipkart.com/...",
                             value = form.flipkartUrl,
-                            onValueChange = onFlipkartUrlChanged,
+                            onValueChange =
+                                onFlipkartUrlChanged,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .focusRequester(flipkartFocusRequester),
+                                .focusRequester(
+                                    flipkartFocusRequester
+                                ),
                             keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Uri,
+                                keyboardType =
+                                    KeyboardType.Uri,
                                 imeAction = ImeAction.Done
                             ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    focusManager.clearFocus()
+                            keyboardActions =
+                                KeyboardActions(
+                                    onDone = {
+                                        focusManager.clearFocus()
+                                    }
+                                ),
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        browserSite =
+                                            RetailerBrowserSite.FLIPKART
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                            Icons.Rounded.Language,
+                                        contentDescription =
+                                            "Browse Flipkart",
+                                        tint =
+                                            MaterialTheme.colorScheme.primary
+                                    )
                                 }
-                            )
+                            }
                         )
 
                         if (statusMessage != null) {
@@ -478,7 +590,48 @@ internal fun OriginalProductEditorDialog(
                     }
                 }
             }
+
         }
+    }
+
+    calculatorTarget?.let { target ->
+        ProductPriceCalculatorDialog(
+            initialField = target,
+            purchaseCost = form.purchaseCost,
+            sellingPrice = form.shopPrice,
+            onApply = { field, value ->
+                when (field) {
+                    PriceEditorField.PURCHASE_COST ->
+                        onPurchaseCostChanged(value)
+
+                    PriceEditorField.SELLING_PRICE ->
+                        onShopPriceChanged(value)
+                }
+            },
+            onDismiss = {
+                calculatorTarget = null
+            }
+        )
+    }
+
+    browserSite?.let { site ->
+        RetailerBrowserDialog(
+            site = site,
+            onUseLink = { url ->
+                when (site) {
+                    RetailerBrowserSite.AMAZON ->
+                        onAmazonUrlChanged(url)
+
+                    RetailerBrowserSite.FLIPKART ->
+                        onFlipkartUrlChanged(url)
+                }
+
+                browserSite = null
+            },
+            onDismiss = {
+                browserSite = null
+            }
+        )
     }
 }
 

@@ -91,6 +91,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.settings.PriceEmphasis
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
@@ -387,17 +388,37 @@ internal fun ProfessionalDashboardProductCard(
     card: ProductCardUiState,
     showResultLight: Boolean,
     compact: Boolean = false,
+    priceFocused: Boolean = false,
+    priceEmphasis: PriceEmphasis =
+        PriceEmphasis.NORMAL,
     onClick: () -> Unit
 ) {
     val item = card.item
     val outsidePadding = if (compact) 4.dp else 6.dp
     val contentPadding = if (compact) 9.dp else 12.dp
-    val imageSize = if (compact) 76.dp else 96.dp
+    val imageSize = when {
+        compact -> 76.dp
+        priceFocused -> 84.dp
+        else -> 96.dp
+    }
     val imagePadding = if (compact) 6.dp else 8.dp
     val contentGap = if (compact) 10.dp else 14.dp
     val titlePriceGap = if (compact) 7.dp else 10.dp
-    val titleSize = if (compact) 14.sp else 15.sp
-    val priceSize = if (compact) 12.sp else 13.sp
+    val titleSize = if (compact || priceFocused) 14.sp else 15.sp
+    val priceSize = when {
+        priceFocused -> 15.sp
+        compact -> 12.sp
+        else -> 13.sp
+    }
+    val priceWeight =
+        if (
+            priceFocused ||
+            priceEmphasis == PriceEmphasis.BOLD
+        ) {
+            FontWeight.ExtraBold
+        } else {
+            FontWeight.Medium
+        }
     val statusSize = if (compact) 26.dp else 28.dp
 
     val liveAmazonPrice = card.amazonResult?.price
@@ -663,7 +684,7 @@ internal fun ProfessionalDashboardProductCard(
                                     TextPrimary
                                 },
                             fontSize = priceSize,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = priceWeight,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

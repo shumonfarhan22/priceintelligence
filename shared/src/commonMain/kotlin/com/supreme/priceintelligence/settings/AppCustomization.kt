@@ -55,7 +55,8 @@ enum class DashboardCardStyle(
     val displayName: String
 ) {
     DETAILED("Detailed"),
-    COMPACT("Compact")
+    COMPACT("Compact"),
+    PRICE_FOCUSED("Price focused")
 }
 
 enum class DashboardDefaultSort(
@@ -125,7 +126,9 @@ data class AppCustomization(
     val priceAlertDirection: PriceAlertDirection =
         PriceAlertDirection.BOTH,
     val priceAlertThreshold: PriceAlertThreshold =
-        PriceAlertThreshold.ANY
+        PriceAlertThreshold.ANY,
+    val insightCustomization: InsightCustomization =
+        InsightCustomization()
 )
 
 fun readAppCustomization(
@@ -207,6 +210,10 @@ fun readAppCustomization(
                 value = parts.getOrNull(12),
                 defaultValue =
                     PriceAlertThreshold.ANY
+            ),
+        insightCustomization =
+            readInsightCustomization(
+                parts.getOrNull(13)
             )
     )
 }
@@ -227,7 +234,10 @@ fun writeAppCustomization(
         customization.dashboardPageSize.name,
         customization.priceMovementDefaultRange.name,
         customization.priceAlertDirection.name,
-        customization.priceAlertThreshold.name
+        customization.priceAlertThreshold.name,
+        writeInsightCustomization(
+            customization.insightCustomization
+        )
     ).joinToString("|")
 
 private inline fun <reified T : Enum<T>>

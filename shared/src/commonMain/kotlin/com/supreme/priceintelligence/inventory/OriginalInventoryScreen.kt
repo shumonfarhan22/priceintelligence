@@ -605,7 +605,7 @@ fun OriginalInventoryScreen(
     }
 
     if (settingsOpen) {
-        PersonalizationSettingsDialog(
+        PersonalizationAccordionDialog(
             themeMode = themeMode,
             customization = customization,
             advancedModeEnabled =

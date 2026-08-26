@@ -42,6 +42,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.PriceHistoryEntry
 import com.supreme.priceintelligence.data.PriceRetailer
+import com.supreme.priceintelligence.settings.AdvancedInfoLevel
+import com.supreme.priceintelligence.settings.GraphPointMode
+import com.supreme.priceintelligence.settings.GraphSize
+import com.supreme.priceintelligence.settings.HistoryGraphStyle
+import com.supreme.priceintelligence.settings.PriceHistoryRange
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
@@ -53,15 +58,28 @@ import kotlin.time.Instant
 internal fun PriceHistorySection(
     entries: List<PriceHistoryEntry>,
     isLoading: Boolean,
-    shopPrice: Double
+    shopPrice: Double,
+    informationLevel: AdvancedInfoLevel =
+        AdvancedInfoLevel.STANDARD,
+    range: PriceHistoryRange =
+        PriceHistoryRange.THIRTY_DAYS,
+    graphStyle: HistoryGraphStyle =
+        HistoryGraphStyle.LINE,
+    graphSize: GraphSize = GraphSize.STANDARD,
+    pointMode: GraphPointMode =
+        GraphPointMode.TAP_ONLY
 ) {
+    val oldestAllowedTimestamp =
+        Clock.System.now().toEpochMilliseconds() -
+            range.days * 86_400_000L
+
     val displayEntries = entries
         .asSequence()
         .filter { entry ->
             entry.retailer in PriceRetailer.entries.map { it.name } &&
                 entry.price.isFinite() &&
                 entry.price > 0.0 &&
-                entry.checkedAt > 0L
+                entry.checkedAt >= oldestAllowedTimestamp
         }
         .sortedWith(
             compareBy<PriceHistoryEntry> { entry ->
@@ -96,7 +114,7 @@ internal fun PriceHistorySection(
 
         Text(
             text =
-                "Shows the last 30 days. Up to 60 successful checks " +
+                "Shows the last ${range.days} days. Up to 60 successful checks " +
                     "per retailer are kept on this device.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
@@ -110,7 +128,11 @@ internal fun PriceHistorySection(
                 RetailerPriceHistoryCard(
                     summary = summary,
                     entries = displayEntries,
-                    shopPrice = shopPrice
+                    shopPrice = shopPrice,
+                    informationLevel = informationLevel,
+                    graphStyle = graphStyle,
+                    graphSize = graphSize,
+                    pointMode = pointMode
                 )
             }
         }
@@ -163,13 +185,23 @@ private fun EmptyPriceHistory() {
 private fun RetailerPriceHistoryCard(
     summary: RetailerPriceHistorySummary,
     entries: List<PriceHistoryEntry>,
-    shopPrice: Double
+    shopPrice: Double,
+    informationLevel: AdvancedInfoLevel,
+    graphStyle: HistoryGraphStyle,
+    graphSize: GraphSize,
+    pointMode: GraphPointMode
 ) {
     val retailerName = when (summary.retailer) {
         PriceRetailer.AMAZON -> "Amazon"
         PriceRetailer.FLIPKART -> "Flipkart"
     }
     val movementText = movementDescription(summary)
+    val retailerPrices = entries
+        .filter { it.retailer == summary.retailer.name }
+        .map { it.price }
+    val averagePrice = retailerPrices
+        .takeIf { it.isNotEmpty() }
+        ?.average()
     val movementColor = when (summary.movement) {
         // A lower online price is bad for the shop.
         PriceMovement.LOWER -> MaterialTheme.colorScheme.error
@@ -217,20 +249,45 @@ private fun RetailerPriceHistoryCard(
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            if (informationLevel == AdvancedInfoLevel.ESSENTIAL) {
                 PriceHistoryMetric(
                     label = "Latest",
-                    value = formatIndianPrice(summary.latestPrice),
-                    modifier = Modifier.weight(1f)
+                    value = formatIndianPrice(summary.latestPrice)
                 )
-                PriceHistoryMetric(
-                    label = "Lowest saved",
-                    value = formatIndianPrice(summary.lowestSavedPrice),
-                    modifier = Modifier.weight(1f)
-                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    PriceHistoryMetric(
+                        label = "Latest",
+                        value = formatIndianPrice(summary.latestPrice),
+                        modifier = Modifier.weight(1f)
+                    )
+                    PriceHistoryMetric(
+                        label = "Lowest saved",
+                        value = formatIndianPrice(summary.lowestSavedPrice),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                if (informationLevel == AdvancedInfoLevel.FULL) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        PriceHistoryMetric(
+                            label = "Highest saved",
+                            value = formatIndianPrice(summary.highestSavedPrice),
+                            modifier = Modifier.weight(1f)
+                        )
+                        PriceHistoryMetric(
+                            label = "Average",
+                            value = averagePrice?.let(::formatIndianPrice) ?: "—",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
 
             Text(
@@ -240,11 +297,16 @@ private fun RetailerPriceHistoryCard(
                 fontWeight = FontWeight.Bold
             )
 
-            PriceHistoryLineGraph(
-                entries = entries,
-                retailer = summary.retailer,
-                shopPrice = shopPrice
-            )
+            if (informationLevel != AdvancedInfoLevel.ESSENTIAL) {
+                PriceHistoryLineGraph(
+                    entries = entries,
+                    retailer = summary.retailer,
+                    shopPrice = shopPrice,
+                    graphStyle = graphStyle,
+                    graphSize = graphSize,
+                    pointMode = pointMode
+                )
+            }
 
             Text(
                 text = "Latest saved ${formatTimeAgo(summary.latestCheckedAt)}",
@@ -259,7 +321,10 @@ private fun RetailerPriceHistoryCard(
 private fun PriceHistoryLineGraph(
     entries: List<PriceHistoryEntry>,
     retailer: PriceRetailer,
-    shopPrice: Double
+    shopPrice: Double,
+    graphStyle: HistoryGraphStyle,
+    graphSize: GraphSize,
+    pointMode: GraphPointMode
 ) {
     val points = entries
         .asSequence()
@@ -282,8 +347,14 @@ private fun PriceHistoryLineGraph(
         return
     }
 
-    var selectedPoint by remember(points) {
-        mutableStateOf<PriceHistoryEntry?>(null)
+    var selectedPoint by remember(points, pointMode) {
+        mutableStateOf<PriceHistoryEntry?>(
+            if (pointMode == GraphPointMode.ALWAYS_LATEST) {
+                points.last()
+            } else {
+                null
+            }
+        )
     }
 
     val retailerName = when (retailer) {
@@ -329,50 +400,56 @@ private fun PriceHistoryLineGraph(
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(150.dp)
-                .pointerInput(points) {
-                    detectTapGestures { tapPosition ->
-                        val horizontalInset = 10.dp.toPx()
-                        val graphWidth = (
-                            size.width.toFloat() -
-                                horizontalInset * 2f
-                            ).coerceAtLeast(1f)
+                .height(graphSize.heightDp.dp)
+                .pointerInput(points, pointMode) {
+                    if (pointMode != GraphPointMode.HIDDEN) {
+                        detectTapGestures { tapPosition ->
+                            val horizontalInset = 10.dp.toPx()
+                            val graphWidth = (
+                                size.width.toFloat() -
+                                    horizontalInset * 2f
+                                ).coerceAtLeast(1f)
 
-                        val firstTimestamp =
-                            points.first().checkedAt
+                            val firstTimestamp =
+                                points.first().checkedAt
 
-                        val timestampRange = (
-                            points.last().checkedAt -
-                                firstTimestamp
-                            ).coerceAtLeast(1L)
+                            val timestampRange = (
+                                points.last().checkedAt -
+                                    firstTimestamp
+                                ).coerceAtLeast(1L)
 
-                        selectedPoint = points.minByOrNull { entry ->
-                            val pointX =
-                                if (points.size == 1) {
-                                    horizontalInset +
-                                        graphWidth / 2f
-                                } else {
-                                    val fraction = (
-                                        (
-                                            entry.checkedAt -
-                                                firstTimestamp
-                                            ).toDouble() /
-                                            timestampRange.toDouble()
-                                        ).toFloat()
+                            selectedPoint = points.minByOrNull { entry ->
+                                val pointX =
+                                    if (points.size == 1) {
+                                        horizontalInset +
+                                            graphWidth / 2f
+                                    } else {
+                                        val fraction = (
+                                            (
+                                                entry.checkedAt -
+                                                    firstTimestamp
+                                                ).toDouble() /
+                                                timestampRange.toDouble()
+                                            ).toFloat()
 
-                                    horizontalInset +
-                                        graphWidth * fraction
-                                }
+                                        horizontalInset +
+                                            graphWidth * fraction
+                                    }
 
-                            kotlin.math.abs(
-                                pointX - tapPosition.x
-                            )
+                                kotlin.math.abs(
+                                    pointX - tapPosition.x
+                                )
+                            }
                         }
                     }
                 }
                 .semantics {
                     contentDescription =
-                        "$graphDescription Tap the graph to inspect a saved price."
+                        if (pointMode == GraphPointMode.HIDDEN) {
+                            graphDescription
+                        } else {
+                            "$graphDescription Tap the graph to inspect a saved price."
+                        }
                 }
         ) {
             val horizontalInset = 10.dp.toPx()
@@ -477,17 +554,49 @@ private fun PriceHistoryLineGraph(
                 )
             }
 
+            val pointOffsets = points.map { entry ->
+                Offset(
+                    x = xPosition(entry),
+                    y = yPosition(entry.price)
+                )
+            }
+
             val linePath = Path()
-
-            points.forEachIndexed { index, entry ->
-                val x = xPosition(entry)
-                val y = yPosition(entry.price)
-
+            pointOffsets.forEachIndexed { index, point ->
                 if (index == 0) {
-                    linePath.moveTo(x, y)
+                    linePath.moveTo(point.x, point.y)
+                } else if (graphStyle == HistoryGraphStyle.STEP) {
+                    val previous = pointOffsets[index - 1]
+                    linePath.lineTo(point.x, previous.y)
+                    linePath.lineTo(point.x, point.y)
                 } else {
-                    linePath.lineTo(x, y)
+                    linePath.lineTo(point.x, point.y)
                 }
+            }
+
+            if (
+                graphStyle == HistoryGraphStyle.AREA &&
+                pointOffsets.isNotEmpty()
+            ) {
+                val areaPath = Path().apply {
+                    moveTo(
+                        pointOffsets.first().x,
+                        verticalInset + graphHeight
+                    )
+                    pointOffsets.forEach { point ->
+                        lineTo(point.x, point.y)
+                    }
+                    lineTo(
+                        pointOffsets.last().x,
+                        verticalInset + graphHeight
+                    )
+                    close()
+                }
+
+                drawPath(
+                    path = areaPath,
+                    color = lineColor.copy(alpha = 0.15f)
+                )
             }
 
             drawPath(

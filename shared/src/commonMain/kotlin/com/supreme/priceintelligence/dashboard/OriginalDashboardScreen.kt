@@ -106,9 +106,8 @@ import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.logo_amazon
 import com.supreme.priceintelligence.resources.logo_flipkart
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
-import com.supreme.priceintelligence.settings.DashboardCardStyle
+import com.supreme.priceintelligence.settings.AppCustomization
 import com.supreme.priceintelligence.settings.AppDisplayDensity
-import com.supreme.priceintelligence.settings.PriceMovementDefaultRange
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.ui.components.OriginalBannerKind
 import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
@@ -127,14 +126,8 @@ fun OriginalDashboardScreen(
     advancedModeEnabled: Boolean = false,
     bottomBannerHeight: Dp = 0.dp,
     reduceMotionEnabled: Boolean = false,
-    hapticsEnabled: Boolean = true,
-    dashboardCardStyle: DashboardCardStyle =
-        DashboardCardStyle.DETAILED,
-    displayDensity: AppDisplayDensity =
-        AppDisplayDensity.COMFORTABLE,
-    defaultPriceMovementRange:
-        PriceMovementDefaultRange =
-        PriceMovementDefaultRange.THIRTY_DAYS,
+    customization: AppCustomization =
+        AppCustomization(),
     priceMovementNotificationTarget:
         PriceMovementNotificationTarget? = null,
     onPriceMovementNotificationConsumed:
@@ -143,7 +136,7 @@ fun OriginalDashboardScreen(
     val state by viewModel.uiState.collectAsState()
     val screenHorizontalPadding =
         if (
-            displayDensity ==
+            customization.displayDensity ==
             AppDisplayDensity.COMPACT
         ) {
             12.dp
@@ -486,7 +479,8 @@ fun OriginalDashboardScreen(
     if (scannerOpen) {
         ProductBarcodeScanner(
             modifier = Modifier.fillMaxSize(),
-            hapticFeedbackEnabled = hapticsEnabled,
+            hapticFeedbackEnabled =
+                customization.hapticsEnabled,
             onScanned = { barcode ->
                 scannerOpen = false
                 viewModel.onSearchSubmitted(barcode)
@@ -674,6 +668,8 @@ fun OriginalDashboardScreen(
                                 state.priceFilter,
                             reduceMotionEnabled =
                                 reduceMotionEnabled,
+                            insightCustomization =
+                                customization.insightCustomization,
                             onPriceMovementClick = {
                                 shopPriceMovementOpen =
                                     true
@@ -712,8 +708,17 @@ fun OriginalDashboardScreen(
                             ProfessionalDashboardProductCard(
                                 card = card,
                                 compact =
-                                    dashboardCardStyle ==
-                                        DashboardCardStyle.COMPACT,
+                                    customization.dashboardCardStyle ==
+                                        com.supreme.priceintelligence.settings
+                                            .DashboardCardStyle.COMPACT,
+                                priceFocused =
+                                    customization.dashboardCardStyle ==
+                                        com.supreme.priceintelligence.settings
+                                            .DashboardCardStyle.PRICE_FOCUSED,
+                                priceEmphasis =
+                                    customization
+                                        .insightCustomization
+                                        .priceEmphasis,
                                 showResultLight =
                                     card.item.id in
                                         state.manualResultLightProductIds,
@@ -882,6 +887,8 @@ fun OriginalDashboardScreen(
             networkState = state.bloomState,
             advancedModeEnabled = advancedModeEnabled,
             reduceMotionEnabled = reduceMotionEnabled,
+            insightCustomization =
+                customization.insightCustomization,
             isHistoryLoading =
                 selectedCard.item.id in state.historyLoadingProductIds,
             onRefresh = {
@@ -906,8 +913,7 @@ fun OriginalDashboardScreen(
                 state.shopPriceMovementError,
             reduceMotionEnabled =
                 reduceMotionEnabled,
-            defaultRange =
-                defaultPriceMovementRange,
+            customization = customization,
             notificationTarget =
                 priceMovementNotificationTarget,
             onRefresh =

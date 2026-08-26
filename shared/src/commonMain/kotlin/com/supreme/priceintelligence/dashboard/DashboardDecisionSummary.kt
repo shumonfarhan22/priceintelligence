@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.settings.BreakdownLayout
+import com.supreme.priceintelligence.settings.BreakdownValueMode
+import com.supreme.priceintelligence.settings.InsightCustomization
+import com.supreme.priceintelligence.settings.PriorityRowStyle
+import com.supreme.priceintelligence.settings.PrioritySortMode
+import com.supreme.priceintelligence.settings.SectionStartState
 import com.supreme.priceintelligence.ui.theme.supremeColors
 
 data class PriorityProduct(
@@ -155,12 +162,61 @@ fun DashboardDecisionSummaryCard(
     refreshTick: Int = 0,
     activeFilter: PricePositionFilter? = null,
     reduceMotionEnabled: Boolean = false,
+    insightCustomization: InsightCustomization =
+        InsightCustomization(),
     onPriceMovementClick: () -> Unit = {},
     onFilterToggle: (PricePositionFilter) -> Unit = {}
 ) {
-    var isCardExpanded by remember { mutableStateOf(false) }
-    var isBreakdownExpanded by remember { mutableStateOf(false) }
-    var isPriorityListExpanded by remember { mutableStateOf(false) }
+    var isCardExpanded by rememberSaveable(
+        insightCustomization.shopOverviewStartState
+    ) {
+        mutableStateOf(
+            insightCustomization.shopOverviewStartState ==
+                SectionStartState.EXPANDED
+        )
+    }
+    var isBreakdownExpanded by rememberSaveable(
+        insightCustomization.breakdownStartState
+    ) {
+        mutableStateOf(
+            insightCustomization.breakdownStartState ==
+                SectionStartState.EXPANDED
+        )
+    }
+    var isPriorityListExpanded by rememberSaveable(
+        insightCustomization.prioritiesStartState
+    ) {
+        mutableStateOf(
+            insightCustomization.prioritiesStartState ==
+                SectionStartState.EXPANDED
+        )
+    }
+
+    val displayedPriorityProducts = remember(
+        summary.priorityProducts,
+        insightCustomization.prioritySortMode,
+        insightCustomization.priorityProductLimit
+    ) {
+        val sorted = when (
+            insightCustomization.prioritySortMode
+        ) {
+            PrioritySortMode.RUPEE_GAP ->
+                summary.priorityProducts
+                    .sortedByDescending { it.gap }
+
+            PrioritySortMode.PERCENTAGE_GAP ->
+                summary.priorityProducts
+                    .sortedByDescending {
+                        it.priorityGapPercent()
+                    }
+        }
+
+        sorted.take(
+            insightCustomization
+                .priorityProductLimit
+                .count
+        )
+    }
 
     // Lets the caller fold this card shut once the user has scrolled well
     // past it, so it doesn't sit expanded — and taking up space — if they
@@ -332,6 +388,12 @@ fun DashboardDecisionSummaryCard(
                             value =
                                 summary.shopCompetitiveCount,
                             label = "Competitive",
+                            secondaryText =
+                                metricSecondaryText(
+                                    summary.shopCompetitiveCount,
+                                    summary.comparedCount,
+                                    insightCustomization.breakdownValueMode
+                                ),
                             icon = Icons.Rounded.EmojiEvents,
                             color = competitiveColor,
                             selected =
@@ -342,13 +404,22 @@ fun DashboardDecisionSummaryCard(
                                     PricePositionFilter.COMPETITIVE
                                 )
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            compact =
+                                insightCustomization.breakdownLayout ==
+                                    BreakdownLayout.COMPACT_STRIP
                         )
 
                         DecisionMetric(
                             value =
                                 freshnessSummary.needsCheckCount,
                             label = "Needs check",
+                            secondaryText =
+                                metricSecondaryText(
+                                    freshnessSummary.needsCheckCount,
+                                    summary.comparedCount,
+                                    insightCustomization.breakdownValueMode
+                                ),
                             icon = Icons.Rounded.Search,
                             color = freshnessColor,
                             selected =
@@ -368,13 +439,22 @@ fun DashboardDecisionSummaryCard(
                                 } else {
                                     null
                                 },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            compact =
+                                insightCustomization.breakdownLayout ==
+                                    BreakdownLayout.COMPACT_STRIP
                         )
 
                         DecisionMetric(
                             value =
                                 summary.onlineCheaperCount,
                             label = "Review",
+                            secondaryText =
+                                metricSecondaryText(
+                                    summary.onlineCheaperCount,
+                                    summary.comparedCount,
+                                    insightCustomization.breakdownValueMode
+                                ),
                             icon = Icons.Rounded.PriorityHigh,
                             color = reviewColor,
                             selected =
@@ -385,7 +465,10 @@ fun DashboardDecisionSummaryCard(
                                     PricePositionFilter.REVIEW
                                 )
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            compact =
+                                insightCustomization.breakdownLayout ==
+                                    BreakdownLayout.COMPACT_STRIP
                         )
                     }
 
@@ -422,12 +505,15 @@ fun DashboardDecisionSummaryCard(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            summary.priorityProducts.forEachIndexed { index, product ->
+                            displayedPriorityProducts.forEachIndexed { index, product ->
                                 PriorityProductRow(
                                     rank = index + 1,
                                     product = product,
                                     reviewColor = reviewColor,
-                                    competitiveColor = competitiveColor
+                                    competitiveColor = competitiveColor,
+                                    rowStyle =
+                                        insightCustomization
+                                            .priorityRowStyle
                                 )
                             }
                         }
@@ -660,11 +746,13 @@ private fun DecisionMeterBar(
 private fun DecisionMetric(
     value: Int,
     label: String,
+    secondaryText: String? = null,
     icon: ImageVector,
     color: Color,
     selected: Boolean = false,
     onClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
 ) {
     Surface(
         modifier = modifier,
@@ -672,18 +760,16 @@ private fun DecisionMetric(
             onClick?.invoke()
         },
         enabled = onClick != null,
-        shape = RoundedCornerShape(12.dp),
-        color = color.copy(
-            alpha = if (selected) {
-                0.18f
-            } else {
-                0.10f
-            }
-        ),
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) {
+            color.copy(alpha = 0.15f)
+        } else {
+            MaterialTheme.supremeColors.panelMuted
+        },
         border = BorderStroke(
-            width = 1.dp,
+            width = if (selected) 1.5.dp else 1.dp,
             color = if (selected) {
-                color.copy(alpha = 0.70f)
+                color.copy(alpha = 0.72f)
             } else {
                 MaterialTheme.supremeColors.border
             }
@@ -691,20 +777,20 @@ private fun DecisionMetric(
     ) {
         Column(
             modifier = Modifier.padding(
-                horizontal = 10.dp,
-                vertical = 10.dp
+                horizontal = if (compact) 7.dp else 10.dp,
+                vertical = if (compact) 7.dp else 10.dp
             )
         ) {
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(if (compact) 24.dp else 30.dp)
                     .clip(CircleShape)
                     .background(
                         color.copy(
                             alpha = if (selected) {
                                 0.28f
                             } else {
-                                0.18f
+                                0.16f
                             }
                         )
                     ),
@@ -714,25 +800,34 @@ private fun DecisionMetric(
                     imageVector = icon,
                     contentDescription = null,
                     tint = color,
-                    modifier = Modifier.size(17.dp)
+                    modifier = Modifier.size(
+                        if (compact) 14.dp else 17.dp
+                    )
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(
+                modifier = Modifier.height(
+                    if (compact) 5.dp else 8.dp
+                )
+            )
 
             Text(
-                text = value.toString(),
+                text = if (secondaryText == null) {
+                    value.toString()
+                } else {
+                    "$value • $secondaryText"
+                },
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 19.sp,
+                fontSize = if (compact) 14.sp else 19.sp,
                 fontWeight = FontWeight.ExtraBold
             )
 
             Text(
                 text = label,
-                color =
-                    MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -745,7 +840,8 @@ private fun PriorityProductRow(
     rank: Int,
     product: PriorityProduct,
     reviewColor: Color,
-    competitiveColor: Color
+    competitiveColor: Color,
+    rowStyle: PriorityRowStyle
 ) {
     val supremePrice = product.onlinePrice + product.gap
     val purchaseCost = product.purchaseCost
@@ -801,32 +897,34 @@ private fun PriorityProductRow(
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            if (rowStyle == PriorityRowStyle.DETAILED) {
+                Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
-            ) {
-                DecisionPricePoint(
-                    label = "Cost",
-                    value = purchaseCost?.let { cost -> formatIndianPrice(cost) } ?: "Not set",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    DecisionPricePoint(
+                        label = "Cost",
+                        value = purchaseCost?.let { cost -> formatIndianPrice(cost) } ?: "Not set",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
 
-                DecisionPricePoint(
-                    label = "Online",
-                    value = formatIndianPrice(product.onlinePrice),
-                    color = reviewColor,
-                    modifier = Modifier.weight(1f)
-                )
+                    DecisionPricePoint(
+                        label = "Online",
+                        value = formatIndianPrice(product.onlinePrice),
+                        color = reviewColor,
+                        modifier = Modifier.weight(1f)
+                    )
 
-                DecisionPricePoint(
-                    label = "Supreme",
-                    value = formatIndianPrice(supremePrice),
-                    color = competitiveColor,
-                    modifier = Modifier.weight(1f)
-                )
+                    DecisionPricePoint(
+                        label = "Supreme",
+                        value = formatIndianPrice(supremePrice),
+                        color = competitiveColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }
@@ -862,5 +960,33 @@ private fun DecisionPricePoint(
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )
+    }
+}
+
+private fun metricSecondaryText(
+    value: Int,
+    total: Int,
+    mode: BreakdownValueMode
+): String? {
+    if (
+        mode != BreakdownValueMode.COUNTS_AND_PERCENTAGES ||
+        total <= 0
+    ) {
+        return null
+    }
+
+    val percentage =
+        (value.toDouble() * 100.0 / total.toDouble() + 0.5)
+            .toInt()
+
+    return "$percentage%"
+}
+
+private fun PriorityProduct.priorityGapPercent(): Double {
+    val supremePrice = onlinePrice + gap
+    return if (supremePrice > 0.0) {
+        gap / supremePrice * 100.0
+    } else {
+        0.0
     }
 }

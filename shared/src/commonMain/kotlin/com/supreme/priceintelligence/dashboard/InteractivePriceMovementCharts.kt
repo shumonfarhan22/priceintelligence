@@ -43,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.PriceRetailer
+import com.supreme.priceintelligence.settings.GraphPointMode
+import com.supreme.priceintelligence.settings.HistoryGraphStyle
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
@@ -364,7 +366,12 @@ internal fun InteractiveProductMovementLineChart(
     notificationHighlightColor:
         Color = Color.Transparent,
     notificationPulseProgress:
-        Float = 0f
+        Float = 0f,
+    graphStyle: HistoryGraphStyle =
+        HistoryGraphStyle.LINE,
+    pointMode: GraphPointMode =
+        GraphPointMode.TAP_ONLY,
+    graphHeightDp: Int = 150
 ) {
     val series = remember(
         amazonHistory,
@@ -408,23 +415,59 @@ internal fun InteractiveProductMovementLineChart(
         return
     }
 
-    var selectedPoint by remember {
+    var selectedPoint by remember(
+        series,
+        pointMode
+    ) {
         mutableStateOf<
                 SelectedMovementChartPoint?
-                >(null)
+                >(
+            if (pointMode == GraphPointMode.ALWAYS_LATEST) {
+                series.mapNotNull { chartSeries ->
+                    chartSeries.points.lastOrNull()?.let { point ->
+                        SelectedMovementChartPoint(
+                            retailer = chartSeries.retailer,
+                            point = point,
+                            previousPrice = chartSeries.points
+                                .getOrNull(chartSeries.points.lastIndex - 1)
+                                ?.price,
+                            color = chartSeries.color
+                        )
+                    }
+                }.maxByOrNull { it.point.checkedAt }
+            } else {
+                null
+            }
+        )
     }
 
     LaunchedEffect(
         amazonHistory,
         flipkartHistory,
-        notificationTarget?.requestId
+        notificationTarget?.requestId,
+        pointMode
     ) {
         val target =
             notificationTarget
 
         selectedPoint =
             if (target == null) {
-                null
+                if (pointMode == GraphPointMode.ALWAYS_LATEST) {
+                    series.mapNotNull { chartSeries ->
+                        chartSeries.points.lastOrNull()?.let { point ->
+                            SelectedMovementChartPoint(
+                                retailer = chartSeries.retailer,
+                                point = point,
+                                previousPrice = chartSeries.points
+                                    .getOrNull(chartSeries.points.lastIndex - 1)
+                                    ?.price,
+                                color = chartSeries.color
+                            )
+                        }
+                    }.maxByOrNull { it.point.checkedAt }
+                } else {
+                    null
+                }
             } else {
                 val targetSeries =
                     series.firstOrNull { chartSeries ->
@@ -510,7 +553,11 @@ internal fun InteractiveProductMovementLineChart(
     Column {
         Text(
             text =
-                "Y: saved price • X: date • Tap a point for details",
+                if (pointMode == GraphPointMode.HIDDEN) {
+                    "Y: saved price • X: date"
+                } else {
+                    "Y: saved price • X: date • Tap a point for details"
+                },
             color =
                 MaterialTheme
                     .colorScheme
@@ -519,13 +566,14 @@ internal fun InteractiveProductMovementLineChart(
         )
 
         Spacer(
-            modifier = Modifier.height(7.dp)
+            modifier =
+                Modifier.height(6.dp)
         )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(122.dp)
+                .height(graphHeightDp.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -580,13 +628,15 @@ internal fun InteractiveProductMovementLineChart(
                         minimumPrice,
                         maximumPrice,
                         minimumTime,
-                        maximumTime
+                        maximumTime,
+                        pointMode
                     ) {
-                        detectTapGestures {
-                                tapPosition ->
+                        if (pointMode != GraphPointMode.HIDDEN) {
+                            detectTapGestures {
+                                    tapPosition ->
 
-                            val horizontalPadding =
-                                8.dp.toPx()
+                                val horizontalPadding =
+                                    8.dp.toPx()
 
                             val verticalPadding =
                                 9.dp.toPx()
@@ -663,24 +713,25 @@ internal fun InteractiveProductMovementLineChart(
                             val touchRadius =
                                 30.dp.toPx()
 
-                            selectedPoint =
-                                if (
-                                    nearestTarget !=
-                                    null &&
-                                    distanceSquared(
-                                        first =
-                                            nearestTarget
-                                                .position,
-                                        second =
-                                            tapPosition
-                                    ) <=
-                                    touchRadius *
-                                    touchRadius
-                                ) {
-                                    nearestTarget.selection
-                                } else {
-                                    null
-                                }
+                                selectedPoint =
+                                    if (
+                                        nearestTarget !=
+                                        null &&
+                                        distanceSquared(
+                                            first =
+                                                nearestTarget
+                                                    .position,
+                                            second =
+                                                tapPosition
+                                        ) <=
+                                        touchRadius *
+                                        touchRadius
+                                    ) {
+                                        nearestTarget.selection
+                                    } else {
+                                        null
+                                    }
+                            }
                         }
                     }
                     .semantics {
@@ -734,46 +785,65 @@ internal fun InteractiveProductMovementLineChart(
                 series.forEach {
                         chartSeries ->
 
-                    val path = Path()
-
-                    chartSeries.points
-                        .forEachIndexed {
-                                index,
-                                point ->
-
-                            val pointOffset =
-                                movementPointOffset(
-                                    point = point,
-                                    minimumPrice =
-                                        minimumPrice,
-                                    maximumPrice =
-                                        maximumPrice,
-                                    minimumTime =
-                                        minimumTime,
-                                    maximumTime =
-                                        maximumTime,
-                                    canvasWidth =
-                                        size.width,
-                                    canvasHeight =
-                                        size.height,
-                                    horizontalPadding =
-                                        horizontalPadding,
-                                    verticalPadding =
-                                        verticalPadding
-                                )
-
-                            if (index == 0) {
-                                path.moveTo(
-                                    pointOffset.x,
-                                    pointOffset.y
-                                )
-                            } else {
-                                path.lineTo(
-                                    pointOffset.x,
-                                    pointOffset.y
-                                )
-                            }
+                    val pointOffsets =
+                        chartSeries.points.map { point ->
+                            movementPointOffset(
+                                point = point,
+                                minimumPrice =
+                                    minimumPrice,
+                                maximumPrice =
+                                    maximumPrice,
+                                minimumTime =
+                                    minimumTime,
+                                maximumTime =
+                                    maximumTime,
+                                canvasWidth =
+                                    size.width,
+                                canvasHeight =
+                                    size.height,
+                                horizontalPadding =
+                                    horizontalPadding,
+                                verticalPadding = verticalPadding
+                            )
                         }
+
+                    val path = Path()
+                    pointOffsets.forEachIndexed { index, pointOffset ->
+                        if (index == 0) {
+                            path.moveTo(pointOffset.x, pointOffset.y)
+                        } else if (graphStyle == HistoryGraphStyle.STEP) {
+                            val previous = pointOffsets[index - 1]
+                            path.lineTo(pointOffset.x, previous.y)
+                            path.lineTo(pointOffset.x, pointOffset.y)
+                        } else {
+                            path.lineTo(pointOffset.x, pointOffset.y)
+                        }
+                    }
+
+                    if (
+                        graphStyle == HistoryGraphStyle.AREA &&
+                        pointOffsets.isNotEmpty()
+                    ) {
+                        val areaPath = Path().apply {
+                            moveTo(
+                                pointOffsets.first().x,
+                                size.height - verticalPadding
+                            )
+                            pointOffsets.forEach { pointOffset ->
+                                lineTo(pointOffset.x, pointOffset.y)
+                            }
+                            lineTo(
+                                pointOffsets.last().x,
+                                size.height - verticalPadding
+                            )
+                            close()
+                        }
+
+                        drawPath(
+                            path = areaPath,
+                            color = chartSeries.color.copy(alpha = 0.14f)
+                        )
+                    }
 
                     if (
                         chartSeries.points.size >

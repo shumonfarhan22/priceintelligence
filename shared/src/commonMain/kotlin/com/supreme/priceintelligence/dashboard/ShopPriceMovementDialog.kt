@@ -1,11 +1,18 @@
 package com.supreme.priceintelligence.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ShowChart
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.TrendingDown
 import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,6 +57,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -63,7 +73,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.supreme.priceintelligence.data.PriceRetailer
-import com.supreme.priceintelligence.settings.PriceMovementDefaultRange
+import com.supreme.priceintelligence.settings.AppCustomization
+import com.supreme.priceintelligence.settings.GraphPointMode
+import com.supreme.priceintelligence.settings.HistoryGraphStyle
+import com.supreme.priceintelligence.settings.MovementDirectionFilter
+import com.supreme.priceintelligence.settings.MovementLayout
+import com.supreme.priceintelligence.settings.MovementProductGraphState
+import com.supreme.priceintelligence.settings.MovementProductSort
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.roundToInt
 
@@ -79,8 +95,8 @@ fun ShopPriceMovementDialog(
     isLoading: Boolean,
     errorMessage: String?,
     reduceMotionEnabled: Boolean,
-    defaultRange: PriceMovementDefaultRange =
-        PriceMovementDefaultRange.THIRTY_DAYS,
+    customization: AppCustomization =
+        AppCustomization(),
     notificationTarget:
         PriceMovementNotificationTarget? = null,
     onRefresh: () -> Unit,
@@ -88,14 +104,15 @@ fun ShopPriceMovementDialog(
 ) {
     var selectedRangeName by rememberSaveable {
         mutableStateOf(
-            defaultRange.name
+            customization.priceMovementDefaultRange.name
         )
     }
 
     var selectedRetailerName by rememberSaveable {
         mutableStateOf(
-            ShopMovementRetailerFilter
-                .ALL
+            customization
+                .insightCustomization
+                .movementDefaultRetailer
                 .name
         )
     }
@@ -136,7 +153,7 @@ fun ShopPriceMovementDialog(
         }
     }
 
-    val movementView = remember(
+    val uncustomizedMovementView = remember(
         snapshot,
         selectedRange,
         selectedRetailer,
@@ -149,6 +166,25 @@ fun ShopPriceMovementDialog(
                 selectedRetailer,
             notificationTarget =
                 notificationTarget
+        )
+    }
+
+    val movementView = remember(
+        uncustomizedMovementView,
+        customization.insightCustomization,
+        notificationTarget
+    ) {
+        customizeMovementView(
+            view = uncustomizedMovementView,
+            productSort =
+                customization
+                    .insightCustomization
+                    .movementProductSort,
+            directionFilter =
+                customization
+                    .insightCustomization
+                    .movementDirectionFilter,
+            notificationTarget = notificationTarget
         )
     }
 
@@ -273,6 +309,8 @@ fun ShopPriceMovementDialog(
                                 notificationTarget,
                             reduceMotionEnabled =
                                 reduceMotionEnabled,
+                            customization =
+                                customization,
                             onRangeSelected = {
                                 selectedRangeName =
                                     it.name
@@ -371,6 +409,7 @@ private fun MovementContent(
     notificationTarget:
         PriceMovementNotificationTarget?,
     reduceMotionEnabled: Boolean,
+    customization: AppCustomization,
     onRangeSelected:
         (ShopMovementRange) -> Unit,
     onRetailerSelected:
@@ -378,6 +417,7 @@ private fun MovementContent(
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
+    val insight = customization.insightCustomization
 
     LaunchedEffect(
         notificationTarget?.requestId,
@@ -396,7 +436,15 @@ private fun MovementContent(
 
         if (productIndex >= 0) {
             val listIndex =
-                productIndex + 3
+                productIndex +
+                    if (
+                        insight.movementLayout ==
+                        MovementLayout.OVERVIEW_FIRST
+                    ) {
+                        3
+                    } else {
+                        2
+                    }
 
             if (reduceMotionEnabled) {
                 listState.scrollToItem(listIndex)
@@ -435,90 +483,173 @@ private fun MovementContent(
             )
         }
 
-        item(
-            key = "movement-overview"
+        if (
+            insight.movementLayout ==
+            MovementLayout.OVERVIEW_FIRST
         ) {
-            MovementOverviewCard(
-                movementView =
-                    movementView,
-                range = selectedRange,
-                generatedAt =
-                    generatedAt
-            )
-        }
-
-        if (movementView.products.isEmpty()) {
-            item(
-                key = "movement-empty"
-            ) {
-                MovementEmptyState(
+            item(key = "movement-overview") {
+                MovementOverviewCard(
+                    movementView = movementView,
                     range = selectedRange,
-                    retailer =
-                        selectedRetailer
+                    generatedAt = generatedAt
                 )
             }
+
+            movementProductItems(
+                movementView = movementView,
+                selectedRange = selectedRange,
+                selectedRetailer = selectedRetailer,
+                generatedAt = generatedAt,
+                notificationTarget = notificationTarget,
+                reduceMotionEnabled = reduceMotionEnabled,
+                customization = customization
+            )
         } else {
-            item(
-                key = "movement-list-title"
-            ) {
-                Column {
-                    Text(
-                        text =
-                            "CHANGED PRODUCTS",
-                        color =
-                            MaterialTheme
-                                .colorScheme
-                                .primary,
-                        fontSize = 11.sp,
-                        fontWeight =
-                            FontWeight.ExtraBold,
-                        letterSpacing = 0.9.sp
-                    )
+            movementProductItems(
+                movementView = movementView,
+                selectedRange = selectedRange,
+                selectedRetailer = selectedRetailer,
+                generatedAt = generatedAt,
+                notificationTarget = notificationTarget,
+                reduceMotionEnabled = reduceMotionEnabled,
+                customization = customization
+            )
 
-                    Text(
-                        text =
-                            "${movementView.changedProductCount} " +
-                                    if (
-                                        movementView
-                                            .changedProductCount ==
-                                        1
-                                    ) {
-                                        "product"
-                                    } else {
-                                        "products"
-                                    },
-                        color =
-                            MaterialTheme
-                                .colorScheme
-                                .onSurfaceVariant,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-
-            items(
-                items =
-                    movementView.products,
-                key = { product ->
-                    product.item.id
-                }
-            ) { product ->
-                MovementProductCard(
-                    product = product,
-                    generatedAt =
-                        generatedAt,
-                    notificationTarget =
-                        notificationTarget
-                            ?.takeIf { target ->
-                                target.productId ==
-                                    product.item.id
-                            },
-                    reduceMotionEnabled =
-                        reduceMotionEnabled
+            item(key = "movement-overview") {
+                MovementOverviewCard(
+                    movementView = movementView,
+                    range = selectedRange,
+                    generatedAt = generatedAt
                 )
             }
         }
     }
+}
+
+private fun LazyListScope.movementProductItems(
+    movementView: ShopPriceMovementView,
+    selectedRange: ShopMovementRange,
+    selectedRetailer: ShopMovementRetailerFilter,
+    generatedAt: Long,
+    notificationTarget: PriceMovementNotificationTarget?,
+    reduceMotionEnabled: Boolean,
+    customization: AppCustomization
+) {
+    if (movementView.products.isEmpty()) {
+        item(key = "movement-empty") {
+            MovementEmptyState(
+                range = selectedRange,
+                retailer = selectedRetailer
+            )
+        }
+        return
+    }
+
+    item(key = "movement-list-title") {
+        Column {
+            Text(
+                text = "CHANGED PRODUCTS",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.9.sp
+            )
+            Text(
+                text = "${movementView.changedProductCount} " +
+                    if (movementView.changedProductCount == 1) {
+                        "product"
+                    } else {
+                        "products"
+                    },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
+        }
+    }
+
+    items(
+        items = movementView.products,
+        key = { product -> product.item.id }
+    ) { product ->
+        MovementProductCard(
+            product = product,
+            generatedAt = generatedAt,
+            notificationTarget = notificationTarget
+                ?.takeIf { it.productId == product.item.id },
+            reduceMotionEnabled = reduceMotionEnabled,
+            graphInitiallyExpanded =
+                customization.insightCustomization
+                    .movementProductGraphState ==
+                    MovementProductGraphState.EXPANDED,
+            graphStyle =
+                customization.insightCustomization
+                    .movementGraphStyle,
+            graphPointMode =
+                customization.insightCustomization
+                    .graphPointMode,
+            graphHeightDp =
+                customization.insightCustomization
+                    .graphSize.heightDp
+        )
+    }
+}
+
+private fun customizeMovementView(
+    view: ShopPriceMovementView,
+    productSort: MovementProductSort,
+    directionFilter: MovementDirectionFilter,
+    notificationTarget: PriceMovementNotificationTarget?
+): ShopPriceMovementView {
+    if (notificationTarget != null) {
+        return view
+    }
+
+    fun accepted(change: ShopPriceChange): Boolean =
+        when (directionFilter) {
+            MovementDirectionFilter.BOTH -> true
+            MovementDirectionFilter.INCREASES ->
+                change.direction == DetectedPriceDirection.HIGHER
+            MovementDirectionFilter.DECREASES ->
+                change.direction == DetectedPriceDirection.LOWER
+        }
+
+    val products = view.products
+        .mapNotNull { product ->
+            val acceptedChanges = product.changes.filter(::accepted)
+            if (acceptedChanges.isEmpty()) {
+                null
+            } else {
+                product.copy(changes = acceptedChanges)
+            }
+        }
+        .let { filtered ->
+            when (productSort) {
+                MovementProductSort.LATEST_CHANGE ->
+                    filtered.sortedByDescending {
+                        it.latestChange?.checkedAt ?: 0L
+                    }
+
+                MovementProductSort.RUPEE_CHANGE ->
+                    filtered.sortedByDescending {
+                        it.latestChange?.difference ?: 0.0
+                    }
+
+                MovementProductSort.PERCENTAGE_CHANGE ->
+                    filtered.sortedByDescending {
+                        it.latestChange?.percentage ?: 0.0
+                    }
+
+                MovementProductSort.PRODUCT_NAME ->
+                    filtered.sortedBy {
+                        it.item.productName.lowercase()
+                    }
+            }
+        }
+
+    return ShopPriceMovementView(
+        products = products,
+        changes = view.changes.filter(::accepted)
+    )
 }
 
 @Composable
@@ -1127,7 +1258,11 @@ private fun MovementProductCard(
     generatedAt: Long,
     notificationTarget:
         PriceMovementNotificationTarget?,
-    reduceMotionEnabled: Boolean
+    reduceMotionEnabled: Boolean,
+    graphInitiallyExpanded: Boolean,
+    graphStyle: HistoryGraphStyle,
+    graphPointMode: GraphPointMode,
+    graphHeightDp: Int
 ) {
     val latestChange =
         notificationTarget
@@ -1142,6 +1277,28 @@ private fun MovementProductCard(
             }
             ?: product.latestChange
             ?: return
+
+    var graphExpanded by rememberSaveable(
+        product.item.id,
+        graphInitiallyExpanded
+    ) {
+        mutableStateOf(
+            graphInitiallyExpanded ||
+                notificationTarget != null
+        )
+    }
+
+    LaunchedEffect(notificationTarget?.requestId) {
+        if (notificationTarget != null) {
+            graphExpanded = true
+        }
+    }
+
+    val graphChevronRotation by animateFloatAsState(
+        targetValue = if (graphExpanded) 180f else 0f,
+        animationSpec = if (reduceMotionEnabled) snap() else tween(180),
+        label = "movementProductGraphChevron"
+    )
 
     val movementColor =
         if (
@@ -1356,55 +1513,97 @@ private fun MovementProductCard(
             )
 
             Row(
-                horizontalArrangement =
-                    Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable {
+                        graphExpanded = !graphExpanded
+                    }
+                    .padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                product.amazonHistory
-                    .lastOrNull()
-                    ?.let { latest ->
-                        MovementLegend(
-                            text =
-                                "Amazon " +
-                                        formatIndianPrice(
-                                            latest.price
-                                        ),
-                            color =
-                                AmazonChartColor
-                        )
-                    }
-
-                product.flipkartHistory
-                    .lastOrNull()
-                    ?.let { latest ->
-                        MovementLegend(
-                            text =
-                                "Flipkart " +
-                                        formatIndianPrice(
-                                            latest.price
-                                        ),
-                            color =
-                                FlipkartChartColor
-                        )
-                    }
+                Text(
+                    text = "Price graph",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ExpandMore,
+                    contentDescription =
+                        if (graphExpanded) "Collapse price graph" else "Expand price graph",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(19.dp)
+                        .graphicsLayer {
+                            rotationZ = graphChevronRotation
+                        }
+                )
             }
 
-            Spacer(
-                modifier =
-                    Modifier.height(10.dp)
-            )
+            AnimatedVisibility(
+                visible = graphExpanded,
+                enter = if (reduceMotionEnabled) {
+                    fadeIn()
+                } else {
+                    expandVertically(tween(200)) + fadeIn()
+                },
+                exit = if (reduceMotionEnabled) {
+                    fadeOut()
+                } else {
+                    shrinkVertically(tween(170)) + fadeOut()
+                }
+            ) {
+                Column {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement =
+                            Arrangement.spacedBy(12.dp)
+                    ) {
+                        product.amazonHistory
+                            .lastOrNull()
+                            ?.let { latest ->
+                                MovementLegend(
+                                    text =
+                                        "Amazon ${
+                                            formatIndianPrice(
+                                                latest.price
+                                            )
+                                        }",
+                                    color = AmazonChartColor
+                                )
+                            }
 
-            InteractiveProductMovementLineChart(
-                amazonHistory =
-                    product.amazonHistory,
-                flipkartHistory =
-                    product.flipkartHistory,
-                notificationTarget =
-                    notificationTarget,
-                notificationHighlightColor =
-                    movementColor,
-                notificationPulseProgress =
-                    pulseAmount
-            )
+                        product.flipkartHistory
+                            .lastOrNull()
+                            ?.let { latest ->
+                                MovementLegend(
+                                    text =
+                                        "Flipkart ${
+                                            formatIndianPrice(
+                                                latest.price
+                                            )
+                                        }",
+                                    color = FlipkartChartColor
+                                )
+                            }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    InteractiveProductMovementLineChart(
+                        amazonHistory = product.amazonHistory,
+                        flipkartHistory = product.flipkartHistory,
+                        notificationTarget = notificationTarget,
+                        notificationHighlightColor = movementColor,
+                        notificationPulseProgress = pulseAmount,
+                        graphStyle = graphStyle,
+                        pointMode = graphPointMode,
+                        graphHeightDp = graphHeightDp
+                    )
+                }
+            }
         }
     }
 }

@@ -84,6 +84,8 @@ import com.supreme.priceintelligence.rememberUrlOpener
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.logo_amazon
 import com.supreme.priceintelligence.resources.logo_flipkart
+import com.supreme.priceintelligence.settings.InsightCustomization
+import com.supreme.priceintelligence.settings.SectionStartState
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.DrawableResource
@@ -102,6 +104,8 @@ internal fun OriginalProfessionalProductDetailDialog(
     networkState: BloomState,
     advancedModeEnabled: Boolean,
     reduceMotionEnabled: Boolean,
+    insightCustomization: InsightCustomization =
+        InsightCustomization(),
     isHistoryLoading: Boolean,
     priceHistory: List<PriceHistoryEntry>,
     onRefresh: () -> Unit,
@@ -113,8 +117,13 @@ internal fun OriginalProfessionalProductDetailDialog(
         mutableStateOf(false)
     }
 
-    var isPriceHistoryExpanded by rememberSaveable {
-        mutableStateOf(false)
+    var isPriceHistoryExpanded by rememberSaveable(
+        insightCustomization.advancedInfoStartState
+    ) {
+        mutableStateOf(
+            insightCustomization.advancedInfoStartState ==
+                SectionStartState.EXPANDED
+        )
     }
 
     val historyChevronRotation by animateFloatAsState(
@@ -1129,7 +1138,22 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 PriceHistorySection(
                                     entries = priceHistory,
                                     isLoading = isHistoryLoading,
-                                    shopPrice = item.shopPrice
+                                    shopPrice = item.shopPrice,
+                                    informationLevel =
+                                        insightCustomization
+                                            .advancedInfoLevel,
+                                    range =
+                                        insightCustomization
+                                            .priceHistoryRange,
+                                    graphStyle =
+                                        insightCustomization
+                                            .historyGraphStyle,
+                                    graphSize =
+                                        insightCustomization
+                                            .graphSize,
+                                    pointMode =
+                                        insightCustomization
+                                            .graphPointMode
                                 )
                             }
                         }

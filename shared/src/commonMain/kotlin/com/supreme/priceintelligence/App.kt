@@ -405,18 +405,8 @@ fun App(
                                                 bottomBannerHeight,
                                             reduceMotionEnabled =
                                                 reduceMotionEnabled,
-                                            hapticsEnabled =
-                                                customization
-                                                    .hapticsEnabled,
-                                            dashboardCardStyle =
-                                                customization
-                                                    .dashboardCardStyle,
-                                            displayDensity =
-                                                customization
-                                                    .displayDensity,
-                                            defaultPriceMovementRange =
-                                                customization
-                                                    .priceMovementDefaultRange,
+                                            customization =
+                                                customization,
                                             priceMovementNotificationTarget =
                                                 priceMovementNotificationTarget,
                                             onPriceMovementNotificationConsumed =

@@ -10,8 +10,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.supreme.priceintelligence.settings.AppAccentColor
+import com.supreme.priceintelligence.settings.AppContrastMode
 import com.supreme.priceintelligence.settings.AppCustomization
+import com.supreme.priceintelligence.settings.AppSurfaceStyle
 import com.supreme.priceintelligence.settings.AppThemeMode
+import com.supreme.priceintelligence.settings.InsightCustomization
 
 private data class AccentPalette(
     val darkPrimary: Color,
@@ -160,6 +163,90 @@ private fun supremeLightColorScheme(
     outline = Color(0xFFB8AA96)
 )
 
+private fun personalizedSupremeColors(
+    isDarkTheme: Boolean,
+    customization: InsightCustomization
+): SupremeColors {
+    val base = if (isDarkTheme) {
+        SupremeDarkColors
+    } else {
+        SupremeLightColors
+    }
+
+    val surfaceStyle = if (customization.reduceTransparency) {
+        AppSurfaceStyle.SOLID
+    } else {
+        customization.surfaceStyle
+    }
+
+    val panel = when {
+        isDarkTheme && surfaceStyle == AppSurfaceStyle.SOLID ->
+            Color(0xFF151A21)
+
+        isDarkTheme && surfaceStyle == AppSurfaceStyle.GLASS ->
+            Color.White.copy(alpha = 0.025f)
+
+        !isDarkTheme && surfaceStyle == AppSurfaceStyle.SOLID ->
+            Color(0xFFFFFDF8)
+
+        !isDarkTheme && surfaceStyle == AppSurfaceStyle.GLASS ->
+            Color.White.copy(alpha = 0.72f)
+
+        else -> base.panel
+    }
+
+    val panelMuted = when {
+        isDarkTheme && surfaceStyle == AppSurfaceStyle.SOLID ->
+            Color(0xFF1B2129)
+
+        isDarkTheme && surfaceStyle == AppSurfaceStyle.GLASS ->
+            Color.White.copy(alpha = 0.045f)
+
+        !isDarkTheme && surfaceStyle == AppSurfaceStyle.SOLID ->
+            Color(0xFFF1EADF)
+
+        !isDarkTheme && surfaceStyle == AppSurfaceStyle.GLASS ->
+            Color.White.copy(alpha = 0.58f)
+
+        else -> base.panelMuted
+    }
+
+    val border = if (
+        customization.contrastMode == AppContrastMode.HIGH
+    ) {
+        if (isDarkTheme) {
+            Color.White.copy(alpha = 0.22f)
+        } else {
+            Color(0xFF887A67)
+        }
+    } else {
+        base.border
+    }
+
+    return base.copy(
+        panel = panel,
+        panelStrong = if (surfaceStyle == AppSurfaceStyle.SOLID) {
+            panel
+        } else {
+            base.panelStrong
+        },
+        panelMuted = panelMuted,
+        field = if (surfaceStyle == AppSurfaceStyle.SOLID) {
+            if (isDarkTheme) Color(0xFF10151B) else Color(0xFFFFFDF8)
+        } else {
+            base.field
+        },
+        border = border,
+        divider = if (
+            customization.contrastMode == AppContrastMode.HIGH
+        ) {
+            border.copy(alpha = if (isDarkTheme) 0.72f else 0.58f)
+        } else {
+            base.divider
+        }
+    )
+}
+
 @Composable
 fun PriceIntelligenceTheme(
     themeMode: AppThemeMode,
@@ -173,6 +260,10 @@ fun PriceIntelligenceTheme(
     }
 
     val accent = customization.accentColor.palette()
+    val personalizedColors = personalizedSupremeColors(
+        isDarkTheme = isDarkTheme,
+        customization = customization.insightCustomization
+    )
     val systemDensity = LocalDensity.current
     val customizedDensity = Density(
         density = systemDensity.density,
@@ -183,11 +274,7 @@ fun PriceIntelligenceTheme(
 
     CompositionLocalProvider(
         LocalDensity provides customizedDensity,
-        LocalSupremeColors provides if (isDarkTheme) {
-            SupremeDarkColors
-        } else {
-            SupremeLightColors
-        }
+        LocalSupremeColors provides personalizedColors
     ) {
         MaterialTheme(
             colorScheme = if (isDarkTheme) {
