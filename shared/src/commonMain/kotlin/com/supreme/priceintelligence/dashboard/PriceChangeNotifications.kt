@@ -2,6 +2,9 @@ package com.supreme.priceintelligence.dashboard
 
 import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.data.PriceRetailer
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.roundToLong
 
 enum class DetectedPriceDirection {
@@ -18,6 +21,82 @@ data class DetectedPriceChange(
     val direction: DetectedPriceDirection,
     val detectedAt: Long
 )
+
+data class PriceMovementNotificationTarget(
+    val requestId: String,
+    val productId: Long,
+    val retailer: PriceRetailer,
+    val oldPrice: Double,
+    val newPrice: Double,
+    val direction: DetectedPriceDirection,
+    val detectedAt: Long
+)
+
+object PriceChangeNotificationNavigation {
+    private val _pendingTarget =
+        MutableStateFlow<
+            PriceMovementNotificationTarget?
+        >(null)
+
+    internal val pendingTarget:
+        StateFlow<PriceMovementNotificationTarget?> =
+        _pendingTarget.asStateFlow()
+
+    fun openPriceMovement(
+        productId: Long,
+        retailerName: String,
+        oldPrice: Double,
+        newPrice: Double,
+        directionName: String,
+        detectedAt: Long
+    ) {
+        val retailer =
+            PriceRetailer.entries
+                .firstOrNull { option ->
+                    option.name == retailerName
+                }
+                ?: return
+
+        val direction =
+            DetectedPriceDirection.entries
+                .firstOrNull { option ->
+                    option.name == directionName
+                }
+                ?: return
+
+        if (
+            productId <= 0L ||
+            !oldPrice.isFinite() ||
+            !newPrice.isFinite() ||
+            oldPrice <= 0.0 ||
+            newPrice <= 0.0 ||
+            detectedAt <= 0L
+        ) {
+            return
+        }
+
+        _pendingTarget.value =
+            PriceMovementNotificationTarget(
+                requestId =
+                    "$productId-${retailer.name}-$detectedAt",
+                productId = productId,
+                retailer = retailer,
+                oldPrice = oldPrice,
+                newPrice = newPrice,
+                direction = direction,
+                detectedAt = detectedAt
+            )
+    }
+
+    internal fun consume(requestId: String) {
+        if (
+            _pendingTarget.value?.requestId ==
+            requestId
+        ) {
+            _pendingTarget.value = null
+        }
+    }
+}
 
 data class PriceChangeNotificationText(
     val title: String,

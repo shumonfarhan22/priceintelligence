@@ -69,6 +69,9 @@ data class ShopProductMovement(
 data class ShopPriceMovementSnapshot(
     val products: List<ShopProductMovement> =
         emptyList(),
+    val productsWithHistory:
+        List<ShopProductMovement> =
+        emptyList(),
     val generatedAt: Long = 0L
 )
 
@@ -158,7 +161,7 @@ internal fun buildShopPriceMovementSnapshot(
             )
     }
 
-    val products =
+    val productsWithHistory =
         items.mapNotNull { item ->
             val amazonHistory =
                 pointsByKey[
@@ -196,7 +199,10 @@ internal fun buildShopPriceMovementSnapshot(
                             points = flipkartHistory
                         )
 
-            if (changes.isEmpty()) {
+            if (
+                amazonHistory.isEmpty() &&
+                flipkartHistory.isEmpty()
+            ) {
                 null
             } else {
                 ShopProductMovement(
@@ -220,7 +226,12 @@ internal fun buildShopPriceMovementSnapshot(
             }
 
     return ShopPriceMovementSnapshot(
-        products = products,
+        products =
+            productsWithHistory.filter { product ->
+                product.changes.isNotEmpty()
+            },
+        productsWithHistory =
+            productsWithHistory,
         generatedAt = nowMillis
     )
 }
@@ -229,7 +240,9 @@ internal fun buildShopPriceMovementView(
     snapshot: ShopPriceMovementSnapshot,
     range: ShopMovementRange,
     retailerFilter:
-    ShopMovementRetailerFilter
+    ShopMovementRetailerFilter,
+    notificationTarget:
+        PriceMovementNotificationTarget? = null
 ): ShopPriceMovementView {
     if (snapshot.generatedAt <= 0L) {
         return ShopPriceMovementView()
@@ -242,9 +255,19 @@ internal fun buildShopPriceMovementView(
                         PRICE_MOVEMENT_DAY_MILLIS
                 ).coerceAtLeast(0L)
 
+    val sourceProducts =
+        if (notificationTarget == null) {
+            snapshot.products
+        } else {
+            snapshot.productsWithHistory
+                .ifEmpty {
+                    snapshot.products
+                }
+        }
+
     val productViews =
-        snapshot.products.mapNotNull { product ->
-            val filteredChanges =
+        sourceProducts.mapNotNull { product ->
+            val normalChanges =
                 product.changes
                     .asSequence()
                     .filter { change ->
@@ -259,6 +282,49 @@ internal fun buildShopPriceMovementView(
                         it.checkedAt
                     }
                     .toList()
+
+            val notificationChange =
+                notificationTarget
+                    ?.takeIf { target ->
+                        target.productId ==
+                            product.item.id &&
+                            target.detectedAt >= cutoff &&
+                            retailerFilter.matches(
+                                target.retailer
+                            )
+                    }
+                    ?.let { target ->
+                        ShopPriceChange(
+                            productId =
+                                target.productId,
+                            retailer =
+                                target.retailer,
+                            oldPrice =
+                                target.oldPrice,
+                            newPrice =
+                                target.newPrice,
+                            checkedAt =
+                                target.detectedAt,
+                            direction =
+                                target.direction
+                        )
+                    }
+
+            val filteredChanges =
+                buildList {
+                    addAll(normalChanges)
+                    notificationChange?.let(::add)
+                }
+                    .distinctBy { change ->
+                        Triple(
+                            change.productId,
+                            change.retailer,
+                            change.checkedAt
+                        )
+                    }
+                    .sortedByDescending {
+                        it.checkedAt
+                    }
 
             if (filteredChanges.isEmpty()) {
                 null

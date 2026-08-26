@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -77,6 +78,8 @@ fun ShopPriceMovementDialog(
     isLoading: Boolean,
     errorMessage: String?,
     reduceMotionEnabled: Boolean,
+    notificationTarget:
+        PriceMovementNotificationTarget? = null,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -112,16 +115,39 @@ fun ShopPriceMovementDialog(
             }
             ?: ShopMovementRetailerFilter.ALL
 
+    LaunchedEffect(
+        notificationTarget?.requestId
+    ) {
+        notificationTarget?.let { target ->
+            selectedRangeName =
+                ShopMovementRange.THIRTY_DAYS.name
+
+            selectedRetailerName =
+                when (target.retailer) {
+                    PriceRetailer.AMAZON ->
+                        ShopMovementRetailerFilter
+                            .AMAZON.name
+
+                    PriceRetailer.FLIPKART ->
+                        ShopMovementRetailerFilter
+                            .FLIPKART.name
+                }
+        }
+    }
+
     val movementView = remember(
         snapshot,
         selectedRange,
-        selectedRetailer
+        selectedRetailer,
+        notificationTarget
     ) {
         buildShopPriceMovementView(
             snapshot = snapshot,
             range = selectedRange,
             retailerFilter =
-                selectedRetailer
+                selectedRetailer,
+            notificationTarget =
+                notificationTarget
         )
     }
 
@@ -242,6 +268,10 @@ fun ShopPriceMovementDialog(
                                 selectedRetailer,
                             generatedAt =
                                 snapshot.generatedAt,
+                            notificationTarget =
+                                notificationTarget,
+                            reduceMotionEnabled =
+                                reduceMotionEnabled,
                             onRangeSelected = {
                                 selectedRangeName =
                                     it.name
@@ -337,13 +367,48 @@ private fun MovementContent(
     selectedRetailer:
     ShopMovementRetailerFilter,
     generatedAt: Long,
+    notificationTarget:
+        PriceMovementNotificationTarget?,
+    reduceMotionEnabled: Boolean,
     onRangeSelected:
         (ShopMovementRange) -> Unit,
     onRetailerSelected:
         (ShopMovementRetailerFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(
+        notificationTarget?.requestId,
+        movementView.products
+    ) {
+        val target =
+            notificationTarget
+                ?: return@LaunchedEffect
+
+        val productIndex =
+            movementView.products
+                .indexOfFirst { product ->
+                    product.item.id ==
+                        target.productId
+                }
+
+        if (productIndex >= 0) {
+            val listIndex =
+                productIndex + 3
+
+            if (reduceMotionEnabled) {
+                listState.scrollToItem(listIndex)
+            } else {
+                listState.animateScrollToItem(
+                    listIndex
+                )
+            }
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(
             start = 16.dp,
@@ -440,7 +505,15 @@ private fun MovementContent(
                 MovementProductCard(
                     product = product,
                     generatedAt =
-                        generatedAt
+                        generatedAt,
+                    notificationTarget =
+                        notificationTarget
+                            ?.takeIf { target ->
+                                target.productId ==
+                                    product.item.id
+                            },
+                    reduceMotionEnabled =
+                        reduceMotionEnabled
                 )
             }
         }
@@ -1046,10 +1119,23 @@ private fun AggregateMovementChart(
 @Composable
 private fun MovementProductCard(
     product: ShopProductMovementView,
-    generatedAt: Long
+    generatedAt: Long,
+    notificationTarget:
+        PriceMovementNotificationTarget?,
+    reduceMotionEnabled: Boolean
 ) {
     val latestChange =
-        product.latestChange
+        notificationTarget
+            ?.let { target ->
+                product.changes
+                    .firstOrNull { change ->
+                        change.retailer ==
+                            target.retailer &&
+                            change.checkedAt ==
+                            target.detectedAt
+                    }
+            }
+            ?: product.latestChange
             ?: return
 
     val movementColor =
@@ -1068,19 +1154,83 @@ private fun MovementProductCard(
                 .competitive
         }
 
+    val notificationPulse = remember {
+        Animatable(0f)
+    }
+
+    LaunchedEffect(
+        notificationTarget?.requestId,
+        reduceMotionEnabled
+    ) {
+        notificationPulse.snapTo(0f)
+
+        if (notificationTarget != null) {
+            if (reduceMotionEnabled) {
+                notificationPulse.snapTo(0.55f)
+                kotlinx.coroutines.delay(2400)
+                notificationPulse.snapTo(0f)
+            } else {
+                repeat(4) {
+                    notificationPulse.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(
+                            durationMillis = 320
+                        )
+                    )
+
+                    notificationPulse.animateTo(
+                        targetValue = 0.12f,
+                        animationSpec = tween(
+                            durationMillis = 360
+                        )
+                    )
+                }
+
+                notificationPulse.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(
+                        durationMillis = 220
+                    )
+                )
+            }
+        }
+    }
+
+    val panelColor =
+        MaterialTheme
+            .supremeColors
+            .panel
+
+    val normalBorderColor =
+        MaterialTheme
+            .supremeColors
+            .border
+
+    val pulseAmount =
+        notificationPulse.value
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         color =
-            MaterialTheme
-                .supremeColors
-                .panel,
+            androidx.compose.ui.graphics.lerp(
+                panelColor,
+                movementColor,
+                pulseAmount * 0.16f
+            ),
         border = BorderStroke(
-            width = 1.dp,
+            width =
+                if (pulseAmount > 0f) {
+                    2.dp
+                } else {
+                    1.dp
+                },
             color =
-                MaterialTheme
-                    .supremeColors
-                    .border
+                androidx.compose.ui.graphics.lerp(
+                    normalBorderColor,
+                    movementColor,
+                    pulseAmount
+                )
         )
     ) {
         Column(
@@ -1242,7 +1392,13 @@ private fun MovementProductCard(
                 amazonHistory =
                     product.amazonHistory,
                 flipkartHistory =
-                    product.flipkartHistory
+                    product.flipkartHistory,
+                notificationTarget =
+                    notificationTarget,
+                notificationHighlightColor =
+                    movementColor,
+                notificationPulseProgress =
+                    pulseAmount
             )
         }
     }

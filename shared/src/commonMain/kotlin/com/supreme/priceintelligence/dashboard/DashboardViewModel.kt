@@ -719,16 +719,25 @@ class DashboardViewModel(
             pausedAutomaticJob?.cancelAndJoin()
 
             try {
-                val hasLivePrice = scrapeOne(
-                    productId = productId,
-                    showFailureFeedback = true
-                )
+                val hasLivePrice =
+                    PriceRefreshCoordinator
+                        .runUserPriority {
+                            val result = scrapeOne(
+                                productId = productId,
+                                showFailureFeedback = true
+                            )
+
+                            markAutomaticRefreshAttempt(
+                                productId
+                            )
+
+                            result
+                        }
 
                 if (hasLivePrice) {
                     showManualResultLight(productId)
                 }
 
-                markAutomaticRefreshAttempt(productId)
                 refreshWholeShopSnapshot()
             } finally {
                 if (
@@ -777,28 +786,38 @@ class DashboardViewModel(
                 // This is an explicit user action, so a small batch is
                 // acceptable. The automatic daily queue remains strictly
                 // one product at a time.
-                productIds.chunked(3).forEach { batch ->
-                    coroutineScope {
-                        batch.map { productId ->
-                            async {
-                                val hasLivePrice = scrapeOne(
-                                    productId = productId,
-                                    showFailureFeedback = true
-                                )
+                PriceRefreshCoordinator
+                    .runUserPriority {
+                        productIds
+                            .chunked(3)
+                            .forEach { batch ->
+                                coroutineScope {
+                                    batch.map { productId ->
+                                        async {
+                                            val hasLivePrice =
+                                                scrapeOne(
+                                                    productId =
+                                                        productId,
+                                                    showFailureFeedback =
+                                                        true
+                                                )
 
-                                if (hasLivePrice) {
-                                    showManualResultLight(
+                                            if (hasLivePrice) {
+                                                showManualResultLight(
+                                                    productId
+                                                )
+                                            }
+                                        }
+                                    }.awaitAll()
+                                }
+
+                                batch.forEach { productId ->
+                                    markAutomaticRefreshAttempt(
                                         productId
                                     )
                                 }
                             }
-                        }.awaitAll()
                     }
-
-                    batch.forEach { productId ->
-                        markAutomaticRefreshAttempt(productId)
-                    }
-                }
 
                 if (_uiState.value.priceFilter == null) {
                     refreshWholeShopSnapshot()
@@ -896,17 +915,34 @@ class DashboardViewModel(
                         return@launch
                     }
 
-                    scrapeOne(
-                        productId = item.id,
-                        showFailureFeedback = false,
-                        onPriceChangesDetected = { changes ->
-                            automaticPriceChanges.addAll(
-                                changes
-                            )
-                        }
-                    )
+                    val automaticResult =
+                        PriceRefreshCoordinator
+                            .runAutomatic {
+                                val result =
+                                    scrapeOne(
+                                        productId =
+                                            item.id,
+                                        showFailureFeedback =
+                                            false,
+                                        onPriceChangesDetected =
+                                            { changes ->
+                                                automaticPriceChanges
+                                                    .addAll(
+                                                        changes
+                                                    )
+                                            }
+                                    )
 
-                    markAutomaticRefreshAttempt(item.id)
+                                markAutomaticRefreshAttempt(
+                                    item.id
+                                )
+
+                                result
+                            }
+
+                    if (automaticResult == null) {
+                        return@launch
+                    }
 
                     if (index < pendingProducts.lastIndex) {
                         delay(

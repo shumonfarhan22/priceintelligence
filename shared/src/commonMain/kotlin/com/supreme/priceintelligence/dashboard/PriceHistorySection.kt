@@ -171,8 +171,12 @@ private fun RetailerPriceHistoryCard(
     }
     val movementText = movementDescription(summary)
     val movementColor = when (summary.movement) {
-        PriceMovement.LOWER -> MaterialTheme.supremeColors.competitive
-        PriceMovement.HIGHER -> MaterialTheme.colorScheme.error
+        // A lower online price is bad for the shop.
+        PriceMovement.LOWER -> MaterialTheme.colorScheme.error
+
+        // A higher online price is good for the shop.
+        PriceMovement.HIGHER -> MaterialTheme.supremeColors.competitive
+
         PriceMovement.UNCHANGED,
         PriceMovement.UNKNOWN -> MaterialTheme.colorScheme.onSurfaceVariant
     }

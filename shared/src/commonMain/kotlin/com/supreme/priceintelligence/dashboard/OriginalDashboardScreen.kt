@@ -123,7 +123,11 @@ fun OriginalDashboardScreen(
     modifier: Modifier = Modifier,
     advancedModeEnabled: Boolean = false,
     bottomBannerHeight: Dp = 0.dp,
-    reduceMotionEnabled: Boolean = false
+    reduceMotionEnabled: Boolean = false,
+    priceMovementNotificationTarget:
+        PriceMovementNotificationTarget? = null,
+    onPriceMovementNotificationConsumed:
+        (String) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
@@ -147,6 +151,23 @@ fun OriginalDashboardScreen(
         mutableStateOf(false)
     }
     var cameraPermissionDenied by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(
+        priceMovementNotificationTarget
+            ?.requestId
+    ) {
+        if (
+            priceMovementNotificationTarget !=
+            null
+        ) {
+            scannerOpen = false
+            selectedProductId = null
+            searchFocused = false
+            focusManager.clearFocus()
+            shopPriceMovementOpen = true
+            viewModel.loadShopPriceMovement()
+        }
+    }
 
     var priceFreshnessCardVisible by remember {
         mutableStateOf(
@@ -855,11 +876,19 @@ fun OriginalDashboardScreen(
                 state.shopPriceMovementError,
             reduceMotionEnabled =
                 reduceMotionEnabled,
+            notificationTarget =
+                priceMovementNotificationTarget,
             onRefresh =
                 viewModel::loadShopPriceMovement,
             onDismiss = {
                 shopPriceMovementOpen =
                     false
+
+                priceMovementNotificationTarget
+                    ?.requestId
+                    ?.let(
+                        onPriceMovementNotificationConsumed
+                    )
             }
         )
     }

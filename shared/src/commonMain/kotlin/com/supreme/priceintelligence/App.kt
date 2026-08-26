@@ -48,6 +48,7 @@ import androidx.room3.RoomDatabase
 import com.supreme.priceintelligence.dashboard.OriginalDashboardScreen
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.dashboard.PriceChangeNotifier
+import com.supreme.priceintelligence.dashboard.PriceChangeNotificationNavigation
 import com.supreme.priceintelligence.data.AppDatabase
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.getRoomDatabase
@@ -119,7 +120,14 @@ fun App(
             }
             val inventoryState by inventoryViewModel.uiState.collectAsState()
             val dashboardState by dashboardViewModel.uiState.collectAsState()
-            val reduceMotionEnabled = rememberReduceMotionEnabled()
+
+            val priceMovementNotificationTarget by
+                PriceChangeNotificationNavigation
+                    .pendingTarget
+                    .collectAsState()
+
+            val reduceMotionEnabled =
+                rememberReduceMotionEnabled()
 
             var destinationName by rememberSaveable {
                 mutableStateOf(AppDestination.Dashboard.name)
@@ -133,9 +141,23 @@ fun App(
                         .priceChangeNotificationsEnabled
                 )
             }
-            val destination = AppDestination.entries.firstOrNull { item ->
-                item.name == destinationName
-            } ?: AppDestination.Dashboard
+            val destination =
+                AppDestination.entries.firstOrNull { item ->
+                    item.name == destinationName
+                } ?: AppDestination.Dashboard
+
+            LaunchedEffect(
+                priceMovementNotificationTarget
+                    ?.requestId
+            ) {
+                if (
+                    priceMovementNotificationTarget !=
+                    null
+                ) {
+                    destinationName =
+                        AppDestination.Dashboard.name
+                }
+            }
 
             LaunchedEffect(destination) {
                 dashboardViewModel.setAutomaticRefreshPaused(
@@ -346,7 +368,11 @@ fun App(
                                             bottomBannerHeight =
                                                 bottomBannerHeight,
                                             reduceMotionEnabled =
-                                                reduceMotionEnabled
+                                                reduceMotionEnabled,
+                                            priceMovementNotificationTarget =
+                                                priceMovementNotificationTarget,
+                                            onPriceMovementNotificationConsumed =
+                                                PriceChangeNotificationNavigation::consume
                                         )
 
                                     AppDestination.Inventory ->

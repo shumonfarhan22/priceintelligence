@@ -358,7 +358,13 @@ internal fun InteractiveAggregateMovementChart(
 @Composable
 internal fun InteractiveProductMovementLineChart(
     amazonHistory: List<ShopPricePoint>,
-    flipkartHistory: List<ShopPricePoint>
+    flipkartHistory: List<ShopPricePoint>,
+    notificationTarget:
+        PriceMovementNotificationTarget? = null,
+    notificationHighlightColor:
+        Color = Color.Transparent,
+    notificationPulseProgress:
+        Float = 0f
 ) {
     val series = remember(
         amazonHistory,
@@ -410,9 +416,50 @@ internal fun InteractiveProductMovementLineChart(
 
     LaunchedEffect(
         amazonHistory,
-        flipkartHistory
+        flipkartHistory,
+        notificationTarget?.requestId
     ) {
-        selectedPoint = null
+        val target =
+            notificationTarget
+
+        selectedPoint =
+            if (target == null) {
+                null
+            } else {
+                val targetSeries =
+                    series.firstOrNull { chartSeries ->
+                        chartSeries.retailer ==
+                            target.retailer
+                    }
+
+                val targetPoint =
+                    targetSeries
+                        ?.points
+                        ?.minByOrNull { point ->
+                            kotlin.math.abs(
+                                point.checkedAt -
+                                    target.detectedAt
+                            )
+                        }
+
+                if (
+                    targetSeries != null &&
+                    targetPoint != null
+                ) {
+                    SelectedMovementChartPoint(
+                        retailer =
+                            targetSeries.retailer,
+                        point =
+                            targetPoint,
+                        previousPrice =
+                            target.oldPrice,
+                        color =
+                            targetSeries.color
+                    )
+                } else {
+                    null
+                }
+            }
     }
 
     val minimumPrice =
@@ -779,6 +826,39 @@ internal fun InteractiveProductMovementLineChart(
                                     ?: false
 
                             if (isSelected) {
+                                val isNotificationPoint =
+                                    notificationTarget
+                                        ?.let { target ->
+                                            target.retailer ==
+                                                chartSeries.retailer &&
+                                                kotlin.math.abs(
+                                                    point.checkedAt -
+                                                        target.detectedAt
+                                                ) < 1000L
+                                        }
+                                        ?: false
+
+                                if (isNotificationPoint) {
+                                    drawCircle(
+                                        color =
+                                            notificationHighlightColor
+                                                .copy(
+                                                    alpha =
+                                                        0.16f +
+                                                            notificationPulseProgress *
+                                                            0.30f
+                                                ),
+                                        radius =
+                                            (
+                                                11f +
+                                                    notificationPulseProgress *
+                                                    8f
+                                            ).dp.toPx(),
+                                        center =
+                                            pointOffset
+                                    )
+                                }
+
                                 drawCircle(
                                     color =
                                         chartSeries
