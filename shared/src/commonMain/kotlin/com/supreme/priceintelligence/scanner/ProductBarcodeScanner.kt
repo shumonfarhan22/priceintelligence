@@ -52,6 +52,7 @@ fun ProductBarcodeScanner(
     onScanned: (String) -> Unit,
     onError: (String) -> Unit,
     onCanceled: () -> Unit,
+    hapticFeedbackEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val scannerController = remember {
@@ -100,7 +101,9 @@ fun ProductBarcodeScanner(
             ) { result ->
                 when (result) {
                     is BarcodeResult.OnSuccess -> {
-                        scanHapticFeedback.scanSucceeded()
+                        if (hapticFeedbackEnabled) {
+                            scanHapticFeedback.scanSucceeded()
+                        }
                         onScanned(result.barcode.data)
                     }
 

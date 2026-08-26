@@ -106,6 +106,9 @@ import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.logo_amazon
 import com.supreme.priceintelligence.resources.logo_flipkart
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
+import com.supreme.priceintelligence.settings.DashboardCardStyle
+import com.supreme.priceintelligence.settings.AppDisplayDensity
+import com.supreme.priceintelligence.settings.PriceMovementDefaultRange
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.ui.components.OriginalBannerKind
 import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
@@ -124,12 +127,29 @@ fun OriginalDashboardScreen(
     advancedModeEnabled: Boolean = false,
     bottomBannerHeight: Dp = 0.dp,
     reduceMotionEnabled: Boolean = false,
+    hapticsEnabled: Boolean = true,
+    dashboardCardStyle: DashboardCardStyle =
+        DashboardCardStyle.DETAILED,
+    displayDensity: AppDisplayDensity =
+        AppDisplayDensity.COMFORTABLE,
+    defaultPriceMovementRange:
+        PriceMovementDefaultRange =
+        PriceMovementDefaultRange.THIRTY_DAYS,
     priceMovementNotificationTarget:
         PriceMovementNotificationTarget? = null,
     onPriceMovementNotificationConsumed:
         (String) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
+    val screenHorizontalPadding =
+        if (
+            displayDensity ==
+            AppDisplayDensity.COMPACT
+        ) {
+            12.dp
+        } else {
+            16.dp
+        }
     val focusManager = LocalFocusManager.current
 
     val priceFreshnessSummary = remember(
@@ -466,6 +486,7 @@ fun OriginalDashboardScreen(
     if (scannerOpen) {
         ProductBarcodeScanner(
             modifier = Modifier.fillMaxSize(),
+            hapticFeedbackEnabled = hapticsEnabled,
             onScanned = { barcode ->
                 scannerOpen = false
                 viewModel.onSearchSubmitted(barcode)
@@ -493,7 +514,10 @@ fun OriginalDashboardScreen(
                 state = dashboardListState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                    .padding(
+                        horizontal =
+                            screenHorizontalPadding
+                    ),
                 contentPadding = PaddingValues(
                     top = if (state.currentPage > 1) {
                         52.dp
@@ -687,6 +711,9 @@ fun OriginalDashboardScreen(
                         ) { card ->
                             ProfessionalDashboardProductCard(
                                 card = card,
+                                compact =
+                                    dashboardCardStyle ==
+                                        DashboardCardStyle.COMPACT,
                                 showResultLight =
                                     card.item.id in
                                         state.manualResultLightProductIds,
@@ -744,7 +771,10 @@ fun OriginalDashboardScreen(
                 Column {
                     Box(
                         modifier =
-                            Modifier.padding(horizontal = 16.dp)
+                            Modifier.padding(
+                                horizontal =
+                                    screenHorizontalPadding
+                            )
                     ) {
                         ProfessionalDashboardBranding(
                             compact = true,
@@ -876,6 +906,8 @@ fun OriginalDashboardScreen(
                 state.shopPriceMovementError,
             reduceMotionEnabled =
                 reduceMotionEnabled,
+            defaultRange =
+                defaultPriceMovementRange,
             notificationTarget =
                 priceMovementNotificationTarget,
             onRefresh =

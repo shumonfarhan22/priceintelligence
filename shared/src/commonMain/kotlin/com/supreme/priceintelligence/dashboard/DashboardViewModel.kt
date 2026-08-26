@@ -12,6 +12,7 @@ import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.network.PriceFetcher
 import com.supreme.priceintelligence.network.ScrapeResult
 import com.supreme.priceintelligence.settings.AppPreferences
+import com.supreme.priceintelligence.settings.readAppCustomization
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -330,6 +331,42 @@ class DashboardViewModel(
 
     fun setSortOrder(order: SortOrder) {
         _uiState.update { it.copy(sortOrder = order) }
+        runSearch(_uiState.value.searchQuery)
+    }
+
+    fun applyDashboardPreferences(
+        defaultSortOrderName: String,
+        pageSize: Int
+    ) {
+        val defaultSortOrder =
+            SortOrder.entries
+                .firstOrNull { option ->
+                    option.name == defaultSortOrderName
+                }
+                ?: SortOrder.MOST_VIEWED
+
+        val safePageSize = when (pageSize) {
+            10, 15, 20 -> pageSize
+            else -> 10
+        }
+
+        val current = _uiState.value
+
+        if (
+            current.sortOrder == defaultSortOrder &&
+            current.pageSize == safePageSize
+        ) {
+            return
+        }
+
+        _uiState.update { state ->
+            state.copy(
+                sortOrder = defaultSortOrder,
+                pageSize = safePageSize,
+                currentPage = 1
+            )
+        }
+
         runSearch(_uiState.value.searchQuery)
     }
 
@@ -960,15 +997,25 @@ class DashboardViewModel(
             } catch (_: Exception) {
                 // Smart automatic work must never interrupt normal app use.
             } finally {
+                val alertChanges =
+                    filterPriceChangesForAlerts(
+                        changes = automaticPriceChanges,
+                        customization =
+                            readAppCustomization(
+                                preferences
+                                    .customizationProfile
+                            )
+                    )
+
                 if (
                     preferences
                         .priceChangeNotificationsEnabled &&
-                    automaticPriceChanges.isNotEmpty()
+                    alertChanges.isNotEmpty()
                 ) {
                     try {
                         priceChangeNotifier
                             .publishPriceChanges(
-                                automaticPriceChanges
+                                alertChanges
                             )
                     } catch (_: Exception) {
                         // A notification failure must never affect saved prices.

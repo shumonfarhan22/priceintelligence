@@ -2,9 +2,13 @@ package com.supreme.priceintelligence.dashboard
 
 import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.data.PriceRetailer
+import com.supreme.priceintelligence.settings.AppCustomization
+import com.supreme.priceintelligence.settings.PriceAlertDirection
+import com.supreme.priceintelligence.settings.PriceAlertThreshold
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.abs
 import kotlin.math.roundToLong
 
 enum class DetectedPriceDirection {
@@ -21,6 +25,53 @@ data class DetectedPriceChange(
     val direction: DetectedPriceDirection,
     val detectedAt: Long
 )
+
+internal fun filterPriceChangesForAlerts(
+    changes: List<DetectedPriceChange>,
+    customization: AppCustomization
+): List<DetectedPriceChange> =
+    changes.filter { change ->
+        val directionAccepted =
+            when (
+                customization.priceAlertDirection
+            ) {
+                PriceAlertDirection.BOTH -> true
+                PriceAlertDirection.INCREASES_ONLY ->
+                    change.direction ==
+                        DetectedPriceDirection.HIGHER
+
+                PriceAlertDirection.DECREASES_ONLY ->
+                    change.direction ==
+                        DetectedPriceDirection.LOWER
+            }
+
+        val difference =
+            abs(change.newPrice - change.oldPrice)
+
+        val percent =
+            if (change.oldPrice > 0.0) {
+                difference / change.oldPrice * 100.0
+            } else {
+                0.0
+            }
+
+        val thresholdAccepted =
+            when (
+                customization.priceAlertThreshold
+            ) {
+                PriceAlertThreshold.ANY -> true
+                PriceAlertThreshold.RUPEES_50 ->
+                    difference >= 50.0
+
+                PriceAlertThreshold.PERCENT_2 ->
+                    percent >= 2.0
+
+                PriceAlertThreshold.PERCENT_5 ->
+                    percent >= 5.0
+            }
+
+        directionAccepted && thresholdAccepted
+    }
 
 data class PriceMovementNotificationTarget(
     val requestId: String,

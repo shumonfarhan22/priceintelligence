@@ -64,7 +64,12 @@ import com.supreme.priceintelligence.ui.components.OriginalBottomNavigation
 import com.supreme.priceintelligence.ui.components.OriginalDashboardHeader
 import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
 import com.supreme.priceintelligence.settings.AppPreferences
+import com.supreme.priceintelligence.settings.AppCustomization
+import com.supreme.priceintelligence.settings.AppDisplayDensity
+import com.supreme.priceintelligence.settings.AppMotionPreference
 import com.supreme.priceintelligence.settings.AppThemeMode
+import com.supreme.priceintelligence.settings.readAppCustomization
+import com.supreme.priceintelligence.settings.writeAppCustomization
 import com.supreme.priceintelligence.ui.theme.PriceIntelligenceTheme
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
@@ -84,8 +89,17 @@ fun App(
         mutableStateOf(appPreferences.themeMode)
     }
 
+    var customization by remember {
+        mutableStateOf(
+            readAppCustomization(
+                appPreferences.customizationProfile
+            )
+        )
+    }
+
     PriceIntelligenceTheme(
-        themeMode = themeMode
+        themeMode = themeMode,
+        customization = customization
     ) { isDarkTheme ->
         LaunchedEffect(themeMode, isDarkTheme) {
             onThemeApplied(themeMode, isDarkTheme)
@@ -126,8 +140,30 @@ fun App(
                     .pendingTarget
                     .collectAsState()
 
-            val reduceMotionEnabled =
+            val systemReduceMotionEnabled =
                 rememberReduceMotionEnabled()
+
+            val reduceMotionEnabled =
+                systemReduceMotionEnabled ||
+                    customization.motionPreference ==
+                    AppMotionPreference.REDUCED
+
+            LaunchedEffect(
+                customization.dashboardDefaultSort,
+                customization.dashboardPageSize
+            ) {
+                dashboardViewModel
+                    .applyDashboardPreferences(
+                        defaultSortOrderName =
+                            customization
+                                .dashboardDefaultSort
+                                .name,
+                        pageSize =
+                            customization
+                                .dashboardPageSize
+                                .productCount
+                    )
+            }
 
             var destinationName by rememberSaveable {
                 mutableStateOf(AppDestination.Dashboard.name)
@@ -369,6 +405,18 @@ fun App(
                                                 bottomBannerHeight,
                                             reduceMotionEnabled =
                                                 reduceMotionEnabled,
+                                            hapticsEnabled =
+                                                customization
+                                                    .hapticsEnabled,
+                                            dashboardCardStyle =
+                                                customization
+                                                    .dashboardCardStyle,
+                                            displayDensity =
+                                                customization
+                                                    .displayDensity,
+                                            defaultPriceMovementRange =
+                                                customization
+                                                    .priceMovementDefaultRange,
                                             priceMovementNotificationTarget =
                                                 priceMovementNotificationTarget,
                                             onPriceMovementNotificationConsumed =
@@ -383,6 +431,31 @@ fun App(
                                                 themeMode = selectedMode
                                                 appPreferences.themeMode =
                                                     selectedMode
+                                            },
+                                            customization =
+                                                customization,
+                                            onCustomizationChanged =
+                                                { updated ->
+                                                    customization =
+                                                        updated
+                                                    appPreferences
+                                                        .customizationProfile =
+                                                        writeAppCustomization(
+                                                            updated
+                                                        )
+                                                },
+                                            onResetPersonalization = {
+                                                themeMode =
+                                                    AppThemeMode.DARK
+                                                appPreferences.themeMode =
+                                                    AppThemeMode.DARK
+                                                customization =
+                                                    AppCustomization()
+                                                appPreferences
+                                                    .customizationProfile =
+                                                    writeAppCustomization(
+                                                        AppCustomization()
+                                                    )
                                             },
                                             advancedModeEnabled =
                                                 advancedModeEnabled,
@@ -413,7 +486,18 @@ fun App(
                                                 reduceMotionEnabled,
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .padding(horizontal = 16.dp)
+                                                .padding(
+                                                    horizontal =
+                                                        if (
+                                                            customization
+                                                                .displayDensity ==
+                                                            AppDisplayDensity.COMPACT
+                                                        ) {
+                                                            12.dp
+                                                        } else {
+                                                            16.dp
+                                                        }
+                                                )
                                         )
                                 }
                             }
@@ -480,7 +564,15 @@ fun App(
                                         size.height.toDp()
                                     }
                             },
-                        horizontalPadding = 16.dp
+                        horizontalPadding =
+                            if (
+                                customization.displayDensity ==
+                                AppDisplayDensity.COMPACT
+                            ) {
+                                12.dp
+                            } else {
+                                16.dp
+                            }
                     )
 
                     OriginalInventoryUndoBanner(
@@ -495,7 +587,15 @@ fun App(
                                         size.height.toDp()
                                     }
                             },
-                        horizontalPadding = 16.dp
+                        horizontalPadding =
+                            if (
+                                customization.displayDensity ==
+                                AppDisplayDensity.COMPACT
+                            ) {
+                                12.dp
+                            } else {
+                                16.dp
+                            }
                     )
 
                     OriginalBottomNavigation(
@@ -503,7 +603,15 @@ fun App(
                         modifier = Modifier.align(
                             androidx.compose.ui.Alignment.BottomCenter
                         ),
-                        horizontalPadding = 16.dp,
+                        horizontalPadding =
+                            if (
+                                customization.displayDensity ==
+                                AppDisplayDensity.COMPACT
+                            ) {
+                                12.dp
+                            } else {
+                                16.dp
+                            },
                         reduceMotionEnabled = reduceMotionEnabled,
                         onDestinationSelected = { selected ->
                             destinationName = selected.name

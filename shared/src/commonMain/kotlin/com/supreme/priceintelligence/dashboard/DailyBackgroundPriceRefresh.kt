@@ -7,6 +7,7 @@ import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.PriceRetailer
 import com.supreme.priceintelligence.network.PriceFetcher
 import com.supreme.priceintelligence.settings.AppPreferences
+import com.supreme.priceintelligence.settings.readAppCustomization
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -112,9 +113,21 @@ class DailyBackgroundPriceRefresh(
                 outcome.changes.isNotEmpty()
             ) {
                 try {
-                    notifier.publishPriceChanges(
-                        outcome.changes
-                    )
+                    val alertChanges =
+                        filterPriceChangesForAlerts(
+                            changes = outcome.changes,
+                            customization =
+                                readAppCustomization(
+                                    preferences
+                                        .customizationProfile
+                                )
+                        )
+
+                    if (alertChanges.isNotEmpty()) {
+                        notifier.publishPriceChanges(
+                            alertChanges
+                        )
+                    }
                 } catch (_: Exception) {
                     // Saving the prices is more important than notification delivery.
                 }

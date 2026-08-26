@@ -1285,6 +1285,9 @@ private fun buildInteractiveMovementBuckets(
             ShopMovementRange.SEVEN_DAYS ->
                 7
 
+            ShopMovementRange.FOURTEEN_DAYS ->
+                14
+
             ShopMovementRange.THIRTY_DAYS ->
                 15
         }

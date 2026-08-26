@@ -21,6 +21,10 @@ enum class ShopMovementRange(
         days = 7,
         buttonLabel = "7D"
     ),
+    FOURTEEN_DAYS(
+        days = 14,
+        buttonLabel = "14D"
+    ),
     THIRTY_DAYS(
         days = 30,
         buttonLabel = "30D"

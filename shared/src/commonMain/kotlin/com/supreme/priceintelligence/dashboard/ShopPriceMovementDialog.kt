@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.supreme.priceintelligence.data.PriceRetailer
+import com.supreme.priceintelligence.settings.PriceMovementDefaultRange
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.roundToInt
 
@@ -78,6 +79,8 @@ fun ShopPriceMovementDialog(
     isLoading: Boolean,
     errorMessage: String?,
     reduceMotionEnabled: Boolean,
+    defaultRange: PriceMovementDefaultRange =
+        PriceMovementDefaultRange.THIRTY_DAYS,
     notificationTarget:
         PriceMovementNotificationTarget? = null,
     onRefresh: () -> Unit,
@@ -85,9 +88,7 @@ fun ShopPriceMovementDialog(
 ) {
     var selectedRangeName by rememberSaveable {
         mutableStateOf(
-            ShopMovementRange
-                .THIRTY_DAYS
-                .name
+            defaultRange.name
         )
     }
 
@@ -1075,6 +1076,10 @@ private fun AggregateMovementChart(
                             "7 days ago"
 
                         ShopMovementRange
+                            .FOURTEEN_DAYS ->
+                            "14 days ago"
+
+                        ShopMovementRange
                             .THIRTY_DAYS ->
                             "30 days ago"
                     },
@@ -1892,6 +1897,9 @@ private fun buildMovementBuckets(
 
             ShopMovementRange.SEVEN_DAYS ->
                 7
+
+            ShopMovementRange.FOURTEEN_DAYS ->
+                14
 
             ShopMovementRange.THIRTY_DAYS ->
                 15

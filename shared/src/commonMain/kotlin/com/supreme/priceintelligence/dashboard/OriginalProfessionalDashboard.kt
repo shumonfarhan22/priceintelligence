@@ -386,9 +386,19 @@ internal fun ProfessionalDashboardResultsRow(
 internal fun ProfessionalDashboardProductCard(
     card: ProductCardUiState,
     showResultLight: Boolean,
+    compact: Boolean = false,
     onClick: () -> Unit
 ) {
     val item = card.item
+    val outsidePadding = if (compact) 4.dp else 6.dp
+    val contentPadding = if (compact) 9.dp else 12.dp
+    val imageSize = if (compact) 76.dp else 96.dp
+    val imagePadding = if (compact) 6.dp else 8.dp
+    val contentGap = if (compact) 10.dp else 14.dp
+    val titlePriceGap = if (compact) 7.dp else 10.dp
+    val titleSize = if (compact) 14.sp else 15.sp
+    val priceSize = if (compact) 12.sp else 13.sp
+    val statusSize = if (compact) 26.dp else 28.dp
 
     val liveAmazonPrice = card.amazonResult?.price
         ?.takeIf(::isUsableDashboardPrice)
@@ -501,7 +511,7 @@ internal fun ProfessionalDashboardProductCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = outsidePadding),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -546,12 +556,12 @@ internal fun ProfessionalDashboardProductCard(
                 .semantics {
                     stateDescription = cardStateDescription
                 }
-                .padding(12.dp),
+                .padding(contentPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(96.dp)
+                    .size(imageSize)
                     .clip(RoundedCornerShape(10.dp))
                     .background(
                         MaterialTheme.supremeColors.imagePanel
@@ -575,13 +585,13 @@ internal fun ProfessionalDashboardProductCard(
                         contentDescription = item.productName,
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(8.dp),
+                            .padding(imagePadding),
                         contentScale = ContentScale.Fit
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(contentGap))
 
             Column(
                 modifier = Modifier.weight(1f)
@@ -589,13 +599,13 @@ internal fun ProfessionalDashboardProductCard(
                 Text(
                     text = item.productName,
                     color = TextPrimary,
-                    fontSize = 15.sp,
+                    fontSize = titleSize,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(titlePriceGap))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -621,8 +631,10 @@ internal fun ProfessionalDashboardProductCard(
                                     RoundedCornerShape(8.dp)
                             )
                             .padding(
-                                horizontal = 10.dp,
-                                vertical = 6.dp
+                                horizontal =
+                                    if (compact) 8.dp else 10.dp,
+                                vertical =
+                                    if (compact) 5.dp else 6.dp
                             ),
                         verticalAlignment =
                             Alignment.CenterVertically
@@ -650,7 +662,7 @@ internal fun ProfessionalDashboardProductCard(
                                 } else {
                                     TextPrimary
                                 },
-                            fontSize = 13.sp,
+                            fontSize = priceSize,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -661,7 +673,7 @@ internal fun ProfessionalDashboardProductCard(
 
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(statusSize)
                             .clip(RoundedCornerShape(50))
                             .background(
                                 statusColor.copy(
@@ -675,7 +687,9 @@ internal fun ProfessionalDashboardProductCard(
                             contentDescription =
                                 cardStateDescription,
                             tint = statusColor,
-                            modifier = Modifier.size(15.dp)
+                            modifier = Modifier.size(
+                                if (compact) 14.dp else 15.dp
+                            )
                         )
                     }
                 }

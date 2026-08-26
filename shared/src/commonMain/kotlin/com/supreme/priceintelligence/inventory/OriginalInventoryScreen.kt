@@ -102,6 +102,7 @@ import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.dashboard.formatIndianPrice
 import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.settings.AppThemeMode
+import com.supreme.priceintelligence.settings.AppCustomization
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
@@ -122,6 +123,10 @@ fun OriginalInventoryScreen(
     viewModel: InventoryViewModel,
     themeMode: AppThemeMode,
     onThemeModeChanged: (AppThemeMode) -> Unit,
+    customization: AppCustomization,
+    onCustomizationChanged:
+        (AppCustomization) -> Unit,
+    onResetPersonalization: () -> Unit,
     advancedModeEnabled: Boolean,
     onAdvancedModeChanged: (Boolean) -> Unit,
     priceChangeNotificationsEnabled: Boolean,
@@ -214,6 +219,8 @@ fun OriginalInventoryScreen(
     if (scannerOpen) {
         ProductBarcodeScanner(
             modifier = Modifier.fillMaxSize(),
+            hapticFeedbackEnabled =
+                customization.hapticsEnabled,
             onScanned = { barcode ->
                 viewModel.onFormFieldChanged(barcode = barcode)
                 scannerOpen = false
@@ -598,16 +605,22 @@ fun OriginalInventoryScreen(
     }
 
     if (settingsOpen) {
-        AdvancedModeDialog(
+        PersonalizationSettingsDialog(
             themeMode = themeMode,
-            onThemeModeChanged = onThemeModeChanged,
-            enabled = advancedModeEnabled,
-            onEnabledChanged = onAdvancedModeChanged,
+            customization = customization,
+            advancedModeEnabled =
+                advancedModeEnabled,
             priceChangeNotificationsEnabled =
                 priceChangeNotificationsEnabled,
+            onThemeModeChanged = onThemeModeChanged,
+            onCustomizationChanged =
+                onCustomizationChanged,
+            onAdvancedModeChanged =
+                onAdvancedModeChanged,
             onPriceChangeNotificationsChanged =
                 onPriceChangeNotificationsChanged,
-            reduceMotionEnabled = reduceMotionEnabled,
+            onResetPersonalization =
+                onResetPersonalization,
             onDismiss = {
                 settingsOpen = false
             }

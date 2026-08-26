@@ -31,6 +31,21 @@ class AndroidAppPreferences(
                 .apply()
         }
 
+    override var customizationProfile: String
+        get() = preferences.getString(
+            CUSTOMIZATION_PROFILE_KEY,
+            ""
+        ).orEmpty()
+        set(value) {
+            preferences
+                .edit()
+                .putString(
+                    CUSTOMIZATION_PROFILE_KEY,
+                    value
+                )
+                .apply()
+        }
+
     override var automaticPriceRefreshLedger: String
         get() = preferences.getString(
             AUTOMATIC_PRICE_REFRESH_LEDGER_KEY,
@@ -79,6 +94,8 @@ class AndroidAppPreferences(
     private companion object {
         const val ADVANCED_MODE_KEY = "advanced_mode_enabled"
         const val THEME_MODE_KEY = "theme_mode"
+        const val CUSTOMIZATION_PROFILE_KEY =
+            "customization_profile"
         const val AUTOMATIC_PRICE_REFRESH_LEDGER_KEY =
             "automatic_price_refresh_ledger"
         const val SMART_REFRESH_PROFILE_KEY =
