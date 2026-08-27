@@ -28,10 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
@@ -47,6 +48,8 @@ import com.supreme.priceintelligence.settings.GraphPointMode
 import com.supreme.priceintelligence.settings.GraphSize
 import com.supreme.priceintelligence.settings.HistoryGraphStyle
 import com.supreme.priceintelligence.settings.PriceHistoryRange
+import com.supreme.priceintelligence.settings.RetailerChartPalette
+import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
@@ -67,7 +70,9 @@ internal fun PriceHistorySection(
         HistoryGraphStyle.LINE,
     graphSize: GraphSize = GraphSize.STANDARD,
     pointMode: GraphPointMode =
-        GraphPointMode.TAP_ONLY
+        GraphPointMode.TAP_ONLY,
+    retailerChartPalette: RetailerChartPalette =
+        RetailerChartPalette.ORIGINAL
 ) {
     val oldestAllowedTimestamp =
         Clock.System.now().toEpochMilliseconds() -
@@ -132,7 +137,9 @@ internal fun PriceHistorySection(
                     informationLevel = informationLevel,
                     graphStyle = graphStyle,
                     graphSize = graphSize,
-                    pointMode = pointMode
+                    pointMode = pointMode,
+                    retailerChartPalette =
+                        retailerChartPalette
                 )
             }
         }
@@ -189,7 +196,8 @@ private fun RetailerPriceHistoryCard(
     informationLevel: AdvancedInfoLevel,
     graphStyle: HistoryGraphStyle,
     graphSize: GraphSize,
-    pointMode: GraphPointMode
+    pointMode: GraphPointMode,
+    retailerChartPalette: RetailerChartPalette
 ) {
     val retailerName = when (summary.retailer) {
         PriceRetailer.AMAZON -> "Amazon"
@@ -304,7 +312,9 @@ private fun RetailerPriceHistoryCard(
                     shopPrice = shopPrice,
                     graphStyle = graphStyle,
                     graphSize = graphSize,
-                    pointMode = pointMode
+                    pointMode = pointMode,
+                    retailerChartPalette =
+                        retailerChartPalette
                 )
             }
 
@@ -324,7 +334,8 @@ private fun PriceHistoryLineGraph(
     shopPrice: Double,
     graphStyle: HistoryGraphStyle,
     graphSize: GraphSize,
-    pointMode: GraphPointMode
+    pointMode: GraphPointMode,
+    retailerChartPalette: RetailerChartPalette
 ) {
     val points = entries
         .asSequence()
@@ -362,9 +373,15 @@ private fun PriceHistoryLineGraph(
         PriceRetailer.FLIPKART -> "Flipkart"
     }
 
+    val retailerColors =
+        retailerChartPalette.retailerChartColors()
+
     val lineColor = when (retailer) {
-        PriceRetailer.AMAZON -> Color(0xFFFF9900)
-        PriceRetailer.FLIPKART -> Color(0xFF2874F0)
+        PriceRetailer.AMAZON ->
+            retailerColors.amazon
+
+        PriceRetailer.FLIPKART ->
+            retailerColors.flipkart
     }
 
     val gridColor =
@@ -384,15 +401,26 @@ private fun PriceHistoryLineGraph(
         "$retailerName price history with ${points.size} saved checks. " +
             "Latest price ${formatIndianPrice(latestPrice)}."
 
+    val chartSurfaceColor =
+        MaterialTheme.supremeColors.panelMuted
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.supremeColors.panelMuted)
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        lineColor.copy(alpha = 0.11f),
+                        chartSurfaceColor,
+                        chartSurfaceColor
+                    )
+                )
+            )
             .border(
                 width = 1.dp,
-                color = MaterialTheme.supremeColors.border,
-                shape = RoundedCornerShape(12.dp)
+                color = lineColor.copy(alpha = 0.22f),
+                shape = RoundedCornerShape(14.dp)
             )
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp)
@@ -561,61 +589,136 @@ private fun PriceHistoryLineGraph(
                 )
             }
 
-            val linePath = Path()
-            pointOffsets.forEachIndexed { index, point ->
-                if (index == 0) {
-                    linePath.moveTo(point.x, point.y)
-                } else if (graphStyle == HistoryGraphStyle.STEP) {
-                    val previous = pointOffsets[index - 1]
-                    linePath.lineTo(point.x, previous.y)
-                    linePath.lineTo(point.x, point.y)
-                } else {
-                    linePath.lineTo(point.x, point.y)
-                }
-            }
+            val chartBottom =
+                verticalInset + graphHeight
 
-            if (
-                graphStyle == HistoryGraphStyle.AREA &&
-                pointOffsets.isNotEmpty()
-            ) {
-                val areaPath = Path().apply {
-                    moveTo(
-                        pointOffsets.first().x,
-                        verticalInset + graphHeight
-                    )
-                    pointOffsets.forEach { point ->
-                        lineTo(point.x, point.y)
-                    }
-                    lineTo(
-                        pointOffsets.last().x,
-                        verticalInset + graphHeight
-                    )
-                    close()
-                }
-
-                drawPath(
-                    path = areaPath,
-                    color = lineColor.copy(alpha = 0.15f)
+            val linePath =
+                premiumChartLinePath(
+                    points = pointOffsets,
+                    graphStyle = graphStyle
                 )
-            }
+
+            val areaPath =
+                premiumChartAreaPath(
+                    points = pointOffsets,
+                    graphStyle = graphStyle,
+                    baselineY = chartBottom
+                )
+
+            val areaStrength =
+                if (graphStyle == HistoryGraphStyle.AREA) {
+                    0.24f
+                } else {
+                    0.08f
+                }
 
             drawPath(
-                path = linePath,
-                color = lineColor,
-                style = Stroke(
-                    width = 3.dp.toPx(),
-                    cap = StrokeCap.Round
+                path = areaPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        lineColor.copy(alpha = areaStrength),
+                        lineColor.copy(alpha = 0.02f),
+                        Color.Transparent
+                    ),
+                    startY = verticalInset,
+                    endY = chartBottom
                 )
             )
 
-            points.forEach { entry ->
+            if (pointOffsets.size > 1) {
+                drawPath(
+                    path = linePath,
+                    color = lineColor.copy(alpha = 0.12f),
+                    style = Stroke(
+                        width = 11.dp.toPx(),
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round
+                    )
+                )
+
+                drawPath(
+                    path = linePath,
+                    color = lineColor.copy(alpha = 0.28f),
+                    style = Stroke(
+                        width = 5.dp.toPx(),
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round
+                    )
+                )
+
+                drawPath(
+                    path = linePath,
+                    color = lineColor,
+                    style = Stroke(
+                        width = 2.6.dp.toPx(),
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round
+                    )
+                )
+            }
+
+            selectedPoint?.let { entry ->
+                val selectedX =
+                    xPosition(entry)
+
+                drawLine(
+                    color = lineColor.copy(alpha = 0.34f),
+                    start = Offset(
+                        x = selectedX,
+                        y = verticalInset
+                    ),
+                    end = Offset(
+                        x = selectedX,
+                        y = chartBottom
+                    ),
+                    strokeWidth = 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(
+                        intervals = floatArrayOf(
+                            4.dp.toPx(),
+                            4.dp.toPx()
+                        )
+                    )
+                )
+            }
+
+            points.forEachIndexed { index, entry ->
+                val pointCenter =
+                    pointOffsets[index]
+
+                val isLatest =
+                    index == points.lastIndex
+
+                val isSelected =
+                    selectedPoint == entry
+
+                if (isLatest && !isSelected) {
+                    drawCircle(
+                        color = lineColor.copy(alpha = 0.18f),
+                        radius = 8.dp.toPx(),
+                        center = pointCenter
+                    )
+                }
+
+                drawCircle(
+                    color = chartSurfaceColor,
+                    radius =
+                        if (isLatest) {
+                            4.8.dp.toPx()
+                        } else {
+                            3.8.dp.toPx()
+                        },
+                    center = pointCenter
+                )
+
                 drawCircle(
                     color = lineColor,
-                    radius = 3.5.dp.toPx(),
-                    center = Offset(
-                        x = xPosition(entry),
-                        y = yPosition(entry.price)
-                    )
+                    radius =
+                        if (isLatest) {
+                            3.2.dp.toPx()
+                        } else {
+                            2.4.dp.toPx()
+                        },
+                    center = pointCenter
                 )
             }
 
@@ -626,14 +729,20 @@ private fun PriceHistoryLineGraph(
                 )
 
                 drawCircle(
-                    color = Color.White,
-                    radius = 8.dp.toPx(),
+                    color = lineColor.copy(alpha = 0.16f),
+                    radius = 14.dp.toPx(),
+                    center = selectedCenter
+                )
+
+                drawCircle(
+                    color = chartSurfaceColor,
+                    radius = 7.dp.toPx(),
                     center = selectedCenter
                 )
 
                 drawCircle(
                     color = lineColor,
-                    radius = 5.dp.toPx(),
+                    radius = 4.5.dp.toPx(),
                     center = selectedCenter
                 )
             }

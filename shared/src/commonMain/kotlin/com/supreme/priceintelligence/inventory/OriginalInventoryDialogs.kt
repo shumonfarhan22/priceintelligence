@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Calculate
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -51,12 +54,14 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.theme.supremeColors
 
 @Composable
@@ -77,7 +82,11 @@ internal fun OriginalProductEditorDialog(
     onDismiss: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
-    val purchaseCostFocusRequester = remember { FocusRequester() }
+    val currentFontScale =
+        LocalDensity.current.fontScale
+
+    val purchaseCostFocusRequester =
+        remember { FocusRequester() }
     val sellingPriceFocusRequester = remember { FocusRequester() }
     val barcodeFocusRequester = remember { FocusRequester() }
     val amazonFocusRequester = remember { FocusRequester() }
@@ -213,7 +222,21 @@ internal fun OriginalProductEditorDialog(
             )
 
             val availableDialogHeight =
-                (maxHeight - 16.dp).coerceAtLeast(320.dp)
+                (maxHeight - 16.dp)
+                    .coerceAtLeast(320.dp)
+
+            val editorLayout =
+                adaptiveLayoutPolicy(
+                    availableWidthDp =
+                        maxWidth.value,
+                    fontScale =
+                        currentFontScale
+                )
+
+            val stackEditorRows =
+                editorLayout.shouldStack(
+                    minimumWidthForRowDp = 360f
+                )
 
             Surface(
                 modifier = Modifier
@@ -309,107 +332,184 @@ internal fun OriginalProductEditorDialog(
                             )
                         )
 
-                        Row(
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement =
-                                Arrangement.spacedBy(12.dp)
+                            verticalArrangement =
+                                Arrangement.spacedBy(8.dp)
                         ) {
-                            OriginalEditorField(
-                                label = "Purchase Cost (Optional)",
-                                placeholder = "₹ 0.00",
-                                value = form.purchaseCost,
-                                onValueChange =
-                                    onPurchaseCostChanged,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .focusRequester(
-                                        purchaseCostFocusRequester
-                                    ),
-                                keyboardOptions =
-                                    KeyboardOptions(
-                                        keyboardType =
-                                            KeyboardType.Decimal,
-                                        imeAction =
-                                            ImeAction.Next
-                                    ),
-                                keyboardActions =
-                                    KeyboardActions(
-                                        onNext = {
-                                            sellingPriceFocusRequester
-                                                .requestFocus()
-                                        }
-                                    ),
-                                trailingIcon = {
-                                    IconButton(
-                                        onClick = {
-                                            focusManager.clearFocus()
-                                            calculatorTarget =
-                                                PriceEditorField.PURCHASE_COST
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector =
-                                                Icons.Rounded.Calculate,
-                                            contentDescription =
-                                                "Open Purchase Cost calculator",
-                                            tint =
-                                                MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment =
+                                    Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "PRICE DETAILS",
+                                    color =
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
 
-                            OriginalEditorField(
-                                label = "Selling Price",
-                                placeholder = "₹ 0.00",
-                                value = form.shopPrice,
-                                onValueChange =
-                                    onShopPriceChanged,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .focusRequester(
-                                        sellingPriceFocusRequester
-                                    ),
-                                keyboardOptions =
-                                    KeyboardOptions(
-                                        keyboardType =
-                                            KeyboardType.Decimal,
-                                        imeAction =
-                                            ImeAction.Next
-                                    ),
-                                keyboardActions =
-                                    KeyboardActions(
-                                        onNext = {
-                                            barcodeFocusRequester
-                                                .requestFocus()
-                                        }
-                                    ),
-                                trailingIcon = {
-                                    IconButton(
-                                        onClick = {
-                                            focusManager.clearFocus()
-                                            calculatorTarget =
-                                                PriceEditorField.SELLING_PRICE
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector =
-                                                Icons.Rounded.Calculate,
-                                            contentDescription =
-                                                "Open Selling Price calculator",
-                                            tint =
-                                                MaterialTheme.colorScheme.primary
-                                        )
+                                Spacer(modifier = Modifier.weight(1f))
+
+                                GlassCalculatorButton(
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        calculatorTarget =
+                                            PriceEditorField.SELLING_PRICE
                                     }
+                                )
+                            }
+
+                            if (stackEditorRows) {
+                                Column(
+                                    modifier =
+                                        Modifier.fillMaxWidth(),
+                                    verticalArrangement =
+                                        Arrangement.spacedBy(
+                                            12.dp
+                                        )
+                                ) {
+                                    OriginalEditorField(
+                                        label =
+                                            "Purchase Cost",
+                                        placeholder = "₹ 0.00",
+                                        value =
+                                            form.purchaseCost,
+                                        onValueChange =
+                                            onPurchaseCostChanged,
+                                        optional = true,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .focusRequester(
+                                                purchaseCostFocusRequester
+                                            ),
+                                        keyboardOptions =
+                                            KeyboardOptions(
+                                                keyboardType =
+                                                    KeyboardType
+                                                        .Decimal,
+                                                imeAction =
+                                                    ImeAction.Next
+                                            ),
+                                        keyboardActions =
+                                            KeyboardActions(
+                                                onNext = {
+                                                    sellingPriceFocusRequester
+                                                        .requestFocus()
+                                                }
+                                            )
+                                    )
+
+                                    OriginalEditorField(
+                                        label =
+                                            "Selling Price",
+                                        placeholder = "₹ 0.00",
+                                        value =
+                                            form.shopPrice,
+                                        onValueChange =
+                                            onShopPriceChanged,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .focusRequester(
+                                                sellingPriceFocusRequester
+                                            ),
+                                        keyboardOptions =
+                                            KeyboardOptions(
+                                                keyboardType =
+                                                    KeyboardType
+                                                        .Decimal,
+                                                imeAction =
+                                                    ImeAction.Next
+                                            ),
+                                        keyboardActions =
+                                            KeyboardActions(
+                                                onNext = {
+                                                    barcodeFocusRequester
+                                                        .requestFocus()
+                                                }
+                                            )
+                                    )
                                 }
-                            )
+                            } else {
+                                Row(
+                                    modifier =
+                                        Modifier.fillMaxWidth(),
+                                    horizontalArrangement =
+                                        Arrangement.spacedBy(
+                                            12.dp
+                                        )
+                                ) {
+                                    OriginalEditorField(
+                                        label =
+                                            "Purchase Cost",
+                                        placeholder = "₹ 0.00",
+                                        value =
+                                            form.purchaseCost,
+                                        onValueChange =
+                                            onPurchaseCostChanged,
+                                        optional = true,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .focusRequester(
+                                                purchaseCostFocusRequester
+                                            ),
+                                        keyboardOptions =
+                                            KeyboardOptions(
+                                                keyboardType =
+                                                    KeyboardType
+                                                        .Decimal,
+                                                imeAction =
+                                                    ImeAction.Next
+                                            ),
+                                        keyboardActions =
+                                            KeyboardActions(
+                                                onNext = {
+                                                    sellingPriceFocusRequester
+                                                        .requestFocus()
+                                                }
+                                            )
+                                    )
+
+                                    OriginalEditorField(
+                                        label =
+                                            "Selling Price",
+                                        placeholder = "₹ 0.00",
+                                        value =
+                                            form.shopPrice,
+                                        onValueChange =
+                                            onShopPriceChanged,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .focusRequester(
+                                                sellingPriceFocusRequester
+                                            ),
+                                        keyboardOptions =
+                                            KeyboardOptions(
+                                                keyboardType =
+                                                    KeyboardType
+                                                        .Decimal,
+                                                imeAction =
+                                                    ImeAction.Next
+                                            ),
+                                        keyboardActions =
+                                            KeyboardActions(
+                                                onNext = {
+                                                    barcodeFocusRequester
+                                                        .requestFocus()
+                                                }
+                                            )
+                                    )
+                                }
+                            }
                         }
 
                         OriginalEditorField(
-                            label = "Barcode (Optional)",
+                            label = "Barcode",
                             placeholder = "Scan or enter barcode",
                             value = form.barcode,
                             onValueChange = onBarcodeChanged,
+                            optional = true,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(
@@ -418,13 +518,12 @@ internal fun OriginalProductEditorDialog(
                             keyboardOptions = KeyboardOptions(
                                 keyboardType =
                                     KeyboardType.Number,
-                                imeAction = ImeAction.Next
+                                imeAction = ImeAction.Done
                             ),
                             keyboardActions =
                                 KeyboardActions(
-                                    onNext = {
-                                        amazonFocusRequester
-                                            .requestFocus()
+                                    onDone = {
+                                        focusManager.clearFocus()
                                     }
                                 ),
                             trailingIcon = {
@@ -443,90 +542,209 @@ internal fun OriginalProductEditorDialog(
                             }
                         )
 
-                        OriginalEditorField(
-                            label = "Amazon URL (Optional)",
-                            placeholder = "https://amazon.in/...",
-                            value = form.amazonUrl,
-                            onValueChange =
-                                onAmazonUrlChanged,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(
-                                    amazonFocusRequester
-                                ),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType =
-                                    KeyboardType.Uri,
-                                imeAction = ImeAction.Next
-                            ),
-                            keyboardActions =
-                                KeyboardActions(
-                                    onNext = {
-                                        flipkartFocusRequester
-                                            .requestFocus()
-                                    }
-                                ),
-                            trailingIcon = {
-                                IconButton(
+                        val hasRetailerUrl =
+                            form.amazonUrl.isNotBlank() ||
+                                form.flipkartUrl.isNotBlank()
+
+                        if (!hasRetailerUrl) {
+                            if (stackEditorRows) {
+                                Column(
+                                    modifier =
+                                        Modifier.fillMaxWidth(),
+                                    verticalArrangement =
+                                        Arrangement.spacedBy(
+                                            12.dp
+                                        )
+                                ) {
+                                    RetailerBrowserButton(
+                                        label = "Amazon",
+                                        onClick = {
+                                            focusManager
+                                                .clearFocus()
+                                            browserSite =
+                                                RetailerBrowserSite
+                                                    .AMAZON
+                                        },
+                                        modifier =
+                                            Modifier.fillMaxWidth()
+                                    )
+
+                                    RetailerBrowserButton(
+                                        label = "Flipkart",
+                                        onClick = {
+                                            focusManager
+                                                .clearFocus()
+                                            browserSite =
+                                                RetailerBrowserSite
+                                                    .FLIPKART
+                                        },
+                                        modifier =
+                                            Modifier.fillMaxWidth()
+                                    )
+                                }
+                            } else {
+                                Row(
+                                    modifier =
+                                        Modifier.fillMaxWidth(),
+                                    horizontalArrangement =
+                                        Arrangement.spacedBy(
+                                            12.dp
+                                        )
+                                ) {
+                                    RetailerBrowserButton(
+                                        label = "Amazon",
+                                        onClick = {
+                                            focusManager
+                                                .clearFocus()
+                                            browserSite =
+                                                RetailerBrowserSite
+                                                    .AMAZON
+                                        },
+                                        modifier =
+                                            Modifier.weight(1f)
+                                    )
+
+                                    RetailerBrowserButton(
+                                        label = "Flipkart",
+                                        onClick = {
+                                            focusManager
+                                                .clearFocus()
+                                            browserSite =
+                                                RetailerBrowserSite
+                                                    .FLIPKART
+                                        },
+                                        modifier =
+                                            Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        } else {
+                            if (form.amazonUrl.isBlank()) {
+                                RetailerBrowserButton(
+                                    label = "Amazon",
                                     onClick = {
                                         focusManager.clearFocus()
                                         browserSite =
                                             RetailerBrowserSite.AMAZON
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else {
+                                OriginalEditorField(
+                                    label = "Amazon URL",
+                                    placeholder =
+                                        "https://amazon.in/product",
+                                    value = form.amazonUrl,
+                                    onValueChange =
+                                        onAmazonUrlChanged,
+                                    optional = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(
+                                            amazonFocusRequester
+                                        ),
+                                    keyboardOptions =
+                                        KeyboardOptions(
+                                            keyboardType =
+                                                KeyboardType.Uri,
+                                            imeAction = if (
+                                                form.flipkartUrl
+                                                    .isNotBlank()
+                                            ) {
+                                                ImeAction.Next
+                                            } else {
+                                                ImeAction.Done
+                                            }
+                                        ),
+                                    keyboardActions =
+                                        KeyboardActions(
+                                            onNext = {
+                                                flipkartFocusRequester
+                                                    .requestFocus()
+                                            },
+                                            onDone = {
+                                                focusManager.clearFocus()
+                                            }
+                                        ),
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = {
+                                                focusManager.clearFocus()
+                                                browserSite =
+                                                    RetailerBrowserSite.AMAZON
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector =
+                                                    Icons.Rounded.Language,
+                                                contentDescription =
+                                                    "Browse Amazon India",
+                                                tint =
+                                                    MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
-                                ) {
-                                    Icon(
-                                        imageVector =
-                                            Icons.Rounded.Language,
-                                        contentDescription =
-                                            "Browse Amazon India",
-                                        tint =
-                                            MaterialTheme.colorScheme.primary
-                                    )
-                                }
+                                )
                             }
-                        )
 
-                        OriginalEditorField(
-                            label = "Flipkart URL (Optional)",
-                            placeholder = "https://flipkart.com/...",
-                            value = form.flipkartUrl,
-                            onValueChange =
-                                onFlipkartUrlChanged,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(
-                                    flipkartFocusRequester
-                                ),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType =
-                                    KeyboardType.Uri,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions =
-                                KeyboardActions(
-                                    onDone = {
-                                        focusManager.clearFocus()
-                                    }
-                                ),
-                            trailingIcon = {
-                                IconButton(
+                            if (form.flipkartUrl.isBlank()) {
+                                RetailerBrowserButton(
+                                    label = "Flipkart",
                                     onClick = {
                                         focusManager.clearFocus()
                                         browserSite =
                                             RetailerBrowserSite.FLIPKART
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else {
+                                OriginalEditorField(
+                                    label = "Flipkart URL",
+                                    placeholder =
+                                        "https://flipkart.com/product",
+                                    value = form.flipkartUrl,
+                                    onValueChange =
+                                        onFlipkartUrlChanged,
+                                    optional = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(
+                                            flipkartFocusRequester
+                                        ),
+                                    keyboardOptions =
+                                        KeyboardOptions(
+                                            keyboardType =
+                                                KeyboardType.Uri,
+                                            imeAction =
+                                                ImeAction.Done
+                                        ),
+                                    keyboardActions =
+                                        KeyboardActions(
+                                            onDone = {
+                                                focusManager.clearFocus()
+                                            }
+                                        ),
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = {
+                                                focusManager.clearFocus()
+                                                browserSite =
+                                                    RetailerBrowserSite.FLIPKART
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector =
+                                                    Icons.Rounded.Language,
+                                                contentDescription =
+                                                    "Browse Flipkart",
+                                                tint =
+                                                    MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
-                                ) {
-                                    Icon(
-                                        imageVector =
-                                            Icons.Rounded.Language,
-                                        contentDescription =
-                                            "Browse Flipkart",
-                                        tint =
-                                            MaterialTheme.colorScheme.primary
-                                    )
-                                }
+                                )
                             }
-                        )
+                        }
 
                         if (statusMessage != null) {
                             Text(
@@ -546,53 +764,14 @@ internal fun OriginalProductEditorDialog(
                             Spacer(modifier = Modifier.height(4.dp))
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = onClear,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    color = Color.White.copy(alpha = 0.20f)
-                                ),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.onSurface
-                                )
-                            ) {
-                                Text(
-                                    text = "Clear Form",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                        EditorActionButtons(
+                            stackVertically =
+                                stackEditorRows,
+                            onClear = onClear,
+                            onSave = {
+                                onSave(requestDismiss)
                             }
-
-                            Button(
-                                onClick = {
-                                    onSave(requestDismiss)
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor =
-                                        MaterialTheme.colorScheme.primary,
-                                    contentColor =
-                                        MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {
-                                Text(
-                                    text = "SAVE ITEM",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                        )
                     }
                 }
             }
@@ -642,11 +821,154 @@ internal fun OriginalProductEditorDialog(
 }
 
 @Composable
+private fun GlassCalculatorButton(
+    onClick: () -> Unit
+) {
+    val primaryColor =
+        MaterialTheme.colorScheme.primary
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(11.dp),
+        color =
+            MaterialTheme.supremeColors.panelMuted,
+        contentColor = primaryColor,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        border = BorderStroke(
+            width = 1.dp,
+            color =
+                MaterialTheme.supremeColors.border
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 38.dp)
+                .padding(
+                    horizontal = 11.dp,
+                    vertical = 8.dp
+                ),
+            verticalAlignment =
+                Alignment.CenterVertically,
+            horizontalArrangement =
+                Arrangement.spacedBy(7.dp)
+        ) {
+            Icon(
+                imageVector =
+                    Icons.Rounded.Calculate,
+                contentDescription = null,
+                tint = primaryColor,
+                modifier = Modifier.size(18.dp)
+            )
+
+            Text(
+                text = "Calculator",
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.2.sp,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditorActionButtons(
+    stackVertically: Boolean,
+    onClear: () -> Unit,
+    onSave: () -> Unit
+) {
+    val clearButton:
+        @Composable (Modifier) -> Unit =
+        { buttonModifier ->
+            OutlinedButton(
+                onClick = onClear,
+                modifier = buttonModifier
+                    .heightIn(min = 50.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color =
+                        Color.White.copy(alpha = 0.20f)
+                ),
+                colors =
+                    ButtonDefaults
+                        .outlinedButtonColors(
+                            contentColor =
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurface
+                        )
+            ) {
+                Text(
+                    text = "Clear Form",
+                    fontSize = 14.sp,
+                    fontWeight =
+                        FontWeight.SemiBold
+                )
+            }
+        }
+
+    val saveButton:
+        @Composable (Modifier) -> Unit =
+        { buttonModifier ->
+            Button(
+                onClick = onSave,
+                modifier = buttonModifier
+                    .heightIn(min = 50.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor =
+                            MaterialTheme
+                                .colorScheme
+                                .primary,
+                        contentColor =
+                            MaterialTheme
+                                .colorScheme
+                                .onPrimary
+                    )
+            ) {
+                Text(
+                    text = "SAVE ITEM",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+    if (stackVertically) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement =
+                Arrangement.spacedBy(10.dp)
+        ) {
+            saveButton(Modifier.fillMaxWidth())
+            clearButton(Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement =
+                Arrangement.spacedBy(12.dp)
+        ) {
+            clearButton(Modifier.weight(1f))
+            saveButton(Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
 private fun OriginalEditorField(
     label: String,
     placeholder: String,
     value: String,
     onValueChange: (String) -> Unit,
+    optional: Boolean = false,
     modifier: Modifier = Modifier,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
@@ -655,15 +977,29 @@ private fun OriginalEditorField(
     Column(
         modifier = modifier
     ) {
-        Text(
-            text = label,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 13.sp,
+        Row(
             modifier = Modifier.padding(
                 start = 4.dp,
                 bottom = 6.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                text = label,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 13.sp
             )
-        )
+
+            if (optional) {
+                Icon(
+                    imageVector = Icons.Rounded.Info,
+                    contentDescription = "Optional field",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
 
         OutlinedTextField(
             value = value,
@@ -698,6 +1034,51 @@ private fun OriginalEditorField(
                 cursorColor =
                     MaterialTheme.colorScheme.primary
             )
+        )
+    }
+}
+
+@Composable
+private fun RetailerBrowserButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.height(56.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.supremeColors.border
+        ),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = MaterialTheme.supremeColors.panel,
+            contentColor = MaterialTheme.colorScheme.primary
+        )
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Language,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
+
+        Spacer(modifier = Modifier.width(5.dp))
+
+        Icon(
+            imageVector = Icons.Rounded.Info,
+            contentDescription = "$label link is optional",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(13.dp)
         )
     }
 }

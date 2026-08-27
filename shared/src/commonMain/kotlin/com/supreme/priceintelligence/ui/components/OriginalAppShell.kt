@@ -48,10 +48,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -337,6 +339,13 @@ fun OriginalBottomNavigation(
     reduceMotionEnabled: Boolean = false
 ) {
     val navigationShape = RoundedCornerShape(12.dp)
+    val fontScale = LocalDensity.current.fontScale
+
+    val navigationHeight = when {
+        fontScale >= 1.30f -> 96.dp
+        fontScale >= 1.10f -> 84.dp
+        else -> 72.dp
+    }
 
     Row(
         modifier = modifier
@@ -346,7 +355,7 @@ fun OriginalBottomNavigation(
                 end = horizontalPadding,
                 bottom = 8.dp
             )
-            .height(72.dp)
+            .height(navigationHeight)
             .shadow(
                 elevation =
                     if (MaterialTheme.supremeColors.isDark) {
@@ -489,7 +498,10 @@ private fun OriginalNavigationItem(
             text = destination.title,
             color = itemColor,
             fontSize = 12.sp,
+            lineHeight = 15.sp,
             fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
             modifier = Modifier.padding(top = 4.dp)
         )
     }

@@ -86,6 +86,19 @@ enum class GraphPointMode(val displayName: String) {
     HIDDEN("Hide details")
 }
 
+enum class RetailerChartPalette(
+    val displayName: String
+) {
+    ORIGINAL("Original"),
+    EMERALD_INDIGO("Emerald + indigo"),
+    COPPER_TEAL("Copper + teal"),
+    GOLD_AMETHYST("Gold + amethyst"),
+    CORAL_SAPPHIRE("Coral + sapphire"),
+    CYAN_VIOLET("Cyan + violet"),
+    AMBER_SKY("Amber + sky"),
+    PINK_AQUA("Pink + aqua")
+}
+
 enum class MovementDefaultRetailer(val displayName: String) {
     ALL("All"),
     AMAZON("Amazon"),
@@ -150,6 +163,8 @@ data class InsightCustomization(
     val graphSize: GraphSize = GraphSize.STANDARD,
     val graphPointMode: GraphPointMode =
         GraphPointMode.TAP_ONLY,
+    val retailerChartPalette: RetailerChartPalette =
+        RetailerChartPalette.ORIGINAL,
     val movementDefaultRetailer: MovementDefaultRetailer =
         MovementDefaultRetailer.ALL,
     val movementLayout: MovementLayout =
@@ -289,7 +304,11 @@ internal fun readInsightCustomization(
         movementProductSort = enumInsight(parts.getOrNull(21), MovementProductSort.LATEST_CHANGE),
         movementDirectionFilter = enumInsight(parts.getOrNull(22), MovementDirectionFilter.BOTH),
         movementGraphStyle = enumInsight(parts.getOrNull(23), HistoryGraphStyle.LINE),
-        movementProductGraphState = enumInsight(parts.getOrNull(24), MovementProductGraphState.EXPANDED)
+        movementProductGraphState = enumInsight(parts.getOrNull(24), MovementProductGraphState.EXPANDED),
+        retailerChartPalette = enumInsight(
+            parts.getOrNull(25),
+            RetailerChartPalette.ORIGINAL
+        )
     )
 }
 
@@ -320,7 +339,8 @@ internal fun writeInsightCustomization(
     customization.movementProductSort.name,
     customization.movementDirectionFilter.name,
     customization.movementGraphStyle.name,
-    customization.movementProductGraphState.name
+    customization.movementProductGraphState.name,
+    customization.retailerChartPalette.name
 ).joinToString(",")
 
 private inline fun <reified T : Enum<T>> enumInsight(

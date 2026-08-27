@@ -12,8 +12,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -70,6 +73,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.supreme.priceintelligence.settings.AdvancedInfoLevel
 import com.supreme.priceintelligence.settings.AppAccentColor
+import com.supreme.priceintelligence.settings.AppColorPalette
 import com.supreme.priceintelligence.settings.AppContrastMode
 import com.supreme.priceintelligence.settings.AppCustomization
 import com.supreme.priceintelligence.settings.AppDisplayDensity
@@ -98,12 +102,15 @@ import com.supreme.priceintelligence.settings.PriceAlertThreshold
 import com.supreme.priceintelligence.settings.PriceEmphasis
 import com.supreme.priceintelligence.settings.PriceHistoryRange
 import com.supreme.priceintelligence.settings.PriceMovementDefaultRange
+import com.supreme.priceintelligence.settings.RetailerChartPalette
 import com.supreme.priceintelligence.settings.PriorityProductLimit
 import com.supreme.priceintelligence.settings.PriorityRowStyle
 import com.supreme.priceintelligence.settings.PrioritySortMode
 import com.supreme.priceintelligence.settings.SectionStartState
 import com.supreme.priceintelligence.settings.matchingPersonalizationPreset
 import com.supreme.priceintelligence.settings.personalizationForPreset
+import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
+import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
 
 private enum class PersonalizationSection {
@@ -130,8 +137,13 @@ internal fun PersonalizationAccordionDialog(
     onDismiss: () -> Unit
 ) {
     var expandedSectionName by rememberSaveable {
-        mutableStateOf<String?>(PersonalizationSection.APPEARANCE.name)
+        mutableStateOf<String?>(null)
     }
+
+    var customPaletteEditorOpen by rememberSaveable {
+        mutableStateOf(false)
+    }
+
     val insight = customization.insightCustomization
     val defaults = AppCustomization()
     val insightDefaults = InsightCustomization()
@@ -207,13 +219,23 @@ internal fun PersonalizationAccordionDialog(
                                 { it.displayLabel() },
                                 onThemeModeChanged
                             )
-                            ChoiceGroup(
-                                "Accent colour",
-                                AppAccentColor.entries,
-                                customization.accentColor,
-                                { it.displayName },
-                                { onCustomizationChanged(customization.copy(accentColor = it)) },
-                                colourPreview = { it.previewColor() }
+                            AppColorPaletteControl(
+                                customization =
+                                    customization,
+                                onPaletteSelected = {
+                                        palette ->
+
+                                    onCustomizationChanged(
+                                        customization.copy(
+                                            appColorPalette =
+                                                palette
+                                        )
+                                    )
+                                },
+                                onEditCustomPalette = {
+                                    customPaletteEditorOpen =
+                                        true
+                                }
                             )
                             ChoiceGroup(
                                 "Font style",
@@ -267,6 +289,10 @@ internal fun PersonalizationAccordionDialog(
                                 onCustomizationChanged(
                                     customization.copy(
                                         accentColor = defaults.accentColor,
+                                        appColorPalette =
+                                            defaults.appColorPalette,
+                                        customColorPalette =
+                                            defaults.customColorPalette,
                                         fontStyle = defaults.fontStyle,
                                         textSize = defaults.textSize,
                                         displayDensity = defaults.displayDensity,
@@ -484,6 +510,26 @@ internal fun PersonalizationAccordionDialog(
                                 { value -> updateInsight { it.copy(historyGraphStyle = value) } }
                             )
                             ChoiceGroup(
+                                title = "Retailer colours · Amazon / Flipkart",
+                                options = RetailerChartPalette.entries,
+                                selected = insight.retailerChartPalette,
+                                label = { it.displayName },
+                                onSelected = { value ->
+                                    updateInsight {
+                                        it.copy(
+                                            retailerChartPalette =
+                                                value
+                                        )
+                                    }
+                                },
+                                colourPreview = {
+                                    it.retailerChartColors().amazon
+                                },
+                                secondaryColourPreview = {
+                                    it.retailerChartColors().flipkart
+                                }
+                            )
+                            ChoiceGroup(
                                 "Graph size",
                                 GraphSize.entries,
                                 insight.graphSize,
@@ -505,7 +551,9 @@ internal fun PersonalizationAccordionDialog(
                                         priceHistoryRange = insightDefaults.priceHistoryRange,
                                         historyGraphStyle = insightDefaults.historyGraphStyle,
                                         graphSize = insightDefaults.graphSize,
-                                        graphPointMode = insightDefaults.graphPointMode
+                                        graphPointMode = insightDefaults.graphPointMode,
+                                        retailerChartPalette =
+                                            insightDefaults.retailerChartPalette
                                     )
                                 }
                             }
@@ -655,24 +703,114 @@ internal fun PersonalizationAccordionDialog(
                     }
                 }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                PersonalizationFooter(
+                    onReset = onResetPersonalization,
+                    onDone = onDismiss
+                )
+            }
+        }
+    }
+
+    if (customPaletteEditorOpen) {
+        CustomAppColorPaletteDialog(
+            initialPalette =
+                customization.customColorPalette,
+            onApply = { updatedPalette ->
+                onCustomizationChanged(
+                    customization.copy(
+                        appColorPalette =
+                            AppColorPalette.CUSTOM,
+                        customColorPalette =
+                            updatedPalette
+                    )
+                )
+
+                customPaletteEditorOpen = false
+            },
+            onDismiss = {
+                customPaletteEditorOpen = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun PersonalizationFooter(
+    onReset: () -> Unit,
+    onDone: () -> Unit
+) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surface
+            )
+            .padding(
+                horizontal = 14.dp,
+                vertical = 12.dp
+            )
+    ) {
+        val policy = adaptiveLayoutPolicy(
+            availableWidthDp = maxWidth.value,
+            fontScale =
+                LocalDensity.current.fontScale
+        )
+
+        val stackButtons =
+            policy.shouldStack(
+                minimumWidthForRowDp = 330f
+            )
+
+        if (stackButtons) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement =
+                    Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onDone,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    OutlinedButton(
-                        onClick = onResetPersonalization,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Rounded.RestartAlt, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Reset all")
-                    }
-                    Button(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                        Text("Done")
-                    }
+                    Text("Done")
+                }
+
+                OutlinedButton(
+                    onClick = onReset,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Rounded.RestartAlt,
+                        null,
+                        Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Reset all")
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onReset,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        Icons.Rounded.RestartAlt,
+                        null,
+                        Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Reset all")
+                }
+
+                Button(
+                    onClick = onDone,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Done")
                 }
             }
         }
@@ -727,10 +865,43 @@ private fun PersonalizationPreview(customization: AppCustomization) {
                     )
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                PreviewMetric("12", "Competitive", MaterialTheme.supremeColors.competitive, Modifier.weight(1f))
-                PreviewMetric("3", "Need check", MaterialTheme.supremeColors.warning, Modifier.weight(1f))
-                PreviewMetric("2", "Review", MaterialTheme.colorScheme.error, Modifier.weight(1f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
+                horizontalArrangement =
+                    Arrangement.spacedBy(6.dp)
+            ) {
+                PreviewMetric(
+                    "12",
+                    "Competitive",
+                    MaterialTheme
+                        .supremeColors
+                        .competitive,
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
+                PreviewMetric(
+                    "3",
+                    "Need check",
+                    MaterialTheme
+                        .supremeColors
+                        .warning,
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
+                PreviewMetric(
+                    "2",
+                    "Review",
+                    MaterialTheme
+                        .colorScheme
+                        .error,
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
             }
         }
     }
@@ -741,7 +912,14 @@ private fun PreviewMetric(value: String, label: String, color: Color, modifier: 
     Surface(modifier, shape = RoundedCornerShape(11.dp), color = color.copy(alpha = 0.10f), border = BorderStroke(1.dp, color.copy(alpha = 0.30f))) {
         Column(Modifier.padding(8.dp)) {
             Text(value, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-            Text(label, fontSize = 9.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = label,
+                fontSize = 9.sp,
+                lineHeight = 12.sp,
+                color = color,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -821,11 +999,30 @@ private fun <T> ChoiceGroup(
     selected: T,
     label: (T) -> String,
     onSelected: (T) -> Unit,
-    colourPreview: ((T) -> Color)? = null
+    colourPreview: ((T) -> Color)? = null,
+    secondaryColourPreview: ((T) -> Color)? = null
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        ChoiceGrid(options, selected, label, onSelected, colourPreview)
+    Column(
+        verticalArrangement =
+            Arrangement.spacedBy(7.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color =
+                MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        ChoiceGrid(
+            options = options,
+            selected = selected,
+            label = label,
+            onSelected = onSelected,
+            colourPreview = colourPreview,
+            secondaryColourPreview =
+                secondaryColourPreview
+        )
     }
 }
 
@@ -835,22 +1032,64 @@ private fun <T> ChoiceGrid(
     selected: T?,
     label: (T) -> String,
     onSelected: (T) -> Unit,
-    colourPreview: ((T) -> Color)? = null
+    colourPreview: ((T) -> Color)? = null,
+    secondaryColourPreview: ((T) -> Color)? = null
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        options.chunked(2).forEach { rowOptions ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                rowOptions.forEach { option ->
-                    ChoiceTile(
-                        text = label(option),
-                        selected = option == selected,
-                        previewColor = colourPreview?.invoke(option),
-                        onClick = { onSelected(option) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                if (rowOptions.size == 1) Spacer(Modifier.weight(1f))
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        val columnCount =
+            if (maxWidth >= 248.dp) {
+                2
+            } else {
+                1
             }
+
+        Column(
+            verticalArrangement =
+                Arrangement.spacedBy(7.dp)
+        ) {
+            options
+                .chunked(columnCount)
+                .forEach { rowOptions ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min),
+                        horizontalArrangement =
+                            Arrangement.spacedBy(7.dp)
+                    ) {
+                        rowOptions.forEach { option ->
+                            ChoiceTile(
+                                text = label(option),
+                                selected =
+                                    option == selected,
+                                previewColor =
+                                    colourPreview
+                                        ?.invoke(option),
+                                secondaryPreviewColor =
+                                    secondaryColourPreview
+                                        ?.invoke(option),
+                                onClick = {
+                                    onSelected(option)
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                        }
+
+                        if (
+                            columnCount > 1 &&
+                            rowOptions.size == 1
+                        ) {
+                            Spacer(
+                                modifier =
+                                    Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
         }
     }
 }
@@ -860,31 +1099,121 @@ private fun ChoiceTile(
     text: String,
     selected: Boolean,
     previewColor: Color?,
+    secondaryPreviewColor: Color?,
     onClick: () -> Unit,
     modifier: Modifier
 ) {
+    val hasColourPreview =
+        previewColor != null ||
+                secondaryPreviewColor != null
+
     Surface(
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .semantics { role = Role.RadioButton; this.selected = selected },
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+            },
         shape = RoundedCornerShape(12.dp),
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.supremeColors.panelMuted,
-        border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.supremeColors.border)
+        color =
+            if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.supremeColors.panelMuted
+            },
+        border = BorderStroke(
+            width = 1.dp,
+            color =
+                if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.supremeColors.border
+                }
+        )
     ) {
-        Row(Modifier.padding(horizontal = 9.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            previewColor?.let {
-                Box(Modifier.size(17.dp).clip(CircleShape).background(it))
-                Spacer(Modifier.width(7.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 12.dp,
+                    vertical = 10.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement =
+                if (hasColourPreview) {
+                    Arrangement.Start
+                } else {
+                    Arrangement.Center
+                }
+        ) {
+            if (hasColourPreview) {
+                Box(
+                    modifier = Modifier
+                        .width(
+                            if (
+                                secondaryPreviewColor !=
+                                null
+                            ) {
+                                34.dp
+                            } else {
+                                20.dp
+                            }
+                        )
+                        .height(20.dp)
+                ) {
+                    previewColor?.let { colour ->
+                        Box(
+                            modifier = Modifier
+                                .size(17.dp)
+                                .align(
+                                    Alignment.CenterStart
+                                )
+                                .clip(CircleShape)
+                                .background(colour)
+                        )
+                    }
+
+                    secondaryPreviewColor
+                        ?.let { colour ->
+                            Box(
+                                modifier = Modifier
+                                    .size(17.dp)
+                                    .align(
+                                        Alignment.CenterEnd
+                                    )
+                                    .clip(CircleShape)
+                                    .background(colour)
+                            )
+                        }
+                }
+
+                Spacer(modifier = Modifier.width(7.dp))
             }
+
             Text(
-                text,
+                text = text,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                color =
+                    if (selected) {
+                        MaterialTheme
+                            .colorScheme
+                            .onPrimaryContainer
+                    } else {
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                    },
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier =
+                    if (hasColourPreview) {
+                        Modifier.weight(1f)
+                    } else {
+                        Modifier
+                    }
             )
         }
     }
@@ -930,8 +1259,14 @@ private fun AppThemeMode.displayLabel(): String = when (this) {
     AppThemeMode.DARK -> "Dark"
 }
 
-private fun appearanceSummary(themeMode: AppThemeMode, customization: AppCustomization): String =
-    "${themeMode.displayLabel()} • ${customization.accentColor.displayName} • ${customization.fontStyle.displayName} • ${customization.textSize.displayName}"
+private fun appearanceSummary(
+    themeMode: AppThemeMode,
+    customization: AppCustomization
+): String =
+    "${themeMode.displayLabel()} • " +
+        "${customization.appColorPalette.displayName} • " +
+        "${customization.fontStyle.displayName} • " +
+        customization.textSize.displayName
 
 private fun AppAccentColor.previewColor(): Color = when (this) {
     AppAccentColor.SUPREME -> Color(0xFF10B981)

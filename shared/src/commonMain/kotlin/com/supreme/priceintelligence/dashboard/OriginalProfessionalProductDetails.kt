@@ -862,12 +862,14 @@ internal fun OriginalProfessionalProductDetailDialog(
 
                             Text(
                                 text = item.productName,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurface,
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
-                                fontWeight = FontWeight.Normal,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
+                                fontWeight =
+                                    FontWeight.Normal
                             )
 
                             Spacer(modifier = Modifier.weight(1f))
@@ -883,11 +885,19 @@ internal fun OriginalProfessionalProductDetailDialog(
                             )
 
                             Text(
-                                text = formatIndianPrice(item.shopPrice),
-                                color = MaterialTheme.colorScheme.onSurface,
+                                text =
+                                    formatIndianPrice(
+                                        item.shopPrice
+                                    ),
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurface,
                                 fontSize = 22.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                maxLines = 1
+                                lineHeight = 27.sp,
+                                fontWeight =
+                                    FontWeight.ExtraBold,
+                                maxLines = 2
                             )
                         }
 
@@ -1153,7 +1163,10 @@ internal fun OriginalProfessionalProductDetailDialog(
                                             .graphSize,
                                     pointMode =
                                         insightCustomization
-                                            .graphPointMode
+                                            .graphPointMode,
+                                    retailerChartPalette =
+                                        insightCustomization
+                                            .retailerChartPalette
                                 )
                             }
                         }
@@ -1427,7 +1440,7 @@ private fun ProfessionalRetailerPriceCard(
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
-                maxLines = 1
+                maxLines = 2
             )
         }
 
@@ -1441,7 +1454,7 @@ private fun ProfessionalRetailerPriceCard(
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
-                maxLines = 1
+                maxLines = 2
             )
         }
 
@@ -1454,7 +1467,7 @@ private fun ProfessionalRetailerPriceCard(
             lineHeight = 13.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
-            maxLines = 2
+            maxLines = 3
         )
     }
 }

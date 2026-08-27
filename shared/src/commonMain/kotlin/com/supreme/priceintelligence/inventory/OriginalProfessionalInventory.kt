@@ -265,6 +265,9 @@ internal fun ProfessionalInventoryProductRow(
         Animatable(0f)
     }
     val density = LocalDensity.current
+    val largeText =
+        density.fontScale >= 1.10f
+
     val maxSwipe = with(density) {
         -80.dp.toPx()
     }
@@ -462,10 +465,24 @@ internal fun ProfessionalInventoryProductRow(
 
             ProfessionalInventoryProductImage(
                 item = item,
-                modifier = Modifier.size(64.dp)
+                modifier = Modifier.size(
+                    if (largeText) {
+                        56.dp
+                    } else {
+                        64.dp
+                    }
+                )
             )
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(
+                modifier = Modifier.width(
+                    if (largeText) {
+                        10.dp
+                    } else {
+                        14.dp
+                    }
+                )
+            )
 
             androidx.compose.foundation.layout.Column(
                 modifier = Modifier.weight(1f)
@@ -488,6 +505,7 @@ internal fun ProfessionalInventoryProductRow(
 
                 Row(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .clip(RoundedCornerShape(6.dp))
                         .border(
                             width = 1.dp,
@@ -518,20 +536,38 @@ internal fun ProfessionalInventoryProductRow(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
+                    val priceTextColor =
+                        if (
+                            MaterialTheme
+                                .supremeColors
+                                .isDark
+                        ) {
+                            ProfessionalInventoryEmerald
+                        } else {
+                            ProfessionalInventoryText
+                        }
+
                     Text(
-                        text = "Supreme Price: ${
-                            formatIndianPrice(item.shopPrice)
-                        }",
-                        color =
-                            if (
-                                MaterialTheme.supremeColors.isDark
-                            ) {
-                                ProfessionalInventoryEmerald
-                            } else {
-                                ProfessionalInventoryText
-                            },
+                        text = "Supreme Price:",
+                        color = priceTextColor,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(5.dp))
+
+                    Text(
+                        text =
+                            formatIndianPrice(
+                                item.shopPrice
+                            ),
+                        color = priceTextColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 }
             }

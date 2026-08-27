@@ -6,7 +6,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
-import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -36,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -81,45 +79,22 @@ internal actual fun PlatformRetailerWebView(
         mutableStateOf(false)
     }
 
-    val resultReceiver = remember(resultAction) {
-        object : BroadcastReceiver() {
-            override fun onReceive(
-                receiverContext: Context?,
-                intent: Intent?
-            ) {
-                val selectedUrl =
-                    intent?.dataString
-                        ?.takeIf { value ->
-                            value.startsWith(
-                                prefix = "https://",
-                                ignoreCase = true
-                            )
-                        }
-                        ?: return
-
-                linkSelected = true
-                useLinkCallback.value(selectedUrl)
-                context.bringApplicationToFront()
-            }
+    val linkSelectionHandler = remember(context) {
+        { selectedUrl: String ->
+            linkSelected = true
+            useLinkCallback.value(selectedUrl)
         }
     }
 
-    DisposableEffect(
-        context,
-        resultAction,
-        resultReceiver
-    ) {
-        ContextCompat.registerReceiver(
-            context,
-            resultReceiver,
-            IntentFilter(resultAction),
-            ContextCompat.RECEIVER_NOT_EXPORTED
+    DisposableEffect(linkSelectionHandler) {
+        RetailerLinkSelectionBridge.attach(
+            linkSelectionHandler
         )
 
         onDispose {
-            runCatching {
-                context.unregisterReceiver(resultReceiver)
-            }
+            RetailerLinkSelectionBridge.detach(
+                linkSelectionHandler
+            )
         }
     }
 
@@ -183,8 +158,10 @@ internal actual fun PlatformRetailerWebView(
             return@LaunchedEffect
         }
 
-        val actionIntent = Intent(resultAction)
-            .setPackage(context.packageName)
+        val actionIntent = Intent(
+            context,
+            RetailerLinkReceiver::class.java
+        ).setAction(resultAction)
 
         val actionPendingIntent =
             PendingIntent.getBroadcast(
@@ -325,17 +302,69 @@ private fun createCheckIcon(
             strokeJoin = Paint.Join.ROUND
         }
 
-        Canvas(this).drawLines(
-            floatArrayOf(
-                4.5f * scale,
-                12.5f * scale,
-                9.5f * scale,
-                17.5f * scale,
-                19.5f * scale,
-                6.5f * scale
-            ),
+        val canvas = Canvas(this)
+        canvas.drawLine(
+            4.5f * scale,
+            12.5f * scale,
+            9.5f * scale,
+            17.5f * scale,
             paint
         )
+        canvas.drawLine(
+            9.5f * scale,
+            17.5f * scale,
+            19.5f * scale,
+            6.5f * scale,
+            paint
+        )
+    }
+}
+
+private object RetailerLinkSelectionBridge {
+    private var listener: ((String) -> Unit)? = null
+    private var pendingUrl: String? = null
+
+    fun attach(newListener: (String) -> Unit) {
+        listener = newListener
+        pendingUrl?.let { url ->
+            pendingUrl = null
+            newListener(url)
+        }
+    }
+
+    fun detach(oldListener: (String) -> Unit) {
+        if (listener === oldListener) {
+            listener = null
+        }
+    }
+
+    fun deliver(url: String) {
+        val currentListener = listener
+        if (currentListener == null) {
+            pendingUrl = url
+        } else {
+            currentListener(url)
+        }
+    }
+}
+
+class RetailerLinkReceiver : BroadcastReceiver() {
+    override fun onReceive(
+        context: Context,
+        intent: Intent
+    ) {
+        val selectedUrl =
+            intent.dataString
+                ?.takeIf { value ->
+                    value.startsWith(
+                        prefix = "https://",
+                        ignoreCase = true
+                    )
+                }
+                ?: return
+
+        RetailerLinkSelectionBridge.deliver(selectedUrl)
+        context.bringApplicationToFront()
     }
 }
 

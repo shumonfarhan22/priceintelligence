@@ -81,6 +81,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -644,11 +645,14 @@ private fun OriginalInventoryHeader(
     onClearSelection: () -> Unit,
     onDeleteSelected: () -> Unit
 ) {
+    val largeText =
+        LocalDensity.current.fontScale >= 1.10f
+
     if (selectedCount > 0) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .heightIn(min = 52.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onClearSelection) {
@@ -694,26 +698,56 @@ private fun OriginalInventoryHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(60.dp),
+            .heightIn(min = 60.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
             modifier = Modifier.weight(1f)
         ) {
-            Row {
+            if (largeText) {
                 Text(
-                    text = "SUPREME ",
-                    color = MaterialTheme.colorScheme.primary,
+                    text = "SUPREME",
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .primary,
                     fontSize = 19.sp,
+                    lineHeight = 21.sp,
                     fontWeight = FontWeight.Black
                 )
 
                 Text(
                     text = "INVENTORY",
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurface,
                     fontSize = 19.sp,
+                    lineHeight = 21.sp,
                     fontWeight = FontWeight.Black
                 )
+            } else {
+                Row {
+                    Text(
+                        text = "SUPREME ",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .primary,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Black
+                    )
+
+                    Text(
+                        text = "INVENTORY",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurface,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
 
             Text(

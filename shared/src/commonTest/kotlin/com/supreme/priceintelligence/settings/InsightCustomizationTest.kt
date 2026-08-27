@@ -29,6 +29,8 @@ class InsightCustomizationTest {
                 historyGraphStyle = HistoryGraphStyle.STEP,
                 graphSize = GraphSize.LARGE,
                 graphPointMode = GraphPointMode.ALWAYS_LATEST,
+                retailerChartPalette =
+                    RetailerChartPalette.CYAN_VIOLET,
                 movementDefaultRetailer = MovementDefaultRetailer.FLIPKART,
                 movementLayout = MovementLayout.PRODUCTS_FIRST,
                 movementProductSort = MovementProductSort.PERCENTAGE_CHANGE,
@@ -49,7 +51,7 @@ class InsightCustomizationTest {
         val oldProfile = listOf(
             "v1",
             AppAccentColor.GOLD.name,
-            AppFontStyle.NATIVE.name,
+            "NATIVE",
             AppTextSize.STANDARD.name,
             AppDisplayDensity.COMFORTABLE.name,
             AppMotionPreference.SYSTEM.name,

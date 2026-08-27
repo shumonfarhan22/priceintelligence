@@ -110,62 +110,100 @@ private fun AppAccentColor.palette(): AccentPalette =
     }
 
 private fun supremeDarkColorScheme(
-    accent: AccentPalette
+    palette: AppSemanticPalette
 ) = darkColorScheme(
-    primary = accent.darkPrimary,
-    onPrimary = Bg,
-    primaryContainer = accent.darkContainer,
-    onPrimaryContainer = accent.darkOnContainer,
-    secondary = Accent,
-    onSecondary = TextPrimary,
-    tertiary = Brand,
-    onTertiary = Bg,
-    tertiaryContainer = BrandLight,
-    onTertiaryContainer = Brand,
+    primary = palette.primary,
+    onPrimary = palette.onPrimary,
+    primaryContainer = palette.primaryContainer,
+    onPrimaryContainer =
+        palette.onPrimaryContainer,
+    secondary = palette.secondary,
+    onSecondary = palette.onSecondary,
+    secondaryContainer =
+        palette.secondaryContainer,
+    onSecondaryContainer =
+        palette.onSecondaryContainer,
+    tertiary = palette.competitive,
+    onTertiary = palette.onCompetitive,
+    tertiaryContainer =
+        palette.competitiveContainer,
+    onTertiaryContainer =
+        palette.onCompetitiveContainer,
     background = Bg,
     onBackground = TextPrimary,
     surface = Surface,
     onSurface = TextPrimary,
     surfaceVariant = SurfaceAlt,
     onSurfaceVariant = TextMuted,
-    error = Danger,
-    onError = TextPrimary,
-    errorContainer = DangerBg,
-    onErrorContainer = Danger,
+    error = palette.review,
+    onError =
+        readableThemeContentColor(
+            palette.review
+        ),
+    errorContainer =
+        palette.reviewContainer,
+    onErrorContainer = palette.review,
     outline = SurfaceAlt
 )
 
 private fun supremeLightColorScheme(
-    accent: AccentPalette
+    palette: AppSemanticPalette
 ) = lightColorScheme(
-    primary = accent.lightPrimary,
-    onPrimary = Color.White,
-    primaryContainer = accent.lightContainer,
-    onPrimaryContainer = accent.lightOnContainer,
-    secondary = Color(0xFF6B5330),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE9DDC8),
-    onSecondaryContainer = Color(0xFF3C2D18),
-    tertiary = Color(0xFF126A43),
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFDCEADF),
-    onTertiaryContainer = Color(0xFF123B29),
+    primary = palette.primary,
+    onPrimary = palette.onPrimary,
+    primaryContainer = palette.primaryContainer,
+    onPrimaryContainer =
+        palette.onPrimaryContainer,
+    secondary = palette.secondary,
+    onSecondary = palette.onSecondary,
+    secondaryContainer =
+        palette.secondaryContainer,
+    onSecondaryContainer =
+        palette.onSecondaryContainer,
+    tertiary = palette.competitive,
+    onTertiary = palette.onCompetitive,
+    tertiaryContainer =
+        palette.competitiveContainer,
+    onTertiaryContainer =
+        palette.onCompetitiveContainer,
     background = Color(0xFFF2EDE4),
     onBackground = Color(0xFF1D1B17),
     surface = Color(0xFFFAF8F3),
     onSurface = Color(0xFF1D1B17),
     surfaceVariant = Color(0xFFEBE3D7),
     onSurfaceVariant = Color(0xFF5C5852),
-    error = Color(0xFFA43C31),
-    onError = Color.White,
-    errorContainer = Color(0xFFF2DDD8),
-    onErrorContainer = Color(0xFF66241E),
+    error = palette.review,
+    onError =
+        readableThemeContentColor(
+            palette.review
+        ),
+    errorContainer =
+        palette.reviewContainer,
+    onErrorContainer = palette.review,
     outline = Color(0xFFB8AA96)
 )
 
+private fun readableThemeContentColor(
+    background: Color
+): Color {
+    val luminance =
+        (
+                background.red * 0.2126f +
+                        background.green * 0.7152f +
+                        background.blue * 0.0722f
+                )
+
+    return if (luminance > 0.56f) {
+        Color(0xFF111827)
+    } else {
+        Color.White
+    }
+}
+
 private fun personalizedSupremeColors(
     isDarkTheme: Boolean,
-    customization: InsightCustomization
+    customization: InsightCustomization,
+    palette: AppSemanticPalette
 ): SupremeColors {
     val base = if (isDarkTheme) {
         SupremeDarkColors
@@ -240,10 +278,23 @@ private fun personalizedSupremeColors(
         divider = if (
             customization.contrastMode == AppContrastMode.HIGH
         ) {
-            border.copy(alpha = if (isDarkTheme) 0.72f else 0.58f)
+            border.copy(
+                alpha =
+                    if (isDarkTheme) {
+                        0.72f
+                    } else {
+                        0.58f
+                    }
+            )
         } else {
             base.divider
-        }
+        },
+        warning = palette.warning,
+        warningContainer =
+            palette.warningContainer,
+        competitive = palette.competitive,
+        competitiveContainer =
+            palette.competitiveContainer
     )
 }
 
@@ -259,11 +310,18 @@ fun PriceIntelligenceTheme(
         AppThemeMode.DARK -> true
     }
 
-    val accent = customization.accentColor.palette()
-    val personalizedColors = personalizedSupremeColors(
-        isDarkTheme = isDarkTheme,
-        customization = customization.insightCustomization
-    )
+    val palette =
+        customization.semanticPalette(
+            isDarkTheme = isDarkTheme
+        )
+
+    val personalizedColors =
+        personalizedSupremeColors(
+            isDarkTheme = isDarkTheme,
+            customization =
+                customization.insightCustomization,
+            palette = palette
+        )
     val systemDensity = LocalDensity.current
     val customizedDensity = Density(
         density = systemDensity.density,
@@ -278,9 +336,9 @@ fun PriceIntelligenceTheme(
     ) {
         MaterialTheme(
             colorScheme = if (isDarkTheme) {
-                supremeDarkColorScheme(accent)
+                supremeDarkColorScheme(palette)
             } else {
-                supremeLightColorScheme(accent)
+                supremeLightColorScheme(palette)
             },
             typography = supremeTypography(
                 customization.fontStyle

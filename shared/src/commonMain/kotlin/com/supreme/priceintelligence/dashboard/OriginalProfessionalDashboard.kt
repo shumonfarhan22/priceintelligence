@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -81,6 +82,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.semantics
@@ -92,6 +94,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.settings.PriceEmphasis
+import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
@@ -152,7 +155,7 @@ internal fun ProfessionalDashboardBranding(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(headerHeight),
+            .heightIn(min = headerHeight),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (showPreviousPage) {
@@ -183,6 +186,7 @@ internal fun ProfessionalDashboardBranding(
         Spacer(modifier = Modifier.width(10.dp))
 
         Column(
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
         ) {
             Text(
@@ -529,12 +533,48 @@ internal fun ProfessionalDashboardProductCard(
         label = "dashboardCardPrimaryGlow"
     )
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = outsidePadding),
         contentAlignment = Alignment.Center
     ) {
+        val layoutPolicy = adaptiveLayoutPolicy(
+            availableWidthDp = maxWidth.value,
+            fontScale = LocalDensity.current.fontScale
+        )
+
+        val constrainedLayout =
+            layoutPolicy.shouldStack(
+                minimumWidthForRowDp = 340f
+            )
+
+        val resolvedImageSize =
+            if (constrainedLayout) {
+                if (compact) 60.dp else 68.dp
+            } else {
+                imageSize
+            }
+
+        val resolvedContentGap =
+            if (constrainedLayout) {
+                8.dp
+            } else {
+                contentGap
+            }
+
+        val formattedShopPrice =
+            formatIndianPrice(item.shopPrice)
+
+        val priceTextColor =
+            if (
+                MaterialTheme.supremeColors.isDark
+            ) {
+                Brand
+            } else {
+                TextPrimary
+            }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -582,7 +622,7 @@ internal fun ProfessionalDashboardProductCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(imageSize)
+                    .size(resolvedImageSize)
                     .clip(RoundedCornerShape(10.dp))
                     .background(
                         MaterialTheme.supremeColors.imagePanel
@@ -612,7 +652,11 @@ internal fun ProfessionalDashboardProductCard(
                 }
             }
 
-            Spacer(modifier = Modifier.width(contentGap))
+            Spacer(
+                modifier = Modifier.width(
+                    resolvedContentGap
+                )
+            )
 
             Column(
                 modifier = Modifier.weight(1f)
@@ -622,8 +666,19 @@ internal fun ProfessionalDashboardProductCard(
                     color = TextPrimary,
                     fontSize = titleSize,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines =
+                        layoutPolicy
+                            .importantTextMaxLines,
+                    overflow =
+                        if (
+                            layoutPolicy
+                                .importantTextMaxLines ==
+                                Int.MAX_VALUE
+                        ) {
+                            TextOverflow.Clip
+                        } else {
+                            TextOverflow.Ellipsis
+                        }
                 )
 
                 Spacer(modifier = Modifier.height(titlePriceGap))
@@ -669,25 +724,45 @@ internal fun ProfessionalDashboardProductCard(
 
                         Spacer(modifier = Modifier.width(6.dp))
 
-                        Text(
-                            text = "Supreme Price: ${
-                                formatIndianPrice(
-                                    item.shopPrice
-                                )
-                            }",
-                            color =
-                                if (
-                                    MaterialTheme.supremeColors.isDark
-                                ) {
-                                    Brand
-                                } else {
-                                    TextPrimary
-                                },
-                            fontSize = priceSize,
-                            fontWeight = priceWeight,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        if (constrainedLayout) {
+                            Text(
+                                text = "Supreme Price:",
+                                color = priceTextColor,
+                                fontSize = priceSize,
+                                fontWeight =
+                                    FontWeight.Medium,
+                                maxLines = 1,
+                                overflow =
+                                    TextOverflow.Ellipsis,
+                                modifier =
+                                    Modifier.weight(1f)
+                            )
+
+                            Spacer(
+                                modifier =
+                                    Modifier.width(5.dp)
+                            )
+
+                            Text(
+                                text = formattedShopPrice,
+                                color = priceTextColor,
+                                fontSize = priceSize,
+                                fontWeight = priceWeight,
+                                maxLines = 1
+                            )
+                        } else {
+                            Text(
+                                text =
+                                    "Supreme Price: " +
+                                        formattedShopPrice,
+                                color = priceTextColor,
+                                fontSize = priceSize,
+                                fontWeight = priceWeight,
+                                maxLines = 1,
+                                overflow =
+                                    TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(7.dp))

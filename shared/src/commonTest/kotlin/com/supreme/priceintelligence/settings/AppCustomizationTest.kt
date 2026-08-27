@@ -13,7 +13,17 @@ class AppCustomizationTest {
     fun customizationRoundTripPreservesEveryChoice() {
         val original = AppCustomization(
             accentColor = AppAccentColor.AMETHYST,
-            fontStyle = AppFontStyle.EDITORIAL,
+            appColorPalette =
+                AppColorPalette.CUSTOM,
+            customColorPalette =
+                CustomAppColorPalette(
+                    primaryHex = "#3B82F6",
+                    secondaryHex = "#E08A5B",
+                    competitiveHex = "#14B8A6",
+                    warningHex = "#D6A63D",
+                    reviewHex = "#F43F5E"
+                ),
+            fontStyle = AppFontStyle.POPPINS,
             textSize = AppTextSize.LARGE,
             displayDensity = AppDisplayDensity.COMPACT,
             motionPreference = AppMotionPreference.REDUCED,
@@ -32,6 +42,55 @@ class AppCustomizationTest {
                 writeAppCustomization(original)
             )
         )
+    }
+
+    @Test
+    fun customHexColoursAreNormalizedAndValidated() {
+        assertEquals(
+            "#10B981",
+            normalizePaletteHex("10b981")
+        )
+
+        assertEquals(
+            "#8B7CF6",
+            normalizePaletteHex("  #8b7cf6  ")
+        )
+
+        assertEquals(
+            null,
+            normalizePaletteHex("#XYZ123")
+        )
+
+        assertEquals(
+            null,
+            normalizePaletteHex("#12345")
+        )
+    }
+
+    @Test
+    fun oldFontChoicesMigrateToNewSafeChoices() {
+        val expectedStyles = mapOf(
+            "NATIVE" to AppFontStyle.SYSTEM,
+            "MODERN" to AppFontStyle.INTER,
+            "FRIENDLY" to AppFontStyle.POPPINS,
+            "EDITORIAL" to AppFontStyle.LATO,
+            "CLASSIC" to AppFontStyle.LATO,
+            "TECHNICAL" to AppFontStyle.TECHNICAL,
+            "COMPACT" to AppFontStyle.ROBOTO,
+            "SPACIOUS" to AppFontStyle.MONTSERRAT
+        )
+
+        expectedStyles.forEach {
+                (storedName, expectedStyle) ->
+            val restored = readAppCustomization(
+                "v1|SUPREME|$storedName"
+            )
+
+            assertEquals(
+                expectedStyle,
+                restored.fontStyle
+            )
+        }
     }
 
     @Test

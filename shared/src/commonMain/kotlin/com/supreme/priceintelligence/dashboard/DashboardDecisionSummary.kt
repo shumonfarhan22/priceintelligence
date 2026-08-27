@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -285,11 +286,17 @@ fun DashboardDecisionSummaryCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .clickable { isCardExpanded = !isCardExpanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .clickable {
+                        isCardExpanded = !isCardExpanded
+                    },
+                horizontalArrangement =
+                    Arrangement.SpaceBetween,
+                verticalAlignment =
+                    Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = "SHOP OVERVIEW",
                         color = MaterialTheme.colorScheme.primary,
@@ -305,6 +312,8 @@ fun DashboardDecisionSummaryCard(
                         fontWeight = FontWeight.Bold
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically
@@ -380,7 +389,9 @@ fun DashboardDecisionSummaryCard(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Max),
                         horizontalArrangement =
                             Arrangement.spacedBy(6.dp)
                     ) {
@@ -776,10 +787,14 @@ private fun DecisionMetric(
         )
     ) {
         Column(
-            modifier = Modifier.padding(
-                horizontal = if (compact) 7.dp else 10.dp,
-                vertical = if (compact) 7.dp else 10.dp
-            )
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(
+                    horizontal =
+                        if (compact) 7.dp else 10.dp,
+                    vertical =
+                        if (compact) 7.dp else 10.dp
+                )
         ) {
             Box(
                 modifier = Modifier
@@ -825,10 +840,14 @@ private fun DecisionMetric(
 
             Text(
                 text = label,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant,
                 fontSize = 10.sp,
+                lineHeight = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -881,10 +900,14 @@ private fun PriorityProductRow(
 
                     Text(
                         text = product.productName,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurface,
                         fontSize = 13.sp,
+                        lineHeight = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
+                        maxLines = 4,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -957,8 +980,9 @@ private fun DecisionPricePoint(
             text = value,
             color = color,
             fontSize = 11.sp,
+            lineHeight = 14.sp,
             fontWeight = FontWeight.Bold,
-            maxLines = 1
+            maxLines = 2
         )
     }
 }

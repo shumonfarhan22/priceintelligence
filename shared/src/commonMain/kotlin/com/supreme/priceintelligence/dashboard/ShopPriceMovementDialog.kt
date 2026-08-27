@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +81,8 @@ import com.supreme.priceintelligence.settings.MovementDirectionFilter
 import com.supreme.priceintelligence.settings.MovementLayout
 import com.supreme.priceintelligence.settings.MovementProductGraphState
 import com.supreme.priceintelligence.settings.MovementProductSort
+import com.supreme.priceintelligence.settings.RetailerChartPalette
+import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.roundToInt
 
@@ -587,6 +590,9 @@ private fun LazyListScope.movementProductItems(
             graphPointMode =
                 customization.insightCustomization
                     .graphPointMode,
+            retailerChartPalette =
+                customization.insightCustomization
+                    .retailerChartPalette,
             graphHeightDp =
                 customization.insightCustomization
                     .graphSize.heightDp
@@ -1262,8 +1268,15 @@ private fun MovementProductCard(
     graphInitiallyExpanded: Boolean,
     graphStyle: HistoryGraphStyle,
     graphPointMode: GraphPointMode,
+    retailerChartPalette: RetailerChartPalette,
     graphHeightDp: Int
 ) {
+    val retailerColors =
+        retailerChartPalette.retailerChartColors()
+
+    val largeText =
+        LocalDensity.current.fontScale >= 1.10f
+
     val latestChange =
         notificationTarget
             ?.let { target ->
@@ -1406,10 +1419,20 @@ private fun MovementProductCard(
                         .colorScheme
                         .onSurface,
                 fontSize = 15.sp,
+                lineHeight = 21.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 2,
+                maxLines =
+                    if (largeText) {
+                        Int.MAX_VALUE
+                    } else {
+                        2
+                    },
                 overflow =
-                    TextOverflow.Ellipsis
+                    if (largeText) {
+                        TextOverflow.Clip
+                    } else {
+                        TextOverflow.Ellipsis
+                    }
             )
 
             Spacer(
@@ -1461,12 +1484,14 @@ private fun MovementProductCard(
                                 },
                     color = movementColor,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    modifier = Modifier.weight(1f)
                 )
 
                 Spacer(
                     modifier =
-                        Modifier.weight(1f)
+                        Modifier.width(8.dp)
                 )
 
                 Text(
@@ -1571,7 +1596,8 @@ private fun MovementProductCard(
                                                 latest.price
                                             )
                                         }",
-                                    color = AmazonChartColor
+                                    color =
+                                        retailerColors.amazon
                                 )
                             }
 
@@ -1585,7 +1611,8 @@ private fun MovementProductCard(
                                                 latest.price
                                             )
                                         }",
-                                    color = FlipkartChartColor
+                                    color =
+                                        retailerColors.flipkart
                                 )
                             }
                     }
@@ -1600,6 +1627,8 @@ private fun MovementProductCard(
                         notificationPulseProgress = pulseAmount,
                         graphStyle = graphStyle,
                         pointMode = graphPointMode,
+                        retailerChartPalette =
+                            retailerChartPalette,
                         graphHeightDp = graphHeightDp
                     )
                 }
