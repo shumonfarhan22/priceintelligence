@@ -24,16 +24,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -70,8 +69,8 @@ private data class QuickCompareStatus(
 @Composable
 internal fun QuickCompareCatalogGrid(
     cards: List<ProductCardUiState>,
-    totalMatchCount: Int,
     query: String,
+    gridState: LazyGridState,
     showResults: Boolean,
     reduceMotionEnabled: Boolean,
     isLoading: Boolean,
@@ -81,8 +80,6 @@ internal fun QuickCompareCatalogGrid(
     onProductClick: (ProductCardUiState) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val gridState = rememberLazyGridState()
-
     LaunchedEffect(
         showResults,
         query,
@@ -94,61 +91,6 @@ internal fun QuickCompareCatalogGrid(
     Column(
         modifier = modifier.fillMaxSize()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    horizontal = 16.dp,
-                    vertical = 10.dp
-                ),
-            horizontalArrangement =
-                Arrangement.SpaceBetween,
-            verticalAlignment =
-                Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text =
-                        if (showResults) {
-                            "MATCHING PRODUCTS"
-                        } else {
-                            "PRODUCT RESULTS"
-                        },
-                    color =
-                        MaterialTheme.colorScheme.primary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.9.sp
-                )
-
-                Text(
-                    text =
-                        if (showResults) {
-                            "$totalMatchCount products found"
-                        } else {
-                            "Press Search to show matching products"
-                        },
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .onSurfaceVariant,
-                    fontSize = 11.sp
-                )
-            }
-
-            if (
-                showResults &&
-                isLoading
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp
-                )
-            }
-        }
-
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
@@ -162,9 +104,21 @@ internal fun QuickCompareCatalogGrid(
                         LocalDensity.current.fontScale
                 )
 
+            // Measure the real space available to each card instead of changing
+            // to one column for every small increase in the phone's font size.
+            val twoColumnCardWidth =
+                (maxWidth - 44.dp) / 2f
+
+            val minimumTwoColumnCardWidth =
+                if (layoutPolicy.fontScale >= 1.30f) {
+                    175.dp
+                } else {
+                    145.dp
+                }
+
             val singleColumn =
-                layoutPolicy.isNarrow ||
-                        layoutPolicy.isLargeText
+                twoColumnCardWidth <
+                    minimumTwoColumnCardWidth
 
             LazyVerticalGrid(
                 columns =

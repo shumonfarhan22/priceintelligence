@@ -1,5 +1,11 @@
 package com.supreme.priceintelligence.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -43,12 +50,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +70,7 @@ import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.settings.AppCustomization
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 
 @Composable
 internal fun QuickCompareScreen(
@@ -103,6 +113,22 @@ internal fun QuickCompareScreen(
     var focusRequestId by rememberSaveable {
         mutableStateOf(0)
     }
+
+    val quickCompareGridState =
+        rememberLazyGridState()
+
+    var quickCompareSearchVisible by rememberSaveable {
+        mutableStateOf(true)
+    }
+
+    var quickCompareSearchFocused by remember {
+        mutableStateOf(false)
+    }
+
+    val quickCompareSearchHideThresholdPx =
+        with(LocalDensity.current) {
+            24.dp.roundToPx()
+        }
 
     val selectedCard =
         state.pageItems.firstOrNull { card ->
@@ -167,6 +193,86 @@ internal fun QuickCompareScreen(
             delay(120)
             searchFocusRequester.requestFocus()
             keyboardController?.show()
+        }
+    }
+
+    LaunchedEffect(
+        quickCompareGridState,
+        quickCompareSearchHideThresholdPx,
+        quickCompareSearchFocused
+    ) {
+        if (quickCompareSearchFocused) {
+            quickCompareSearchVisible = true
+            return@LaunchedEffect
+        }
+
+        var previousIndex =
+            quickCompareGridState.firstVisibleItemIndex
+
+        var previousOffset =
+            quickCompareGridState.firstVisibleItemScrollOffset
+
+        var downwardTravelPx = 0
+
+        snapshotFlow {
+            quickCompareGridState.firstVisibleItemIndex to
+                quickCompareGridState.firstVisibleItemScrollOffset
+        }.collect { position ->
+            val currentIndex = position.first
+            val currentOffset = position.second
+
+            val atTop =
+                currentIndex == 0 &&
+                    currentOffset == 0
+
+            val scrollingUp =
+                currentIndex < previousIndex ||
+                    (
+                        currentIndex == previousIndex &&
+                            currentOffset < previousOffset
+                    )
+
+            val scrollingDown =
+                currentIndex > previousIndex ||
+                    (
+                        currentIndex == previousIndex &&
+                            currentOffset > previousOffset
+                    )
+
+            when {
+                atTop -> {
+                    quickCompareSearchVisible = true
+                    downwardTravelPx = 0
+                }
+
+                scrollingUp -> {
+                    quickCompareSearchVisible = true
+                    downwardTravelPx = 0
+                }
+
+                scrollingDown -> {
+                    val downwardDelta =
+                        if (currentIndex > previousIndex) {
+                            quickCompareSearchHideThresholdPx
+                        } else {
+                            (currentOffset - previousOffset)
+                                .coerceAtLeast(0)
+                        }
+
+                    downwardTravelPx += downwardDelta
+
+                    if (
+                        downwardTravelPx >=
+                        quickCompareSearchHideThresholdPx
+                    ) {
+                        quickCompareSearchVisible = false
+                        downwardTravelPx = 0
+                    }
+                }
+            }
+
+            previousIndex = currentIndex
+            previousOffset = currentOffset
         }
     }
 
@@ -251,36 +357,52 @@ internal fun QuickCompareScreen(
                     .copy(alpha = 0.7f)
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    horizontal = 16.dp,
-                    vertical = 12.dp
-                ),
-            verticalArrangement =
-                Arrangement.spacedBy(10.dp)
+        AnimatedVisibility(
+            visible = quickCompareSearchVisible,
+            enter =
+                if (reduceMotionEnabled) {
+                    fadeIn(
+                        animationSpec =
+                            tween(durationMillis = 0)
+                    )
+                } else {
+                    expandVertically(
+                        animationSpec =
+                            tween(durationMillis = 190),
+                        expandFrom = Alignment.Top
+                    ) + fadeIn(
+                        animationSpec =
+                            tween(durationMillis = 140)
+                    )
+                },
+            exit =
+                if (reduceMotionEnabled) {
+                    fadeOut(
+                        animationSpec =
+                            tween(durationMillis = 0)
+                    )
+                } else {
+                    shrinkVertically(
+                        animationSpec =
+                            tween(durationMillis = 170),
+                        shrinkTowards = Alignment.Top
+                    ) + fadeOut(
+                        animationSpec =
+                            tween(durationMillis = 110)
+                    )
+                }
         ) {
-            Text(
-                text = "FAST PRODUCT LOOKUP",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp
-            )
-
-            Text(
-                text =
-                    "Search by product name, barcode, Amazon link, or Flipkart link.",
-                color =
-                    MaterialTheme
-                        .colorScheme
-                        .onSurfaceVariant,
-                fontSize = 12.sp,
-                lineHeight = 17.sp
-            )
-
-            OutlinedTextField(
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = 16.dp,
+                        vertical = 7.dp
+                    ),
+                verticalArrangement =
+                    Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedTextField(
                 value = state.searchDraft,
                 onValueChange = { query ->
                     searchSubmitted = false
@@ -297,6 +419,13 @@ internal fun QuickCompareScreen(
                         searchFocusRequester
                     )
                     .onFocusChanged { focusState ->
+                        quickCompareSearchFocused =
+                            focusState.isFocused
+
+                        if (focusState.isFocused) {
+                            quickCompareSearchVisible = true
+                        }
+
                         viewModel.onSearchFocusChanged(
                             focused =
                                 focusState.isFocused,
@@ -379,6 +508,43 @@ internal fun QuickCompareScreen(
                 shape = RoundedCornerShape(18.dp)
             )
 
+            if (
+                searchSubmitted &&
+                state.searchQuery.isNotBlank()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement =
+                        Arrangement.SpaceBetween,
+                    verticalAlignment =
+                        Alignment.CenterVertically
+                ) {
+                    Text(
+                        text =
+                            if (state.totalMatchCount == 1) {
+                                "1 matching product"
+                            } else {
+                                "${state.totalMatchCount} matching products"
+                            },
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    if (state.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+            }
+
             if (cameraPermissionDenied) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -402,12 +568,12 @@ internal fun QuickCompareScreen(
                 }
             }
         }
+    }
 
         QuickCompareCatalogGrid(
             cards = state.pageItems,
-            totalMatchCount =
-                state.totalMatchCount,
             query = state.searchQuery,
+            gridState = quickCompareGridState,
             showResults =
                 searchSubmitted &&
                     state.searchQuery.isNotBlank(),
