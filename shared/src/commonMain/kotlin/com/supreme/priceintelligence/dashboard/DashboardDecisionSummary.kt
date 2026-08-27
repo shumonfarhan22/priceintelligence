@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.InventoryItem
@@ -165,23 +166,36 @@ fun DashboardDecisionSummaryCard(
     reduceMotionEnabled: Boolean = false,
     insightCustomization: InsightCustomization =
         InsightCustomization(),
+    showOverviewSummary: Boolean = true,
+    showBreakdown: Boolean = true,
+    showTopPriorities: Boolean = true,
+    overviewCollapsible: Boolean = true,
+    breakdownCollapsible: Boolean = true,
+    showPriceMovementAction: Boolean = true,
+    showLivePricePill: Boolean = true,
+    showMeterLegend: Boolean = false,
+    outerVerticalPadding: Dp = 8.dp,
     onPriceMovementClick: () -> Unit = {},
     onFilterToggle: (PricePositionFilter) -> Unit = {}
 ) {
     var isCardExpanded by rememberSaveable(
-        insightCustomization.shopOverviewStartState
+        insightCustomization.shopOverviewStartState,
+        overviewCollapsible
     ) {
         mutableStateOf(
-            insightCustomization.shopOverviewStartState ==
-                SectionStartState.EXPANDED
+            !overviewCollapsible ||
+                insightCustomization.shopOverviewStartState ==
+                    SectionStartState.EXPANDED
         )
     }
     var isBreakdownExpanded by rememberSaveable(
-        insightCustomization.breakdownStartState
+        insightCustomization.breakdownStartState,
+        breakdownCollapsible
     ) {
         mutableStateOf(
-            insightCustomization.breakdownStartState ==
-                SectionStartState.EXPANDED
+            !breakdownCollapsible ||
+                insightCustomization.breakdownStartState ==
+                    SectionStartState.EXPANDED
         )
     }
     var isPriorityListExpanded by rememberSaveable(
@@ -223,20 +237,33 @@ fun DashboardDecisionSummaryCard(
     // past it, so it doesn't sit expanded — and taking up space — if they
     // scroll back near the top later.
     LaunchedEffect(collapseSignal) {
-        if (collapseSignal) {
+        if (
+            collapseSignal &&
+            overviewCollapsible
+        ) {
             isCardExpanded = false
-            isBreakdownExpanded = false
+
+            if (breakdownCollapsible) {
+                isBreakdownExpanded = false
+            }
+
             isPriorityListExpanded = false
         }
     }
 
-    // Pull-to-refresh should also hand back the compact view. refreshTick
-    // starts at 0 and only ever increases, so the guard below skips the
-    // very first composition and only fires on an actual refresh.
+    // Pull-to-refresh can collapse a collapsible overview, while the
+    // launch-page overview remains permanently visible.
     LaunchedEffect(refreshTick) {
-        if (refreshTick > 0) {
+        if (
+            refreshTick > 0 &&
+            overviewCollapsible
+        ) {
             isCardExpanded = false
-            isBreakdownExpanded = false
+
+            if (breakdownCollapsible) {
+                isBreakdownExpanded = false
+            }
+
             isPriorityListExpanded = false
         }
     }
@@ -258,7 +285,7 @@ fun DashboardDecisionSummaryCard(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = outerVerticalPadding)
             .animateContentSize(
                 animationSpec = if (reduceMotionEnabled) {
                     snap()
@@ -282,11 +309,14 @@ fun DashboardDecisionSummaryCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
+            if (showOverviewSummary) {
+                Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .clickable {
+                    .clickable(
+                        enabled = overviewCollapsible
+                    ) {
                         isCardExpanded = !isCardExpanded
                     },
                 horizontalArrangement =
@@ -313,47 +343,78 @@ fun DashboardDecisionSummaryCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
+                if (
+                    showLivePricePill ||
+                    overviewCollapsible
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(
-                            alpha = 0.12f
-                        )
-                    ) {
-                        Text(
-                            text =
-                                "${summary.livePriceProductCount}/" +
-                                        "${summary.comparedCount} live",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(
-                                horizontal = 10.dp,
-                                vertical = 6.dp
-                            )
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    Icon(
-                        imageVector = Icons.Rounded.ExpandMore,
-                        contentDescription = if (isCardExpanded) {
-                            "Collapse"
-                        } else {
-                            "Expand"
-                        },
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .graphicsLayer {
-                                rotationZ = cardChevronRotation
-                            }
+                    Spacer(
+                        modifier = Modifier.width(8.dp)
                     )
+
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+                        if (showLivePricePill) {
+                            Surface(
+                                shape =
+                                    RoundedCornerShape(20.dp),
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .primary
+                                        .copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text =
+                                        "${summary.livePriceProductCount}/" +
+                                            "${summary.comparedCount} live",
+                                    color =
+                                        MaterialTheme
+                                            .colorScheme
+                                            .primary,
+                                    fontSize = 10.sp,
+                                    fontWeight =
+                                        FontWeight.Bold,
+                                    modifier =
+                                        Modifier.padding(
+                                            horizontal = 10.dp,
+                                            vertical = 6.dp
+                                        )
+                                )
+                            }
+                        }
+
+                        if (overviewCollapsible) {
+                            if (showLivePricePill) {
+                                Spacer(
+                                    modifier =
+                                        Modifier.width(6.dp)
+                                )
+                            }
+
+                            Icon(
+                                imageVector =
+                                    Icons.Rounded.ExpandMore,
+                                contentDescription =
+                                    if (isCardExpanded) {
+                                        "Collapse"
+                                    } else {
+                                        "Expand"
+                                    },
+                                tint =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .graphicsLayer {
+                                        rotationZ =
+                                            cardChevronRotation
+                                    }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -364,29 +425,104 @@ fun DashboardDecisionSummaryCard(
             // it (like tapping the header above) reveals the breakdown and
             // priorities below.
             DecisionMeterBar(
-                competitiveCount = summary.shopCompetitiveCount,
-                reviewCount = summary.onlineCheaperCount,
+                competitiveCount =
+                    summary.shopCompetitiveCount,
+                reviewCount =
+                    summary.onlineCheaperCount,
                 competitiveColor = competitiveColor,
                 reviewColor = reviewColor,
                 activeFilter = activeFilter,
-                onTap = { isCardExpanded = !isCardExpanded }
+                onTap = {
+                    if (overviewCollapsible) {
+                        isCardExpanded =
+                            !isCardExpanded
+                    }
+                }
             )
 
-            if (isCardExpanded) {
-                Spacer(modifier = Modifier.height(10.dp))
-
-                ExpandToggleRow(
-                    label = "Breakdown",
-                    expanded = isBreakdownExpanded,
-                    reduceMotionEnabled = reduceMotionEnabled,
-                    onClick = {
-                        isBreakdownExpanded =
-                            !isBreakdownExpanded
-                    }
+            if (showMeterLegend) {
+                Spacer(
+                    modifier = Modifier.height(10.dp)
                 )
 
-                if (isBreakdownExpanded) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        Arrangement.spacedBy(12.dp)
+                ) {
+                    DecisionMeterLegendItem(
+                        label = "Competitive",
+                        value =
+                            summary.shopCompetitiveCount,
+                        color = competitiveColor,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    DecisionMeterLegendItem(
+                        label = "Review",
+                        value = summary.onlineCheaperCount,
+                        color = reviewColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            }
+
+            if (isCardExpanded) {
+                if (showOverviewSummary) {
+                    Spacer(
+                        modifier = Modifier.height(10.dp)
+                    )
+                }
+
+                if (showBreakdown) {
+                    if (breakdownCollapsible) {
+                        ExpandToggleRow(
+                            label = "Breakdown",
+                            expanded =
+                                isBreakdownExpanded,
+                            reduceMotionEnabled =
+                                reduceMotionEnabled,
+                            onClick = {
+                                isBreakdownExpanded =
+                                    !isBreakdownExpanded
+                            }
+                        )
+                    } else {
+                        Column(
+                            verticalArrangement =
+                                Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                text =
+                                    "PRICE BREAKDOWN",
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .primary,
+                                fontSize = 10.sp,
+                                fontWeight =
+                                    FontWeight.ExtraBold,
+                                letterSpacing = 0.9.sp
+                            )
+
+                            Text(
+                                text =
+                                    "Tap a group to filter the products",
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                if (
+                    isBreakdownExpanded ||
+                    !breakdownCollapsible
+                ) {
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
                         modifier = Modifier
@@ -483,19 +619,33 @@ fun DashboardDecisionSummaryCard(
                         )
                     }
 
-                    Spacer(
-                        modifier =
-                            Modifier.height(8.dp)
-                    )
+                    if (showPriceMovementAction) {
+                        Spacer(
+                            modifier =
+                                Modifier.height(8.dp)
+                        )
 
-                    PriceMovementAction(
-                        onClick =
-                            onPriceMovementClick
-                    )
+                        PriceMovementAction(
+                            onClick =
+                                onPriceMovementClick
+                        )
+                    }
+                }
                 }
 
-                if (summary.priorityProducts.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                if (
+                    showTopPriorities &&
+                    summary.priorityProducts.isNotEmpty()
+                ) {
+                    if (
+                        showOverviewSummary ||
+                        showBreakdown
+                    ) {
+                        Spacer(
+                            modifier =
+                                Modifier.height(10.dp)
+                        )
+                    }
 
                     ExpandToggleRow(
                         label =
@@ -750,6 +900,50 @@ private fun DecisionMeterBar(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DecisionMeterLegendItem(
+    label: String,
+    value: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(9.dp)
+                .background(
+                    color = color,
+                    shape = CircleShape
+                )
+        )
+
+        Spacer(modifier = Modifier.width(7.dp))
+
+        Text(
+            text = label,
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .onSurfaceVariant,
+            fontSize = 10.sp,
+            maxLines = 1
+        )
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        Text(
+            text = value.toString(),
+            color = color,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
     }
 }
 

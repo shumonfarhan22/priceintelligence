@@ -138,6 +138,8 @@ private val TextLight: Color
 internal fun ProfessionalDashboardBranding(
     compact: Boolean,
     showPreviousPage: Boolean = false,
+    previousPageContentDescription: String =
+        "Go back",
     onPreviousPage: () -> Unit = {}
 ) {
     val logoSize = if (compact) {
@@ -167,7 +169,7 @@ internal fun ProfessionalDashboardBranding(
                     imageVector =
                         Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription =
-                        "Go to previous Dashboard page",
+                        previousPageContentDescription,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)
                 )
@@ -398,21 +400,21 @@ internal fun ProfessionalDashboardProductCard(
     onClick: () -> Unit
 ) {
     val item = card.item
-    val outsidePadding = if (compact) 4.dp else 6.dp
-    val contentPadding = if (compact) 9.dp else 12.dp
+    val outsidePadding = if (compact) 5.dp else 8.dp
+    val contentPadding = if (compact) 10.dp else 14.dp
     val imageSize = when {
-        compact -> 76.dp
-        priceFocused -> 84.dp
-        else -> 96.dp
+        compact -> 82.dp
+        priceFocused -> 98.dp
+        else -> 108.dp
     }
-    val imagePadding = if (compact) 6.dp else 8.dp
-    val contentGap = if (compact) 10.dp else 14.dp
-    val titlePriceGap = if (compact) 7.dp else 10.dp
+    val imagePadding = if (compact) 7.dp else 10.dp
+    val contentGap = if (compact) 11.dp else 15.dp
+    val titlePriceGap = if (compact) 8.dp else 12.dp
     val titleSize = if (compact || priceFocused) 14.sp else 15.sp
     val priceSize = when {
-        priceFocused -> 15.sp
-        compact -> 12.sp
-        else -> 13.sp
+        priceFocused -> 13.sp
+        compact -> 11.sp
+        else -> 12.sp
     }
     val priceWeight =
         if (
@@ -567,18 +569,20 @@ internal fun ProfessionalDashboardProductCard(
             formatIndianPrice(item.shopPrice)
 
         val priceTextColor =
-            if (
-                MaterialTheme.supremeColors.isDark
-            ) {
-                Brand
-            } else {
-                TextPrimary
-            }
+            MaterialTheme.colorScheme.primary
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .heightIn(
+                    min =
+                        if (compact) {
+                            112.dp
+                        } else {
+                            138.dp
+                        }
+                )
+                .clip(RoundedCornerShape(22.dp))
                 .background(MaterialTheme.supremeColors.panel)
                 .drawBehind {
                     if (
@@ -611,7 +615,7 @@ internal fun ProfessionalDashboardProductCard(
                     width = 1.dp,
                     color =
                         MaterialTheme.supremeColors.border,
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(22.dp)
                 )
                 .clickable(onClick = onClick)
                 .semantics {
@@ -623,7 +627,7 @@ internal fun ProfessionalDashboardProductCard(
             Box(
                 modifier = Modifier
                     .size(resolvedImageSize)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(
                         MaterialTheme.supremeColors.imagePanel
                     ),
@@ -690,21 +694,23 @@ internal fun ProfessionalDashboardProductCard(
                     Row(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(
-                                width = 1.dp,
-                                color = Brand.copy(
-                                    alpha =
-                                        if (
-                                            MaterialTheme.supremeColors.isDark
-                                        ) {
-                                            0.30f
-                                        } else {
-                                            0.48f
-                                        }
-                                ),
-                                shape =
-                                    RoundedCornerShape(8.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                MaterialTheme
+                                    .colorScheme
+                                    .primary
+                                    .copy(
+                                        alpha =
+                                            if (
+                                                MaterialTheme
+                                                    .supremeColors
+                                                    .isDark
+                                            ) {
+                                                0.09f
+                                            } else {
+                                                0.07f
+                                            }
+                                    )
                             )
                             .padding(
                                 horizontal =
@@ -724,45 +730,16 @@ internal fun ProfessionalDashboardProductCard(
 
                         Spacer(modifier = Modifier.width(6.dp))
 
-                        if (constrainedLayout) {
-                            Text(
-                                text = "Supreme Price:",
-                                color = priceTextColor,
-                                fontSize = priceSize,
-                                fontWeight =
-                                    FontWeight.Medium,
-                                maxLines = 1,
-                                overflow =
-                                    TextOverflow.Ellipsis,
-                                modifier =
-                                    Modifier.weight(1f)
-                            )
-
-                            Spacer(
-                                modifier =
-                                    Modifier.width(5.dp)
-                            )
-
-                            Text(
-                                text = formattedShopPrice,
-                                color = priceTextColor,
-                                fontSize = priceSize,
-                                fontWeight = priceWeight,
-                                maxLines = 1
-                            )
-                        } else {
-                            Text(
-                                text =
-                                    "Supreme Price: " +
-                                        formattedShopPrice,
-                                color = priceTextColor,
-                                fontSize = priceSize,
-                                fontWeight = priceWeight,
-                                maxLines = 1,
-                                overflow =
-                                    TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(
+                            text =
+                                "PRICE • $formattedShopPrice",
+                            color = priceTextColor,
+                            fontSize = priceSize,
+                            fontWeight = priceWeight,
+                            maxLines = 1,
+                            overflow =
+                                TextOverflow.Ellipsis
+                        )
                     }
 
                     Spacer(modifier = Modifier.width(7.dp))
@@ -836,7 +813,7 @@ internal fun ProfessionalDashboardSearchOverlay(
         if (bottomBannerHeight > 0.dp) 20.dp else 0.dp
 
     val restingSearchBarBottom =
-        96.dp +
+        20.dp +
                 bottomBannerHeight +
                 bannerClearanceGap +
                 additionalBannerHeight

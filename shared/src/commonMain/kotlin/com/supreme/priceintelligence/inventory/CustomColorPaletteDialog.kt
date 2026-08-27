@@ -124,14 +124,6 @@ internal fun AppColorPaletteControl(
                                         onPaletteSelected(
                                             palette
                                         )
-
-                                        if (
-                                            palette ==
-                                            AppColorPalette
-                                                .CUSTOM
-                                        ) {
-                                            onEditCustomPalette()
-                                        }
                                     },
                                     modifier = Modifier
                                         .weight(1f)

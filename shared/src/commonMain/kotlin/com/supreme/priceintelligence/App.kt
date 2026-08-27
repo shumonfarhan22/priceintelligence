@@ -5,10 +5,15 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -37,8 +42,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -47,20 +50,24 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room3.RoomDatabase
 import com.supreme.priceintelligence.dashboard.OriginalDashboardScreen
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
+import com.supreme.priceintelligence.dashboard.HubPriceMovementScreen
+import com.supreme.priceintelligence.dashboard.QuickCompareScreen
 import com.supreme.priceintelligence.dashboard.PriceChangeNotifier
 import com.supreme.priceintelligence.dashboard.PriceChangeNotificationNavigation
+import com.supreme.priceintelligence.dashboard.buildDecisionSummary
+import com.supreme.priceintelligence.dashboard.buildPriceFreshnessSummary
 import com.supreme.priceintelligence.data.AppDatabase
+import com.supreme.priceintelligence.home.LaunchHubScreen
 import com.supreme.priceintelligence.data.InventoryRepository
 import com.supreme.priceintelligence.data.getRoomDatabase
 import com.supreme.priceintelligence.inventory.OriginalInventoryScreen
 import com.supreme.priceintelligence.inventory.OriginalInventoryUndoBanner
 import com.supreme.priceintelligence.inventory.InventoryViewModel
+import com.supreme.priceintelligence.inventory.PersonalizationAccordionDialog
 import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.network.PriceScraper
-import com.supreme.priceintelligence.ui.components.AppDestination
 import com.supreme.priceintelligence.ui.components.OriginalAppBackground
 import com.supreme.priceintelligence.ui.components.OriginalBannerKind
-import com.supreme.priceintelligence.ui.components.OriginalBottomNavigation
 import com.supreme.priceintelligence.ui.components.OriginalDashboardHeader
 import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
 import com.supreme.priceintelligence.settings.AppPreferences
@@ -73,6 +80,13 @@ import com.supreme.priceintelligence.settings.writeAppCustomization
 import com.supreme.priceintelligence.ui.theme.PriceIntelligenceTheme
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
+
+private enum class MainDestination {
+    Dashboard,
+    Inventory,
+    PriceMovement,
+    QuickCompare
+}
 
 @Composable
 fun App(
@@ -135,6 +149,30 @@ fun App(
             val inventoryState by inventoryViewModel.uiState.collectAsState()
             val dashboardState by dashboardViewModel.uiState.collectAsState()
 
+            val hubFreshnessSummary = remember(
+                dashboardState.allMatchingItems
+            ) {
+                dashboardState
+                    .allMatchingItems
+                    .buildPriceFreshnessSummary(
+                        nowMillis =
+                            kotlin.time.Clock.System
+                                .now()
+                                .toEpochMilliseconds()
+                    )
+            }
+
+            val hubDecisionSummary = remember(
+                dashboardState.allMatchingItems,
+                dashboardState.pageItems
+            ) {
+                dashboardState
+                    .allMatchingItems
+                    .buildDecisionSummary(
+                        dashboardState.pageItems
+                    )
+            }
+
             val priceMovementNotificationTarget by
                 PriceChangeNotificationNavigation
                     .pendingTarget
@@ -166,8 +204,19 @@ fun App(
             }
 
             var destinationName by rememberSaveable {
-                mutableStateOf(AppDestination.Dashboard.name)
+                mutableStateOf(
+                    MainDestination.Dashboard.name
+                )
             }
+
+            var hubVisible by rememberSaveable {
+                mutableStateOf(true)
+            }
+
+            var personalizationOpen by rememberSaveable {
+                mutableStateOf(false)
+            }
+
             var advancedModeEnabled by remember {
                 mutableStateOf(appPreferences.advancedModeEnabled)
             }
@@ -178,9 +227,11 @@ fun App(
                 )
             }
             val destination =
-                AppDestination.entries.firstOrNull { item ->
-                    item.name == destinationName
-                } ?: AppDestination.Dashboard
+                MainDestination.entries
+                    .firstOrNull { item ->
+                        item.name == destinationName
+                    }
+                    ?: MainDestination.Dashboard
 
             LaunchedEffect(
                 priceMovementNotificationTarget
@@ -191,16 +242,23 @@ fun App(
                     null
                 ) {
                     destinationName =
-                        AppDestination.Dashboard.name
+                        MainDestination
+                            .PriceMovement
+                            .name
+                    hubVisible = false
                 }
             }
 
-            LaunchedEffect(destination) {
+            LaunchedEffect(
+                destination,
+                hubVisible
+            ) {
                 dashboardViewModel.setAutomaticRefreshPaused(
                     reason = "main-destination",
                     paused =
-                        destination !=
-                            AppDestination.Dashboard
+                        !hubVisible &&
+                            destination !=
+                            MainDestination.Dashboard
                 )
             }
 
@@ -221,7 +279,7 @@ fun App(
             ).coerceAtLeast(0.dp)
 
             val bannerBaseBottom = maxOf(
-                96.dp,
+                12.dp,
                 keyboardClearance + 8.dp
             )
 
@@ -270,28 +328,32 @@ fun App(
             )
 
             PlatformBackHandler(
-                enabled =
-                    destination != AppDestination.Dashboard ||
-                        dashboardState.currentPage > 1,
+                enabled = !hubVisible,
                 onBack = {
                     when {
                         destination ==
-                            AppDestination.Dashboard &&
+                            MainDestination.Inventory &&
+                            inventoryState.isSelectionMode -> {
+                            inventoryViewModel.clearSelection()
+                        }
+
+                        destination ==
+                            MainDestination.Dashboard &&
                             dashboardState.currentPage > 1 -> {
                             dashboardViewModel.goToPage(
                                 dashboardState.currentPage - 1
                             )
                         }
 
-                        destination ==
-                            AppDestination.Inventory &&
-                            inventoryState.isSelectionMode -> {
-                            inventoryViewModel.clearSelection()
-                        }
-
                         else -> {
-                            destinationName =
-                                AppDestination.Dashboard.name
+                            priceMovementNotificationTarget
+                                ?.requestId
+                                ?.let(
+                                    PriceChangeNotificationNavigation::
+                                        consume
+                                )
+
+                            hubVisible = true
                         }
                     }
                 }
@@ -325,77 +387,213 @@ fun App(
                                 .fillMaxWidth()
                         ) {
                             AnimatedContent(
-                                targetState = destination,
-                                transitionSpec = {
-                                    if (reduceMotionEnabled) {
-                                        EnterTransition.None togetherWith
-                                                ExitTransition.None
-                                    } else if (
-                                        targetState.ordinal >
-                                        initialState.ordinal
-                                    ) {
-                                        (
-                                            slideInHorizontally(
-                                                animationSpec = tween(
-                                                    durationMillis = 220
-                                                )
-                                            ) { width ->
-                                                width / 5
-                                            } +
-                                                fadeIn(
-                                                    animationSpec = tween(
-                                                        durationMillis = 160
-                                                    )
-                                                )
-                                        ) togetherWith (
-                                            slideOutHorizontally(
-                                                animationSpec = tween(
-                                                    durationMillis = 180
-                                                )
-                                            ) { width ->
-                                                -width / 5
-                                            } +
-                                                fadeOut(
-                                                    animationSpec = tween(
-                                                        durationMillis = 140
-                                                    )
-                                                )
-                                        )
+                                targetState =
+                                    if (hubVisible) {
+                                        null
                                     } else {
-                                        (
-                                            slideInHorizontally(
-                                                animationSpec = tween(
-                                                    durationMillis = 220
-                                                )
-                                            ) { width ->
-                                                -width / 5
-                                            } +
+                                        destination
+                                    },
+                                transitionSpec = {
+                                    when {
+                                        reduceMotionEnabled -> {
+                                            EnterTransition.None togetherWith
+                                                ExitTransition.None
+                                        }
+
+                                        initialState == null &&
+                                            targetState != null -> {
+                                            (
                                                 fadeIn(
                                                     animationSpec = tween(
-                                                        durationMillis = 160
+                                                        durationMillis = 180,
+                                                        delayMillis = 25,
+                                                        easing =
+                                                            FastOutSlowInEasing
                                                     )
-                                                )
-                                        ) togetherWith (
-                                            slideOutHorizontally(
-                                                animationSpec = tween(
-                                                    durationMillis = 180
-                                                )
-                                            ) { width ->
-                                                width / 5
-                                            } +
+                                                ) +
+                                                    scaleIn(
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.88f,
+                                                            stiffness = 440f
+                                                        ),
+                                                        initialScale = 0.93f
+                                                    ) +
+                                                    slideInVertically(
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.90f,
+                                                            stiffness = 500f
+                                                        )
+                                                    ) { height ->
+                                                        height / 16
+                                                    }
+                                            ) togetherWith (
                                                 fadeOut(
                                                     animationSpec = tween(
-                                                        durationMillis = 140
+                                                        durationMillis = 135,
+                                                        easing =
+                                                            FastOutLinearInEasing
                                                     )
+                                                ) +
+                                                    scaleOut(
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.92f,
+                                                            stiffness = 520f
+                                                        ),
+                                                        targetScale = 0.97f
+                                                    ) +
+                                                    slideOutVertically(
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.94f,
+                                                            stiffness = 560f
+                                                        )
+                                                    ) { height ->
+                                                        -height / 40
+                                                    }
+                                            )
+                                        }
+
+                                        targetState == null -> {
+                                            (
+                                                fadeIn(
+                                                    animationSpec = tween(
+                                                        durationMillis = 190,
+                                                        delayMillis = 20,
+                                                        easing =
+                                                            FastOutSlowInEasing
+                                                    )
+                                                ) +
+                                                    scaleIn(
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.92f,
+                                                            stiffness = 520f
+                                                        ),
+                                                        initialScale = 0.97f
+                                                    ) +
+                                                    slideInVertically(
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.94f,
+                                                            stiffness = 560f
+                                                        )
+                                                    ) { height ->
+                                                        -height / 40
+                                                    }
+                                            ) togetherWith (
+                                                fadeOut(
+                                                    animationSpec = tween(
+                                                        durationMillis = 140,
+                                                        easing =
+                                                            FastOutLinearInEasing
+                                                    )
+                                                ) +
+                                                    scaleOut(
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.90f,
+                                                            stiffness = 500f
+                                                        ),
+                                                        targetScale = 1.04f
+                                                    ) +
+                                                    slideOutVertically(
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.90f,
+                                                            stiffness = 500f
+                                                        )
+                                                    ) { height ->
+                                                        height / 16
+                                                    }
+                                            )
+                                        }
+
+                                        else -> {
+                                            fadeIn(
+                                                animationSpec = tween(
+                                                    durationMillis = 180,
+                                                    easing =
+                                                        FastOutSlowInEasing
                                                 )
-                                        )
+                                            ) togetherWith fadeOut(
+                                                animationSpec = tween(
+                                                    durationMillis = 140,
+                                                    easing =
+                                                        FastOutLinearInEasing
+                                                )
+                                            )
+                                        }
                                     }
                                 },
                                 modifier = Modifier.fillMaxSize(),
                                 label = "mainDestinationTransition"
                             ) { visibleDestination ->
                                 when (visibleDestination) {
-                                    AppDestination.Dashboard ->
+                                    null ->
+                                        LaunchHubScreen(
+                                            isConnected =
+                                                isConnected,
+                                            decisionSummary =
+                                                hubDecisionSummary,
+                                            freshnessSummary =
+                                                hubFreshnessSummary,
+                                            activeFilter =
+                                                dashboardState
+                                                    .priceFilter,
+                                            refreshTick =
+                                                dashboardState
+                                                    .refreshCollapseTick,
+                                            reduceMotionEnabled =
+                                                reduceMotionEnabled,
+                                            insightCustomization =
+                                                customization
+                                                    .insightCustomization,
+                                            onDashboardClick = {
+                                                destinationName =
+                                                    MainDestination
+                                                        .Dashboard
+                                                        .name
+                                                hubVisible = false
+                                                dashboardViewModel
+                                                    .refreshSilently()
+                                            },
+                                            onInventoryClick = {
+                                                destinationName =
+                                                    MainDestination
+                                                        .Inventory
+                                                        .name
+                                                hubVisible = false
+                                            },
+                                            onPriceMovementClick = {
+                                                destinationName =
+                                                    MainDestination
+                                                        .PriceMovement
+                                                        .name
+                                                hubVisible = false
+                                            },
+                                            onQuickCompareClick = {
+                                                destinationName =
+                                                    MainDestination
+                                                        .QuickCompare
+                                                        .name
+                                                hubVisible = false
+                                            },
+                                            onSettingsClick = {
+                                                personalizationOpen =
+                                                    true
+                                            },
+                                            onFilterSelected = {
+                                                    filter ->
+                                                dashboardViewModel
+                                                    .setPriceFilter(
+                                                        filter
+                                                    )
+                                                destinationName =
+                                                    MainDestination
+                                                        .Dashboard
+                                                        .name
+                                                hubVisible = false
+                                            },
+                                            modifier =
+                                                Modifier.fillMaxSize()
+                                        )
+
+                                    MainDestination.Dashboard ->
                                         OriginalDashboardScreen(
                                             viewModel = dashboardViewModel,
                                             modifier = Modifier.fillMaxSize(),
@@ -407,13 +605,12 @@ fun App(
                                                 reduceMotionEnabled,
                                             customization =
                                                 customization,
-                                            priceMovementNotificationTarget =
-                                                priceMovementNotificationTarget,
-                                            onPriceMovementNotificationConsumed =
-                                                PriceChangeNotificationNavigation::consume
+                                            onNavigateHome = {
+                                                hubVisible = true
+                                            }
                                         )
 
-                                    AppDestination.Inventory ->
+                                    MainDestination.Inventory ->
                                         OriginalInventoryScreen(
                                             viewModel = inventoryViewModel,
                                             themeMode = themeMode,
@@ -447,7 +644,10 @@ fun App(
                                                                 .savedColorPreset,
                                                         savedPersonalizationPreset =
                                                             customization
-                                                                .savedPersonalizationPreset
+                                                                .savedPersonalizationPreset,
+                                                        savedPersonalizationPresets =
+                                                            customization
+                                                                .savedPersonalizationPresets
                                                     )
 
                                                 customization =
@@ -469,6 +669,9 @@ fun App(
                                             },
                                             priceChangeNotificationsEnabled =
                                                 priceChangeNotificationsEnabled,
+                                            onNavigateHome = {
+                                                hubVisible = true
+                                            },
                                             onPriceChangeNotificationsChanged =
                                                 { enabled ->
                                                     priceChangeNotificationsEnabled =
@@ -501,42 +704,47 @@ fun App(
                                                         }
                                                 )
                                         )
+
+                                    MainDestination.PriceMovement ->
+                                        HubPriceMovementScreen(
+                                            viewModel =
+                                                dashboardViewModel,
+                                            reduceMotionEnabled =
+                                                reduceMotionEnabled,
+                                            customization =
+                                                customization,
+                                            notificationTarget =
+                                                priceMovementNotificationTarget,
+                                            onNotificationConsumed =
+                                                PriceChangeNotificationNavigation::
+                                                    consume,
+                                            onNavigateHome = {
+                                                hubVisible = true
+                                            },
+                                            modifier =
+                                                Modifier.fillMaxSize()
+                                        )
+
+                                    MainDestination.QuickCompare ->
+                                        QuickCompareScreen(
+                                            viewModel =
+                                                dashboardViewModel,
+                                            advancedModeEnabled =
+                                                advancedModeEnabled,
+                                            reduceMotionEnabled =
+                                                reduceMotionEnabled,
+                                            customization =
+                                                customization,
+                                            onNavigateHome = {
+                                                hubVisible = true
+                                            },
+                                            modifier =
+                                                Modifier.fillMaxSize()
+                                        )
                                 }
                             }
                         }
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .align(
-                                androidx.compose.ui.Alignment.BottomCenter
-                            )
-                            .fillMaxWidth()
-                            .height(160.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.Black.copy(
-                                            alpha =
-                                                if (isDarkTheme) {
-                                                    0.12f
-                                                } else {
-                                                    0.04f
-                                                }
-                                        ),
-                                        Color.Black.copy(
-                                            alpha =
-                                                if (isDarkTheme) {
-                                                    0.48f
-                                                } else {
-                                                    0.14f
-                                                }
-                                        )
-                                    )
-                                )
-                            )
-                    )
 
                     OriginalStatusBanner(
                         message = inventoryState.statusMessage,
@@ -600,30 +808,76 @@ fun App(
                             }
                     )
 
-                    OriginalBottomNavigation(
-                        selectedDestination = destination,
-                        modifier = Modifier.align(
-                            androidx.compose.ui.Alignment.BottomCenter
-                        ),
-                        horizontalPadding =
-                            if (
-                                customization.displayDensity ==
-                                AppDisplayDensity.COMPACT
-                            ) {
-                                12.dp
-                            } else {
-                                16.dp
-                            },
-                        reduceMotionEnabled = reduceMotionEnabled,
-                        onDestinationSelected = { selected ->
-                            destinationName = selected.name
-
-                            if (selected == AppDestination.Dashboard) {
-                                dashboardViewModel.refreshSilently()
-                            }
-                        }
-                    )
+                    // The launch hub now provides all main navigation.
                 }
+            }
+
+            if (personalizationOpen) {
+                PersonalizationAccordionDialog(
+                    themeMode = themeMode,
+                    customization = customization,
+                    advancedModeEnabled =
+                        advancedModeEnabled,
+                    priceChangeNotificationsEnabled =
+                        priceChangeNotificationsEnabled,
+                    reduceMotionEnabled =
+                        reduceMotionEnabled,
+                    onThemeModeChanged = { selectedMode ->
+                        themeMode = selectedMode
+                        appPreferences.themeMode =
+                            selectedMode
+                    },
+                    onCustomizationChanged = { updated ->
+                        customization = updated
+                        appPreferences.customizationProfile =
+                            writeAppCustomization(updated)
+                    },
+                    onAdvancedModeChanged = { enabled ->
+                        advancedModeEnabled = enabled
+                        appPreferences.advancedModeEnabled =
+                            enabled
+                    },
+                    onPriceChangeNotificationsChanged = {
+                            enabled ->
+                        priceChangeNotificationsEnabled =
+                            enabled
+                        appPreferences
+                            .priceChangeNotificationsEnabled =
+                            enabled
+
+                        if (enabled) {
+                            priceChangeNotifier
+                                .requestPermission()
+                        }
+                    },
+                    onResetPersonalization = {
+                        themeMode = AppThemeMode.DARK
+                        appPreferences.themeMode =
+                            AppThemeMode.DARK
+
+                        val resetCustomization =
+                            AppCustomization(
+                                savedColorPreset =
+                                    customization
+                                        .savedColorPreset,
+                                savedPersonalizationPreset =
+                                    customization
+                                        .savedPersonalizationPreset,
+                                savedPersonalizationPresets =
+                                    customization
+                                        .savedPersonalizationPresets
+                            )
+
+                        customization = resetCustomization
+                        appPreferences.customizationProfile =
+                            writeAppCustomization(
+                                resetCustomization
+                            )
+                    },
+                    onDismiss = {
+                        personalizationOpen = false
+                    }
+                )
             }
         }
     }

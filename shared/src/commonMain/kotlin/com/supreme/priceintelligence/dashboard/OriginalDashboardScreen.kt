@@ -128,6 +128,9 @@ fun OriginalDashboardScreen(
     reduceMotionEnabled: Boolean = false,
     customization: AppCustomization =
         AppCustomization(),
+    quickCompareRequestId: Int = 0,
+    priceMovementRequestId: Int = 0,
+    onNavigateHome: () -> Unit = {},
     priceMovementNotificationTarget:
         PriceMovementNotificationTarget? = null,
     onPriceMovementNotificationConsumed:
@@ -156,14 +159,59 @@ fun OriginalDashboardScreen(
         )
     }
 
+    val dashboardDecisionSummary = remember(
+        state.allMatchingItems,
+        state.pageItems
+    ) {
+        state.allMatchingItems.buildDecisionSummary(
+            livePriceCards = state.pageItems
+        )
+    }
+
     var sortMenuOpen by remember { mutableStateOf(false) }
     var searchFocused by remember { mutableStateOf(false) }
     var scannerOpen by rememberSaveable { mutableStateOf(false) }
-    var selectedProductId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedProductId by rememberSaveable {
+        mutableStateOf<Long?>(null)
+    }
     var shopPriceMovementOpen by rememberSaveable {
         mutableStateOf(false)
     }
-    var cameraPermissionDenied by rememberSaveable { mutableStateOf(false) }
+    var quickCompareActive by rememberSaveable {
+        mutableStateOf(false)
+    }
+    var cameraPermissionDenied by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(quickCompareRequestId) {
+        if (quickCompareRequestId > 0) {
+            scannerOpen = false
+            selectedProductId = null
+            shopPriceMovementOpen = false
+            quickCompareActive = true
+            viewModel.prepareQuickCompare()
+
+            if (!reduceMotionEnabled) {
+                delay(120.milliseconds)
+            }
+
+            searchFocused = true
+            viewModel.onSearchFocusChanged(true)
+        }
+    }
+
+    LaunchedEffect(priceMovementRequestId) {
+        if (priceMovementRequestId > 0) {
+            scannerOpen = false
+            selectedProductId = null
+            searchFocused = false
+            quickCompareActive = false
+            focusManager.clearFocus()
+            shopPriceMovementOpen = true
+            viewModel.loadShopPriceMovement()
+        }
+    }
 
     LaunchedEffect(
         priceMovementNotificationTarget
@@ -317,14 +365,7 @@ fun OriginalDashboardScreen(
     }
 
     var compactDashboardHeaderVisible by rememberSaveable {
-        mutableStateOf(false)
-    }
-    var decisionCardShouldCollapse by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    val headerTransitionThresholdPx = with(density) {
-        20.dp.roundToPx()
+        mutableStateOf(true)
     }
 
     val headerHideThresholdPx = with(density) {
@@ -333,7 +374,6 @@ fun OriginalDashboardScreen(
 
     LaunchedEffect(
         dashboardListState,
-        headerTransitionThresholdPx,
         headerHideThresholdPx
     ) {
         var previousIndex =
@@ -369,12 +409,6 @@ fun OriginalDashboardScreen(
 
             when {
                 atTop -> {
-                    compactDashboardHeaderVisible = false
-                    downwardTravelPx = 0
-                }
-
-                currentIndex == 0 &&
-                        currentOffset >= headerTransitionThresholdPx -> {
                     compactDashboardHeaderVisible = true
                     downwardTravelPx = 0
                 }
@@ -413,23 +447,6 @@ fun OriginalDashboardScreen(
             previousOffset = currentOffset
         }
     }
-
-    // Separate from the compact-header effect above, which reacts to a tiny
-    // scroll (20-24dp). This checks something much more direct: whether the
-    // decision summary card's own list item is still on screen at all. Only
-    // once it has scrolled fully out of view does it fold itself shut, so
-    // it doesn't sit expanded — and taking up space — if you scroll back
-    // near the top later.
-    LaunchedEffect(dashboardListState) {
-        snapshotFlow {
-            dashboardListState.layoutInfo.visibleItemsInfo.any { info ->
-                info.key == "advanced-summary"
-            }
-        }.collect { summaryCardOnScreen ->
-            decisionCardShouldCollapse = !summaryCardOnScreen
-        }
-    }
-
 
     LaunchedEffect(advancedModeEnabled, state.sortOrder) {
         if (
@@ -476,6 +493,53 @@ fun OriginalDashboardScreen(
         }
     }
 
+    fun submitDashboardSearch(query: String) {
+        val normalizedQuery = query.trim()
+
+        val exactProduct =
+            if (quickCompareActive) {
+                state.allMatchingItems.firstOrNull { item ->
+                    item.productName.equals(
+                        normalizedQuery,
+                        ignoreCase = true
+                    ) ||
+                        item.barcode?.equals(
+                            normalizedQuery,
+                            ignoreCase = true
+                        ) == true ||
+                        item.amazonUrl?.equals(
+                            normalizedQuery,
+                            ignoreCase = true
+                        ) == true ||
+                        item.flipkartUrl?.equals(
+                            normalizedQuery,
+                            ignoreCase = true
+                        ) == true
+                }
+            } else {
+                null
+            }
+
+        viewModel.onSearchSubmitted(normalizedQuery)
+        searchFocused = false
+        focusManager.clearFocus()
+
+        if (exactProduct != null) {
+            viewModel.recordProductViewed(
+                exactProduct.id
+            )
+            selectedProductId = exactProduct.id
+
+            if (advancedModeEnabled) {
+                viewModel.loadPriceHistory(
+                    exactProduct.id
+                )
+            }
+        }
+
+        quickCompareActive = false
+    }
+
     if (scannerOpen) {
         ProductBarcodeScanner(
             modifier = Modifier.fillMaxSize(),
@@ -483,7 +547,7 @@ fun OriginalDashboardScreen(
                 customization.hapticsEnabled,
             onScanned = { barcode ->
                 scannerOpen = false
-                viewModel.onSearchSubmitted(barcode)
+                submitDashboardSearch(barcode)
             },
             onError = {
                 scannerOpen = false
@@ -513,23 +577,11 @@ fun OriginalDashboardScreen(
                             screenHorizontalPadding
                     ),
                 contentPadding = PaddingValues(
-                    top = if (state.currentPage > 1) {
-                        52.dp
-                    } else {
-                        0.dp
-                    },
-                    bottom = 190.dp
+                    top = 52.dp,
+                    bottom = 112.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                if (state.currentPage == 1) {
-                    item(key = "branding") {
-                        ProfessionalDashboardBranding(
-                            compact = false
-                        )
-                    }
-                }
-
                 if (cameraPermissionDenied) {
                     item(key = "feedback") {
                         CompactDashboardFeedback(
@@ -558,9 +610,41 @@ fun OriginalDashboardScreen(
                     state.allMatchingItems.isNotEmpty()
                 ) {
                     item(
+                        key = "dashboard-shop-overview",
+                        contentType =
+                            "dashboard-shop-overview"
+                    ) {
+                        DashboardDecisionSummaryCard(
+                            summary =
+                                dashboardDecisionSummary,
+                            freshnessSummary =
+                                priceFreshnessSummary,
+                            activeFilter =
+                                state.priceFilter,
+                            refreshTick =
+                                state.refreshCollapseTick,
+                            reduceMotionEnabled =
+                                reduceMotionEnabled,
+                            insightCustomization =
+                                customization
+                                    .insightCustomization,
+                            showOverviewSummary = false,
+                            showBreakdown = true,
+                            showTopPriorities = false,
+                            overviewCollapsible = false,
+                            breakdownCollapsible = false,
+                            showPriceMovementAction =
+                                false,
+                            onFilterToggle =
+                                viewModel::setPriceFilter
+                        )
+                    }
+
+                    item(
                         key = "price-freshness",
                         contentType = "price-freshness-card"
                     ) {
+
                         AnimatedVisibility(
                             visible =
                                 priceFreshnessCardVisible,
@@ -643,45 +727,6 @@ fun OriginalDashboardScreen(
                     }
                 }
 
-                if (
-                    advancedModeEnabled &&
-                    state.searchQuery.isBlank() &&
-                    state.allMatchingItems.isNotEmpty()
-                ) {
-                    item(
-                        key = "advanced-summary",
-                        contentType = "advanced-summary-card"
-                    ) {
-                        DashboardDecisionSummaryCard(
-                            summary =
-                                state.allMatchingItems
-                                    .buildDecisionSummary(
-                                        state.pageItems
-                                    ),
-                            freshnessSummary =
-                                priceFreshnessSummary,
-                            collapseSignal =
-                                decisionCardShouldCollapse,
-                            refreshTick =
-                                state.refreshCollapseTick,
-                            activeFilter =
-                                state.priceFilter,
-                            reduceMotionEnabled =
-                                reduceMotionEnabled,
-                            insightCustomization =
-                                customization.insightCustomization,
-                            onPriceMovementClick = {
-                                shopPriceMovementOpen =
-                                    true
-                                viewModel
-                                    .loadShopPriceMovement()
-                            },
-                            onFilterToggle =
-                                viewModel::setPriceFilter
-                        )
-                    }
-                }
-
                 when {
                     state.isLoading && state.pageItems.isEmpty() -> {
                         item(key = "loading") {
@@ -723,7 +768,10 @@ fun OriginalDashboardScreen(
                                     card.item.id in
                                         state.manualResultLightProductIds,
                                 onClick = {
-                                    viewModel.recordProductViewed(card.item.id)
+                                    quickCompareActive = false
+                                    viewModel.recordProductViewed(
+                                        card.item.id
+                                    )
                                     selectedProductId = card.item.id
                                     searchFocused = false
                                     focusManager.clearFocus()
@@ -755,9 +803,7 @@ fun OriginalDashboardScreen(
         }
 
         AnimatedVisibility(
-            visible =
-                compactDashboardHeaderVisible ||
-                    state.currentPage > 1,
+            visible = compactDashboardHeaderVisible,
             modifier = Modifier.align(Alignment.TopCenter),
             enter = fadeIn(
                 animationSpec = tween(durationMillis = 120)
@@ -783,12 +829,21 @@ fun OriginalDashboardScreen(
                     ) {
                         ProfessionalDashboardBranding(
                             compact = true,
-                            showPreviousPage =
-                                state.currentPage > 1,
+                            showPreviousPage = true,
+                            previousPageContentDescription =
+                                if (state.currentPage > 1) {
+                                    "Go to previous Dashboard page"
+                                } else {
+                                    "Back to launch page"
+                                },
                             onPreviousPage = {
-                                viewModel.goToPage(
-                                    state.currentPage - 1
-                                )
+                                if (state.currentPage > 1) {
+                                    viewModel.goToPage(
+                                        state.currentPage - 1
+                                    )
+                                } else {
+                                    onNavigateHome()
+                                }
                             }
                         )
                     }
@@ -815,27 +870,34 @@ fun OriginalDashboardScreen(
 
         ProfessionalDashboardSearchOverlay(
             query = state.searchDraft,
-            suggestions = state.suggestions,
+            suggestions = emptyList(),
             isFocused = searchFocused,
             bottomBannerHeight = bottomBannerHeight,
             additionalBannerHeight = networkBannerClearance,
             reduceMotionEnabled = reduceMotionEnabled,
             onQueryChange = { query ->
-                viewModel.onSearchQueryChanged(query)
+                viewModel.onSearchQueryChanged(
+                    query = query,
+                    suggestionsEnabled = false
+                )
             },
             onSubmit = { query ->
-                viewModel.onSearchSubmitted(query)
-                searchFocused = false
-                focusManager.clearFocus()
+                submitDashboardSearch(query)
             },
             onScanClick = permissionRequester::requestPermission,
             onFocusChange = { focused ->
                 searchFocused = focused
-                viewModel.onSearchFocusChanged(focused)
+                viewModel.onSearchFocusChanged(
+                    focused = focused,
+                    suggestionsEnabled = false
+                )
             },
             onDismissFocus = {
                 searchFocused = false
-                viewModel.onSearchFocusChanged(false)
+                viewModel.onSearchFocusChanged(
+                    focused = false,
+                    suggestionsEnabled = false
+                )
                 focusManager.clearFocus()
             }
         )

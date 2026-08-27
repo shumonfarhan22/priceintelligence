@@ -242,7 +242,8 @@ data class SavedPersonalizationPreset(
     val themeMode: AppThemeMode,
     val advancedModeEnabled: Boolean,
     val priceChangeNotificationsEnabled: Boolean,
-    val customizationProfile: String
+    val customizationProfile: String,
+    val name: String = "Saved setup"
 )
 
 data class AppCustomization(
@@ -278,7 +279,10 @@ data class AppCustomization(
         InsightCustomization(),
     val savedColorPreset: SavedColorPreset? = null,
     val savedPersonalizationPreset:
-        SavedPersonalizationPreset? = null
+        SavedPersonalizationPreset? = null,
+    val savedPersonalizationPresets:
+        List<SavedPersonalizationPreset> =
+        emptyList()
 )
 
 fun readAppCustomization(
@@ -381,7 +385,21 @@ fun readAppCustomization(
         savedPersonalizationPreset =
             readSavedPersonalizationPreset(
                 parts.getOrNull(17)
-            )
+            ),
+        savedPersonalizationPresets =
+            readSavedPersonalizationPresetList(
+                parts.getOrNull(18)
+            ).ifEmpty {
+                readSavedPersonalizationPreset(
+                    parts.getOrNull(17)
+                )?.let { legacyPreset ->
+                    listOf(
+                        legacyPreset.copy(
+                            name = "My saved setup"
+                        )
+                    )
+                }.orEmpty()
+            }
     )
 }
 
@@ -414,6 +432,9 @@ fun writeAppCustomization(
         ),
         writeSavedPersonalizationPreset(
             customization.savedPersonalizationPreset
+        ),
+        writeSavedPersonalizationPresetList(
+            customization.savedPersonalizationPresets
         )
     ).joinToString("|")
 
@@ -568,29 +589,56 @@ private fun readSavedPersonalizationPreset(
             ?.split(';')
             .orEmpty()
 
-    if (parts.firstOrNull() != "f1") {
+    val isNamedPreset =
+        parts.firstOrNull() == "f2"
+
+    if (
+        !isNamedPreset &&
+        parts.firstOrNull() != "f1"
+    ) {
         return null
     }
 
+    val name =
+        if (isNamedPreset) {
+            decodePresetText(
+                parts.getOrNull(1).orEmpty()
+            )?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: "Saved setup"
+        } else {
+            "Saved setup"
+        }
+
+    val themeIndex =
+        if (isNamedPreset) 2 else 1
+    val advancedIndex =
+        if (isNamedPreset) 3 else 2
+    val notificationsIndex =
+        if (isNamedPreset) 4 else 3
+    val profileIndex =
+        if (isNamedPreset) 5 else 4
+
     val profile =
         decodePresetText(
-            parts.getOrNull(4).orEmpty()
+            parts.getOrNull(profileIndex).orEmpty()
         ) ?: return null
 
     return SavedPersonalizationPreset(
         themeMode =
             AppThemeMode.fromStoredValue(
-                parts.getOrNull(1)
+                parts.getOrNull(themeIndex)
             ),
         advancedModeEnabled =
-            parts.getOrNull(2)
+            parts.getOrNull(advancedIndex)
                 ?.toBooleanStrictOrNull()
                 ?: false,
         priceChangeNotificationsEnabled =
-            parts.getOrNull(3)
+            parts.getOrNull(notificationsIndex)
                 ?.toBooleanStrictOrNull()
                 ?: false,
-        customizationProfile = profile
+        customizationProfile = profile,
+        name = name
     )
 }
 
@@ -602,7 +650,13 @@ private fun writeSavedPersonalizationPreset(
     }
 
     return listOf(
-        "f1",
+        "f2",
+        encodePresetText(
+            preset.name
+                .trim()
+                .take(MAX_SAVED_PRESET_NAME_LENGTH)
+                .ifBlank { "Saved setup" }
+        ),
         preset.themeMode.name,
         preset.advancedModeEnabled.toString(),
         preset.priceChangeNotificationsEnabled
@@ -611,6 +665,60 @@ private fun writeSavedPersonalizationPreset(
             preset.customizationProfile
         )
     ).joinToString(";")
+}
+
+private fun readSavedPersonalizationPresetList(
+    storedValue: String?
+): List<SavedPersonalizationPreset> {
+    val parts =
+        storedValue
+            ?.split('~')
+            .orEmpty()
+
+    if (parts.firstOrNull() != "l1") {
+        return emptyList()
+    }
+
+    return parts
+        .drop(1)
+        .mapNotNull {
+            readSavedPersonalizationPreset(it)
+        }
+        .distinctBy {
+            it.name.trim().lowercase()
+        }
+        .take(MAX_SAVED_PERSONALIZATION_PRESETS)
+}
+
+private fun writeSavedPersonalizationPresetList(
+    presets: List<SavedPersonalizationPreset>
+): String {
+    val safePresets =
+        presets
+            .filter {
+                it.name.isNotBlank() &&
+                    it.customizationProfile.isNotBlank()
+            }
+            .distinctBy {
+                it.name.trim().lowercase()
+            }
+            .take(MAX_SAVED_PERSONALIZATION_PRESETS)
+
+    if (safePresets.isEmpty()) {
+        return ""
+    }
+
+    return buildList {
+        add("l1")
+
+        safePresets.forEach { preset ->
+            add(
+                writeSavedPersonalizationPreset(
+                    preset
+                )
+            )
+        }
+    }.joinToString("~")
 }
 
 private fun encodePresetText(
@@ -685,5 +793,8 @@ private inline fun <reified T : Enum<T>>
             option.name == value
         }
         ?: defaultValue
+
+const val MAX_SAVED_PERSONALIZATION_PRESETS = 12
+const val MAX_SAVED_PRESET_NAME_LENGTH = 28
 
 private const val PROFILE_VERSION = "v1"

@@ -1,0 +1,719 @@
+package com.supreme.priceintelligence.dashboard
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
+import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
+import com.supreme.priceintelligence.settings.AppCustomization
+import com.supreme.priceintelligence.ui.theme.supremeColors
+import kotlinx.coroutines.delay
+
+@Composable
+internal fun QuickCompareScreen(
+    viewModel: DashboardViewModel,
+    advancedModeEnabled: Boolean,
+    reduceMotionEnabled: Boolean,
+    customization: AppCustomization,
+    onNavigateHome: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val state by viewModel.uiState.collectAsState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController =
+        LocalSoftwareKeyboardController.current
+
+    val searchFocusRequester = remember {
+        FocusRequester()
+    }
+
+    var scannerOpen by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var cameraPermissionDenied by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var selectedProductId by rememberSaveable {
+        mutableStateOf<Long?>(null)
+    }
+
+    var pendingExactQuery by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
+    var searchSubmitted by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var focusRequestId by rememberSaveable {
+        mutableStateOf(0)
+    }
+
+    val selectedCard =
+        state.pageItems.firstOrNull { card ->
+            card.item.id == selectedProductId
+        }
+
+    fun openProduct(
+        card: ProductCardUiState
+    ) {
+        pendingExactQuery = null
+        selectedProductId = card.item.id
+        keyboardController?.hide()
+        focusManager.clearFocus()
+
+        viewModel.recordProductViewed(
+            card.item.id
+        )
+
+        if (advancedModeEnabled) {
+            viewModel.loadPriceHistory(
+                card.item.id
+            )
+        }
+    }
+
+    fun submitQuery(
+        enteredQuery: String
+    ) {
+        val cleanQuery = enteredQuery.trim()
+
+        if (cleanQuery.isBlank()) {
+            return
+        }
+
+        searchSubmitted = true
+        pendingExactQuery = cleanQuery
+        viewModel.onSearchSubmitted(cleanQuery)
+        viewModel.onSearchFocusChanged(false)
+        keyboardController?.hide()
+        focusManager.clearFocus()
+    }
+
+    val permissionRequester =
+        rememberCameraPermissionRequester { granted ->
+            if (granted) {
+                cameraPermissionDenied = false
+                keyboardController?.hide()
+                focusManager.clearFocus()
+                scannerOpen = true
+            } else {
+                cameraPermissionDenied = true
+            }
+        }
+
+    LaunchedEffect(Unit) {
+        viewModel.prepareQuickCompare()
+        focusRequestId += 1
+    }
+
+    LaunchedEffect(focusRequestId) {
+        if (focusRequestId > 0) {
+            delay(120)
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
+    LaunchedEffect(
+        pendingExactQuery,
+        state.pageItems,
+        state.isLoading
+    ) {
+        val query =
+            pendingExactQuery
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: return@LaunchedEffect
+
+        val exactCard =
+            state.pageItems.firstOrNull { card ->
+                card.item.productName.equals(
+                    query,
+                    ignoreCase = true
+                ) ||
+                        card.item.barcode?.equals(
+                            query,
+                            ignoreCase = true
+                        ) == true ||
+                        card.item.amazonUrl?.equals(
+                            query,
+                            ignoreCase = true
+                        ) == true ||
+                        card.item.flipkartUrl?.equals(
+                            query,
+                            ignoreCase = true
+                        ) == true
+            }
+
+        if (exactCard != null) {
+            openProduct(exactCard)
+        } else if (
+            !state.isLoading &&
+            state.pageItems.isEmpty()
+        ) {
+            pendingExactQuery = null
+        }
+    }
+
+    if (scannerOpen) {
+        ProductBarcodeScanner(
+            modifier = Modifier.fillMaxSize(),
+            hapticFeedbackEnabled =
+                customization.hapticsEnabled,
+            onScanned = { barcode ->
+                scannerOpen = false
+                submitQuery(barcode)
+            },
+            onError = {
+                scannerOpen = false
+                cameraPermissionDenied = true
+            },
+            onCanceled = {
+                scannerOpen = false
+            }
+        )
+
+        return
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                MaterialTheme.colorScheme.background
+            )
+    ) {
+        QuickCompareHeader(
+            onNavigateHome = onNavigateHome
+        )
+
+        HorizontalDivider(
+            color =
+                MaterialTheme
+                    .supremeColors
+                    .border
+                    .copy(alpha = 0.7f)
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 16.dp,
+                    vertical = 12.dp
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "FAST PRODUCT LOOKUP",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+
+            Text(
+                text =
+                    "Search by product name, barcode, Amazon link, or Flipkart link.",
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant,
+                fontSize = 12.sp,
+                lineHeight = 17.sp
+            )
+
+            OutlinedTextField(
+                value = state.searchDraft,
+                onValueChange = { query ->
+                    searchSubmitted = false
+                    pendingExactQuery = null
+
+                    viewModel.onSearchQueryChanged(
+                        query = query,
+                        suggestionsEnabled = false
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(
+                        searchFocusRequester
+                    )
+                    .onFocusChanged { focusState ->
+                        viewModel.onSearchFocusChanged(
+                            focused =
+                                focusState.isFocused,
+                            suggestionsEnabled = false
+                        )
+                    },
+                placeholder = {
+                    Text(
+                        text =
+                            "Name, barcode, or retailer link",
+                        maxLines = 1,
+                        overflow =
+                            TextOverflow.Ellipsis
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector =
+                            Icons.Rounded.Search,
+                        contentDescription = null
+                    )
+                },
+                trailingIcon = {
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+                        if (
+                            state.searchDraft.isNotBlank()
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    searchSubmitted = false
+                                    pendingExactQuery = null
+                                    viewModel
+                                        .onSearchQueryChanged(
+                                            query = "",
+                                            suggestionsEnabled =
+                                                false
+                                        )
+                                }
+                            ) {
+                                Icon(
+                                    imageVector =
+                                        Icons.Rounded.Close,
+                                    contentDescription =
+                                        "Clear Quick Compare search"
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick =
+                                permissionRequester::
+                                requestPermission
+                        ) {
+                            Icon(
+                                imageVector =
+                                    Icons.Rounded.CameraAlt,
+                                contentDescription =
+                                    "Scan product barcode"
+                            )
+                        }
+                    }
+                },
+                singleLine = true,
+                keyboardOptions =
+                    KeyboardOptions(
+                        imeAction =
+                            ImeAction.Search
+                    ),
+                keyboardActions =
+                    KeyboardActions(
+                        onSearch = {
+                            submitQuery(
+                                state.searchDraft
+                            )
+                        }
+                    ),
+                shape = RoundedCornerShape(18.dp)
+            )
+
+            if (cameraPermissionDenied) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .errorContainer
+                ) {
+                    Text(
+                        text =
+                            "Camera access is unavailable. You can still enter the barcode manually.",
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onErrorContainer,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(11.dp)
+                    )
+                }
+            }
+        }
+
+        QuickCompareCatalogGrid(
+            cards = state.pageItems,
+            totalMatchCount =
+                state.totalMatchCount,
+            query = state.searchQuery,
+            showResults =
+                searchSubmitted &&
+                    state.searchQuery.isNotBlank(),
+            reduceMotionEnabled =
+                reduceMotionEnabled,
+            isLoading = state.isLoading,
+            currentPage = state.currentPage,
+            totalPages = state.totalPages,
+            onPageSelected = { page ->
+                viewModel.goToPage(page)
+            },
+            onProductClick = { card ->
+                openProduct(card)
+            },
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        )
+    }
+
+    if (selectedCard != null) {
+        OriginalProfessionalProductDetailDialog(
+            card = selectedCard,
+            networkState = state.bloomState,
+            advancedModeEnabled =
+                advancedModeEnabled,
+            reduceMotionEnabled =
+                reduceMotionEnabled,
+            insightCustomization =
+                customization.insightCustomization,
+            isHistoryLoading =
+                selectedCard.item.id in
+                        state.historyLoadingProductIds,
+            priceHistory =
+                state.priceHistoryByProduct[
+                    selectedCard.item.id
+                ].orEmpty(),
+            onRefresh = {
+                viewModel.refreshProduct(
+                    selectedCard.item.id
+                )
+            },
+            onDismiss = {
+                selectedProductId = null
+                searchSubmitted = false
+                pendingExactQuery = null
+                viewModel.prepareQuickCompare()
+                focusRequestId += 1
+            }
+        )
+    }
+}
+
+@Composable
+private fun QuickCompareHeader(
+    onNavigateHome: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onNavigateHome
+        ) {
+            Icon(
+                imageVector =
+                    Icons.AutoMirrored
+                        .Rounded
+                        .ArrowBack,
+                contentDescription =
+                    "Back to launch page"
+            )
+        }
+
+        Surface(
+            shape = RoundedCornerShape(13.dp),
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .primary
+                    .copy(alpha = 0.12f)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Speed,
+                contentDescription = null,
+                tint =
+                    MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(9.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = "QUICK COMPARE",
+                color =
+                    MaterialTheme.colorScheme.primary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+
+            Text(
+                text = "Open one comparison quickly",
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurface,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickCompareGuide() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.supremeColors.panel,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.supremeColors.border
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "One product, fewer steps",
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurface,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text =
+                    "An exact name, barcode, or saved retailer link opens the Product Details screen automatically.",
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(7.dp)
+            ) {
+                QuickCompareFeature(
+                    text = "Search",
+                    modifier = Modifier.weight(1f)
+                )
+
+                QuickCompareFeature(
+                    text = "Scan",
+                    modifier = Modifier.weight(1f)
+                )
+
+                QuickCompareFeature(
+                    text = "Refresh",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickCompareFeature(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color =
+            MaterialTheme
+                .colorScheme
+                .primary
+                .copy(alpha = 0.09f)
+    ) {
+        Text(
+            text = text,
+            color =
+                MaterialTheme.colorScheme.primary,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(
+                horizontal = 8.dp,
+                vertical = 8.dp
+            )
+        )
+    }
+}
+
+@Composable
+private fun QuickCompareSuggestion(
+    suggestion: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(13.dp),
+        color = MaterialTheme.supremeColors.panel,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.supremeColors.border
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = 12.dp,
+                vertical = 11.dp
+            ),
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = null,
+                tint =
+                    MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(19.dp)
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = suggestion,
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurface,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+internal fun HubPriceMovementScreen(
+    viewModel: DashboardViewModel,
+    reduceMotionEnabled: Boolean,
+    customization: AppCustomization,
+    notificationTarget:
+    PriceMovementNotificationTarget?,
+    onNotificationConsumed: (String) -> Unit,
+    onNavigateHome: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val state by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(
+        notificationTarget?.requestId
+    ) {
+        viewModel.loadShopPriceMovement()
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                MaterialTheme.colorScheme.background
+            )
+    )
+
+    ShopPriceMovementDialog(
+        snapshot = state.shopPriceMovement,
+        isLoading =
+            state.isShopPriceMovementLoading,
+        errorMessage =
+            state.shopPriceMovementError,
+        reduceMotionEnabled =
+            reduceMotionEnabled,
+        customization = customization,
+        notificationTarget =
+            notificationTarget,
+        useInternalTransition = false,
+        onRefresh =
+            viewModel::loadShopPriceMovement,
+        onDismiss = {
+            notificationTarget
+                ?.requestId
+                ?.let(onNotificationConsumed)
+
+            onNavigateHome()
+        }
+    )
+}

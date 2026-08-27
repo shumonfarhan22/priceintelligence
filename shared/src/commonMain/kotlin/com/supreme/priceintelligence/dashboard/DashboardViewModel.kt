@@ -174,20 +174,35 @@ class DashboardViewModel(
         }
     }
 
-    fun onSearchQueryChanged(query: String) {
+    fun onSearchQueryChanged(
+        query: String,
+        suggestionsEnabled: Boolean = true
+    ) {
         _uiState.update {
-            it.copy(searchDraft = query)
+            it.copy(
+                searchDraft = query,
+                suggestions =
+                    if (suggestionsEnabled) {
+                        it.suggestions
+                    } else {
+                        emptyList()
+                    }
+            )
         }
 
-        requestSearchSuggestions(
-            query = query,
-            debounceMillis =
-                if (query.isBlank()) {
-                    0L
-                } else {
-                    300L
-                }
-        )
+        if (suggestionsEnabled) {
+            requestSearchSuggestions(
+                query = query,
+                debounceMillis =
+                    if (query.isBlank()) {
+                        0L
+                    } else {
+                        300L
+                    }
+            )
+        } else {
+            suggestionJob?.cancel()
+        }
 
         if (
             query.isBlank() &&
@@ -204,20 +219,38 @@ class DashboardViewModel(
         }
     }
 
-    fun onSearchFocusChanged(focused: Boolean) {
-        if (focused) {
-            requestSearchSuggestions(
-                query = _uiState.value.searchDraft,
-                debounceMillis = 0L
-            )
-        } else {
-            suggestionJob?.cancel()
-
-            _uiState.update {
-                it.copy(
-                    searchDraft = it.searchQuery,
-                    suggestions = emptyList()
+    fun onSearchFocusChanged(
+        focused: Boolean,
+        suggestionsEnabled: Boolean = true
+    ) {
+        when {
+            focused && suggestionsEnabled -> {
+                requestSearchSuggestions(
+                    query =
+                        _uiState.value.searchDraft,
+                    debounceMillis = 0L
                 )
+            }
+
+            focused -> {
+                suggestionJob?.cancel()
+
+                _uiState.update {
+                    it.copy(
+                        suggestions = emptyList()
+                    )
+                }
+            }
+
+            else -> {
+                suggestionJob?.cancel()
+
+                _uiState.update {
+                    it.copy(
+                        searchDraft = it.searchQuery,
+                        suggestions = emptyList()
+                    )
+                }
             }
         }
     }
@@ -265,6 +298,25 @@ class DashboardViewModel(
         }
 
         runSearch(query)
+    }
+
+    fun prepareQuickCompare() {
+        suggestionJob?.cancel()
+
+        _uiState.update {
+            it.copy(
+                searchDraft = "",
+                searchQuery = "",
+                suggestions = emptyList(),
+                priceFilter = null,
+                currentPage = 1
+            )
+        }
+
+        runSearch(
+            query = "",
+            showLoadingIndicator = false
+        )
     }
 
     fun markFreshnessPromptPresented() {

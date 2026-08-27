@@ -82,6 +82,8 @@ import com.supreme.priceintelligence.settings.AppMotionPreference
 import com.supreme.priceintelligence.settings.AppSurfaceStyle
 import com.supreme.priceintelligence.settings.AppTextSize
 import com.supreme.priceintelligence.settings.AppThemeMode
+import com.supreme.priceintelligence.settings.MAX_SAVED_PERSONALIZATION_PRESETS
+import com.supreme.priceintelligence.settings.MAX_SAVED_PRESET_NAME_LENGTH
 import com.supreme.priceintelligence.settings.BreakdownLayout
 import com.supreme.priceintelligence.settings.BreakdownValueMode
 import com.supreme.priceintelligence.settings.DashboardCardStyle
@@ -133,6 +135,7 @@ internal fun PersonalizationAccordionDialog(
     customization: AppCustomization,
     advancedModeEnabled: Boolean,
     priceChangeNotificationsEnabled: Boolean,
+    reduceMotionEnabled: Boolean = false,
     onThemeModeChanged: (AppThemeMode) -> Unit,
     onCustomizationChanged: (AppCustomization) -> Unit,
     onAdvancedModeChanged: (Boolean) -> Unit,
@@ -157,6 +160,60 @@ internal fun PersonalizationAccordionDialog(
     val defaults = AppCustomization()
     val insightDefaults = InsightCustomization()
 
+    val previewTarget =
+        when (expandedSectionName) {
+            PersonalizationSection.DASHBOARD.name ->
+                PersonalizationPreviewTarget.DASHBOARD
+
+            PersonalizationSection.PRODUCT_DETAILS.name ->
+                PersonalizationPreviewTarget.PRODUCT_DETAILS
+
+            PersonalizationSection.PRICE_MOVEMENT.name ->
+                PersonalizationPreviewTarget.PRICE_MOVEMENT
+
+            PersonalizationSection.ALERTS_BEHAVIOUR.name ->
+                PersonalizationPreviewTarget.ALERTS
+
+            else ->
+                PersonalizationPreviewTarget.LAUNCH_HUB
+        }
+
+    val activeSetupName =
+        activePersonalizationSetupName(
+            presets =
+                customization.savedPersonalizationPresets,
+            themeMode = themeMode,
+            advancedModeEnabled =
+                advancedModeEnabled,
+            notificationsEnabled =
+                priceChangeNotificationsEnabled,
+            customization = customization
+        )
+
+    fun buildCurrentSetup(
+        setupName: String
+    ): SavedPersonalizationPreset {
+        val cleanCustomization =
+            customization.withoutSavedSetupData()
+
+        return SavedPersonalizationPreset(
+            name =
+                setupName
+                    .trim()
+                    .take(MAX_SAVED_PRESET_NAME_LENGTH)
+                    .ifBlank { "Saved setup" },
+            themeMode = themeMode,
+            advancedModeEnabled =
+                advancedModeEnabled,
+            priceChangeNotificationsEnabled =
+                priceChangeNotificationsEnabled,
+            customizationProfile =
+                writeAppCustomization(
+                    cleanCustomization
+                )
+        )
+    }
+
     fun updateInsight(
         transform: (InsightCustomization) -> InsightCustomization
     ) {
@@ -174,7 +231,7 @@ internal fun PersonalizationAccordionDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.94f),
+                .fillMaxHeight(0.97f),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(1.dp, MaterialTheme.supremeColors.border),
@@ -182,6 +239,21 @@ internal fun PersonalizationAccordionDialog(
         ) {
             Column {
                 AccordionHeader(onDismiss)
+
+                Box(
+                    modifier = Modifier.padding(
+                        start = 12.dp,
+                        end = 12.dp,
+                        bottom = 8.dp
+                    )
+                ) {
+                    AdaptivePersonalizationPreview(
+                        customization = customization,
+                        target = previewTarget,
+                        reduceMotionEnabled =
+                            reduceMotionEnabled
+                    )
+                }
 
                 LazyColumn(
                     modifier = Modifier
@@ -194,155 +266,6 @@ internal fun PersonalizationAccordionDialog(
                     ),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    item { PersonalizationPreview(customization) }
-
-                    item {
-                        PresetSection(
-                            selected = matchingPersonalizationPreset(customization),
-                            onSelected = { preset ->
-                                val builtInPreset =
-                                    personalizationForPreset(
-                                        preset
-                                    )
-
-                                onCustomizationChanged(
-                                    builtInPreset.copy(
-                                        savedColorPreset =
-                                            customization
-                                                .savedColorPreset,
-                                        savedPersonalizationPreset =
-                                            customization
-                                                .savedPersonalizationPreset
-                                    )
-                                )
-
-                                if (preset == PersonalizationPreset.ANALYST) {
-                                    onAdvancedModeChanged(true)
-                                }
-                            }
-                        )
-                    }
-
-                    item {
-                        SavedPresetSection(
-                            hasSavedColors =
-                                customization
-                                    .savedColorPreset != null,
-                            hasSavedFullSetup =
-                                customization
-                                    .savedPersonalizationPreset !=
-                                    null,
-                            onSaveColors = {
-                                onCustomizationChanged(
-                                    customization.copy(
-                                        savedColorPreset =
-                                            SavedColorPreset(
-                                                appColorPalette =
-                                                    customization
-                                                        .appColorPalette,
-                                                customColorPalette =
-                                                    customization
-                                                        .customColorPalette,
-                                                retailerChartPalette =
-                                                    insight
-                                                        .retailerChartPalette,
-                                                customRetailerChartColors =
-                                                    insight
-                                                        .customRetailerChartColors
-                                            )
-                                    )
-                                )
-                            },
-                            onRestoreColors = {
-                                customization
-                                    .savedColorPreset
-                                    ?.let { preset ->
-                                        onCustomizationChanged(
-                                            customization.copy(
-                                                appColorPalette =
-                                                    preset
-                                                        .appColorPalette,
-                                                customColorPalette =
-                                                    preset
-                                                        .customColorPalette,
-                                                insightCustomization =
-                                                    insight.copy(
-                                                        retailerChartPalette =
-                                                            preset
-                                                                .retailerChartPalette,
-                                                        customRetailerChartColors =
-                                                            preset
-                                                                .customRetailerChartColors
-                                                    )
-                                            )
-                                        )
-                                    }
-                            },
-                            onSaveFullSetup = {
-                                val cleanSnapshot =
-                                    customization.copy(
-                                        savedColorPreset = null,
-                                        savedPersonalizationPreset =
-                                            null
-                                    )
-
-                                onCustomizationChanged(
-                                    customization.copy(
-                                        savedPersonalizationPreset =
-                                            SavedPersonalizationPreset(
-                                                themeMode =
-                                                    themeMode,
-                                                advancedModeEnabled =
-                                                    advancedModeEnabled,
-                                                priceChangeNotificationsEnabled =
-                                                    priceChangeNotificationsEnabled,
-                                                customizationProfile =
-                                                    writeAppCustomization(
-                                                        cleanSnapshot
-                                                    )
-                                            )
-                                    )
-                                )
-                            },
-                            onRestoreFullSetup = {
-                                customization
-                                    .savedPersonalizationPreset
-                                    ?.let { preset ->
-                                        val restored =
-                                            readAppCustomization(
-                                                preset
-                                                    .customizationProfile
-                                            ).copy(
-                                                savedColorPreset =
-                                                    customization
-                                                        .savedColorPreset,
-                                                savedPersonalizationPreset =
-                                                    customization
-                                                        .savedPersonalizationPreset
-                                            )
-
-                                        onThemeModeChanged(
-                                            preset.themeMode
-                                        )
-
-                                        onAdvancedModeChanged(
-                                            preset
-                                                .advancedModeEnabled
-                                        )
-
-                                        onPriceChangeNotificationsChanged(
-                                            preset
-                                                .priceChangeNotificationsEnabled
-                                        )
-
-                                        onCustomizationChanged(
-                                            restored
-                                        )
-                                    }
-                            }
-                        )
-                    }
-
                     item {
                         AccordionSectionCard(
                             title = "Appearance & accessibility",
@@ -665,14 +588,6 @@ internal fun PersonalizationAccordionDialog(
                                                 value
                                         )
                                     }
-
-                                    if (
-                                        value ==
-                                        RetailerChartPalette.CUSTOM
-                                    ) {
-                                        customRetailerColorsEditorOpen =
-                                            true
-                                    }
                                 },
                                 colourPreview = {
                                     it.retailerChartColors(
@@ -878,6 +793,173 @@ internal fun PersonalizationAccordionDialog(
                             }
                         }
                     }
+
+                    item {
+                        NamedPersonalizationSetupsSection(
+                            presets =
+                                customization
+                                    .savedPersonalizationPresets,
+                            activePresetName =
+                                activeSetupName,
+                            onSaveNew = { enteredName ->
+                                val safeName =
+                                    enteredName
+                                        .trim()
+                                        .take(
+                                            MAX_SAVED_PRESET_NAME_LENGTH
+                                        )
+
+                                val nameAlreadyExists =
+                                    customization
+                                        .savedPersonalizationPresets
+                                        .any { preset ->
+                                            preset.name.equals(
+                                                safeName,
+                                                ignoreCase = true
+                                            )
+                                        }
+
+                                if (
+                                    safeName.isNotBlank() &&
+                                    !nameAlreadyExists &&
+                                    customization
+                                        .savedPersonalizationPresets
+                                        .size <
+                                    MAX_SAVED_PERSONALIZATION_PRESETS
+                                ) {
+                                    onCustomizationChanged(
+                                        customization.copy(
+                                            savedPersonalizationPresets =
+                                                customization
+                                                    .savedPersonalizationPresets +
+                                                        buildCurrentSetup(
+                                                            safeName
+                                                        )
+                                        )
+                                    )
+                                }
+                            },
+                            onApply = { preset ->
+                                val restoredCustomization =
+                                    readAppCustomization(
+                                        preset.customizationProfile
+                                    ).copy(
+                                        savedColorPreset =
+                                            customization
+                                                .savedColorPreset,
+                                        savedPersonalizationPreset =
+                                            customization
+                                                .savedPersonalizationPreset,
+                                        savedPersonalizationPresets =
+                                            customization
+                                                .savedPersonalizationPresets
+                                    )
+
+                                onThemeModeChanged(
+                                    preset.themeMode
+                                )
+
+                                onAdvancedModeChanged(
+                                    preset.advancedModeEnabled
+                                )
+
+                                onPriceChangeNotificationsChanged(
+                                    preset
+                                        .priceChangeNotificationsEnabled
+                                )
+
+                                onCustomizationChanged(
+                                    restoredCustomization
+                                )
+                            },
+                            onUpdate = { preset ->
+                                val updatedPreset =
+                                    buildCurrentSetup(
+                                        preset.name
+                                    )
+
+                                onCustomizationChanged(
+                                    customization.copy(
+                                        savedPersonalizationPresets =
+                                            customization
+                                                .savedPersonalizationPresets
+                                                .map { savedPreset ->
+                                                    if (
+                                                        savedPreset.name ==
+                                                        preset.name
+                                                    ) {
+                                                        updatedPreset
+                                                    } else {
+                                                        savedPreset
+                                                    }
+                                                }
+                                    )
+                                )
+                            },
+                            onRename = {
+                                    preset,
+                                    enteredName ->
+
+                                val safeName =
+                                    enteredName
+                                        .trim()
+                                        .take(
+                                            MAX_SAVED_PRESET_NAME_LENGTH
+                                        )
+
+                                val nameAlreadyExists =
+                                    customization
+                                        .savedPersonalizationPresets
+                                        .any { savedPreset ->
+                                            savedPreset.name !=
+                                                preset.name &&
+                                                savedPreset.name.equals(
+                                                    safeName,
+                                                    ignoreCase = true
+                                                )
+                                        }
+
+                                if (
+                                    safeName.isNotBlank() &&
+                                    !nameAlreadyExists
+                                ) {
+                                    onCustomizationChanged(
+                                        customization.copy(
+                                            savedPersonalizationPresets =
+                                                customization
+                                                    .savedPersonalizationPresets
+                                                    .map { savedPreset ->
+                                                        if (
+                                                            savedPreset.name ==
+                                                            preset.name
+                                                        ) {
+                                                            savedPreset.copy(
+                                                                name =
+                                                                    safeName
+                                                            )
+                                                        } else {
+                                                            savedPreset
+                                                        }
+                                                    }
+                                        )
+                                    )
+                                }
+                            },
+                            onDelete = { preset ->
+                                onCustomizationChanged(
+                                    customization.copy(
+                                        savedPersonalizationPresets =
+                                            customization
+                                                .savedPersonalizationPresets
+                                                .filterNot {
+                                                    it.name ==
+                                                        preset.name
+                                                }
+                                    )
+                                )
+                            }
+                        )
+                    }
                 }
 
                 PersonalizationFooter(
@@ -1019,21 +1101,50 @@ private fun PersonalizationFooter(
 }
 
 @Composable
-private fun AccordionHeader(onDismiss: () -> Unit) {
+private fun AccordionHeader(
+    onDismiss: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 18.dp, top = 12.dp, end = 8.dp, bottom = 10.dp),
+            .heightIn(min = 50.dp)
+            .padding(
+                start = 16.dp,
+                end = 7.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Rounded.Palette, null, tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text("PERSONALIZATION", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
-            Text("Choose what you see and how it behaves", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-        }
-        IconButton(onClick = onDismiss) {
-            Icon(Icons.Rounded.Close, "Close personalization")
+        Icon(
+            imageVector = Icons.Rounded.Palette,
+            contentDescription = null,
+            tint =
+                MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(21.dp)
+        )
+
+        Spacer(
+            modifier = Modifier.width(9.dp)
+        )
+
+        Text(
+            text = "Personalization",
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .onSurface,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+
+        IconButton(
+            onClick = onDismiss
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription =
+                    "Close personalization"
+            )
         }
     }
 }

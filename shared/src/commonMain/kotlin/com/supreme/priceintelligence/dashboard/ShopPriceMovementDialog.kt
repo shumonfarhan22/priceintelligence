@@ -103,6 +103,7 @@ fun ShopPriceMovementDialog(
         AppCustomization(),
     notificationTarget:
         PriceMovementNotificationTarget? = null,
+    useInternalTransition: Boolean = true,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -192,8 +193,16 @@ fun ShopPriceMovementDialog(
         )
     }
 
-    val motionProgress = remember {
-        Animatable(0f)
+    val motionProgress = remember(
+        useInternalTransition
+    ) {
+        Animatable(
+            if (useInternalTransition) {
+                0f
+            } else {
+                1f
+            }
+        )
     }
 
     var dismissRequested by remember {
@@ -202,8 +211,14 @@ fun ShopPriceMovementDialog(
 
     LaunchedEffect(
         dismissRequested,
-        reduceMotionEnabled
+        reduceMotionEnabled,
+        useInternalTransition
     ) {
+        if (!useInternalTransition) {
+            motionProgress.snapTo(1f)
+            return@LaunchedEffect
+        }
+
         if (dismissRequested) {
             if (reduceMotionEnabled) {
                 motionProgress.snapTo(0f)
@@ -234,16 +249,15 @@ fun ShopPriceMovementDialog(
 
     val requestDismiss: () -> Unit = {
         if (!dismissRequested) {
-            dismissRequested = true
+            if (useInternalTransition) {
+                dismissRequested = true
+            } else {
+                onDismiss()
+            }
         }
     }
 
-    Dialog(
-        onDismissRequest = requestDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false
-        )
-    ) {
+    val screenContent: @Composable () -> Unit = {
         Surface(
             modifier = Modifier
                 .fillMaxSize()
@@ -254,10 +268,10 @@ fun ShopPriceMovementDialog(
                     alpha = progress
                     scaleX =
                         0.985f +
-                                0.015f * progress
+                            0.015f * progress
                     scaleY =
                         0.985f +
-                                0.015f * progress
+                            0.015f * progress
                 },
             color =
                 MaterialTheme.colorScheme.background
@@ -290,7 +304,7 @@ fun ShopPriceMovementDialog(
                     }
 
                     errorMessage != null &&
-                            snapshot.generatedAt <= 0L -> {
+                        snapshot.generatedAt <= 0L -> {
                         MovementErrorState(
                             message = errorMessage,
                             onRetry = onRefresh,
@@ -330,6 +344,19 @@ fun ShopPriceMovementDialog(
                 }
             }
         }
+    }
+
+    if (useInternalTransition) {
+        Dialog(
+            onDismissRequest = requestDismiss,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            screenContent()
+        }
+    } else {
+        screenContent()
     }
 }
 

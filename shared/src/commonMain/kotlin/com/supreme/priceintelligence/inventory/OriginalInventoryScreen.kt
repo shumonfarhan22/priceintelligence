@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
@@ -132,6 +133,7 @@ fun OriginalInventoryScreen(
     onAdvancedModeChanged: (Boolean) -> Unit,
     priceChangeNotificationsEnabled: Boolean,
     onPriceChangeNotificationsChanged: (Boolean) -> Unit,
+    onNavigateHome: () -> Unit = {},
     bottomBannerHeight: Dp = 0.dp,
     reduceMotionEnabled: Boolean = false,
     modifier: Modifier = Modifier
@@ -341,6 +343,7 @@ fun OriginalInventoryScreen(
                 onMenuOpenChanged = { open ->
                     menuOpen = open
                 },
+                onNavigateHome = onNavigateHome,
                 onRefresh = viewModel::refreshInventory,
                 onExportBackup = {
                     menuOpen = false
@@ -404,9 +407,9 @@ fun OriginalInventoryScreen(
                         .fillMaxWidth(),
                     contentPadding = PaddingValues(
                         bottom = if (state.isSelectionMode) {
-                            120.dp + bottomBannerHeight
+                            76.dp + bottomBannerHeight
                         } else {
-                            184.dp + bottomBannerHeight
+                            104.dp + bottomBannerHeight
                         }
                     ),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -552,7 +555,7 @@ fun OriginalInventoryScreen(
                 modifier = Modifier
                     .padding(
                         end = 14.dp,
-                        bottom = 96.dp
+                        bottom = 16.dp
                     ),
                 shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -613,6 +616,8 @@ fun OriginalInventoryScreen(
                 advancedModeEnabled,
             priceChangeNotificationsEnabled =
                 priceChangeNotificationsEnabled,
+            reduceMotionEnabled =
+                reduceMotionEnabled,
             onThemeModeChanged = onThemeModeChanged,
             onCustomizationChanged =
                 onCustomizationChanged,
@@ -637,6 +642,7 @@ private fun OriginalInventoryHeader(
     isAllSelected: Boolean,
     menuOpen: Boolean,
     onMenuOpenChanged: (Boolean) -> Unit,
+    onNavigateHome: () -> Unit,
     onRefresh: () -> Unit,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
@@ -701,6 +707,20 @@ private fun OriginalInventoryHeader(
             .heightIn(min = 60.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        IconButton(
+            onClick = onNavigateHome,
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector =
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back to launch page",
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Spacer(modifier = Modifier.width(4.dp))
+
         Column(
             modifier = Modifier.weight(1f)
         ) {

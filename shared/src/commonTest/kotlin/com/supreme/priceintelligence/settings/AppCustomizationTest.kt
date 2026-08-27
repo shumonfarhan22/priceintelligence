@@ -45,6 +45,53 @@ class AppCustomizationTest {
     }
 
     @Test
+    fun namedPersonalizationPresetsSurviveRoundTrip() {
+        val savedProfile =
+            writeAppCustomization(
+                AppCustomization(
+                    fontStyle =
+                        AppFontStyle.TECHNICAL,
+                    textSize =
+                        AppTextSize.COMFORTABLE
+                )
+            )
+
+        val original =
+            AppCustomization(
+                savedPersonalizationPresets =
+                    listOf(
+                        SavedPersonalizationPreset(
+                            name = "My Dark Shop",
+                            themeMode =
+                                AppThemeMode.DARK,
+                            advancedModeEnabled = true,
+                            priceChangeNotificationsEnabled =
+                                true,
+                            customizationProfile =
+                                savedProfile
+                        ),
+                        SavedPersonalizationPreset(
+                            name = "Compact Analytics",
+                            themeMode =
+                                AppThemeMode.LIGHT,
+                            advancedModeEnabled = true,
+                            priceChangeNotificationsEnabled =
+                                false,
+                            customizationProfile =
+                                savedProfile
+                        )
+                    )
+            )
+
+        assertEquals(
+            original,
+            readAppCustomization(
+                writeAppCustomization(original)
+            )
+        )
+    }
+
+    @Test
     fun customHexColoursAreNormalizedAndValidated() {
         assertEquals(
             "#10B981",

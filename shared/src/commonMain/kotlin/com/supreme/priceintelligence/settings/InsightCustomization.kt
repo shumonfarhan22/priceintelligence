@@ -280,7 +280,9 @@ fun matchingPersonalizationPreset(
     val comparableCustomization =
         customization.copy(
             savedColorPreset = null,
-            savedPersonalizationPreset = null
+            savedPersonalizationPreset = null,
+            savedPersonalizationPresets =
+                emptyList()
         )
 
     return PersonalizationPreset.entries
