@@ -64,6 +64,7 @@ import com.supreme.priceintelligence.inventory.OriginalInventoryScreen
 import com.supreme.priceintelligence.inventory.OriginalInventoryUndoBanner
 import com.supreme.priceintelligence.inventory.InventoryViewModel
 import com.supreme.priceintelligence.inventory.PersonalizationAccordionDialog
+import com.supreme.priceintelligence.inventory.rememberInventoryBackupActions
 import com.supreme.priceintelligence.network.NetworkMonitor
 import com.supreme.priceintelligence.network.PriceScraper
 import com.supreme.priceintelligence.ui.components.OriginalAppBackground
@@ -130,6 +131,12 @@ fun App(
             val inventoryViewModel: InventoryViewModel = viewModel {
                 InventoryViewModel(repository)
             }
+
+            val backupActions =
+                rememberInventoryBackupActions(
+                    inventoryViewModel
+                )
+
             val priceScraper = remember { PriceScraper() }
 
             DisposableEffect(priceScraper) {
@@ -613,78 +620,11 @@ fun App(
                                     MainDestination.Inventory ->
                                         OriginalInventoryScreen(
                                             viewModel = inventoryViewModel,
-                                            themeMode = themeMode,
-                                            onThemeModeChanged = { selectedMode ->
-                                                themeMode = selectedMode
-                                                appPreferences.themeMode =
-                                                    selectedMode
-                                            },
                                             customization =
                                                 customization,
-                                            onCustomizationChanged =
-                                                { updated ->
-                                                    customization =
-                                                        updated
-                                                    appPreferences
-                                                        .customizationProfile =
-                                                        writeAppCustomization(
-                                                            updated
-                                                        )
-                                                },
-                                            onResetPersonalization = {
-                                                themeMode =
-                                                    AppThemeMode.DARK
-                                                appPreferences.themeMode =
-                                                    AppThemeMode.DARK
-
-                                                val resetCustomization =
-                                                    AppCustomization(
-                                                        savedColorPreset =
-                                                            customization
-                                                                .savedColorPreset,
-                                                        savedPersonalizationPreset =
-                                                            customization
-                                                                .savedPersonalizationPreset,
-                                                        savedPersonalizationPresets =
-                                                            customization
-                                                                .savedPersonalizationPresets
-                                                    )
-
-                                                customization =
-                                                    resetCustomization
-
-                                                appPreferences
-                                                    .customizationProfile =
-                                                    writeAppCustomization(
-                                                        resetCustomization
-                                                    )
-                                            },
-                                            advancedModeEnabled =
-                                                advancedModeEnabled,
-                                            onAdvancedModeChanged = { enabled ->
-                                                advancedModeEnabled = enabled
-                                                appPreferences
-                                                    .advancedModeEnabled =
-                                                    enabled
-                                            },
-                                            priceChangeNotificationsEnabled =
-                                                priceChangeNotificationsEnabled,
                                             onNavigateHome = {
                                                 hubVisible = true
                                             },
-                                            onPriceChangeNotificationsChanged =
-                                                { enabled ->
-                                                    priceChangeNotificationsEnabled =
-                                                        enabled
-                                                    appPreferences
-                                                        .priceChangeNotificationsEnabled =
-                                                        enabled
-
-                                                    if (enabled) {
-                                                        priceChangeNotifier
-                                                            .requestPermission()
-                                                    }
-                                                },
                                             bottomBannerHeight =
                                                 bottomBannerHeight,
                                             reduceMotionEnabled =
@@ -850,6 +790,10 @@ fun App(
                                 .requestPermission()
                         }
                     },
+                    onExportBackup =
+                        backupActions.exportBackup,
+                    onImportBackup =
+                        backupActions.importBackup,
                     onResetPersonalization = {
                         themeMode = AppThemeMode.DARK
                         appPreferences.themeMode =

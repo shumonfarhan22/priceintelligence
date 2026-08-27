@@ -452,10 +452,7 @@ internal fun QuickCompareScreen(
             },
             onDismiss = {
                 selectedProductId = null
-                searchSubmitted = false
                 pendingExactQuery = null
-                viewModel.prepareQuickCompare()
-                focusRequestId += 1
             }
         )
     }

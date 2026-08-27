@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -289,15 +290,15 @@ private fun QuickComparePlaceholderCard(
                 )
 
             val progress by transition.animateFloat(
-                initialValue = -1f,
+                initialValue = 0f,
                 targetValue = 1f,
                 animationSpec =
                     infiniteRepeatable(
                         animation = tween(
-                            durationMillis = 1750,
+                            durationMillis = 1800,
                             easing = LinearEasing
                         ),
-                        repeatMode = RepeatMode.Reverse
+                        repeatMode = RepeatMode.Restart
                     ),
                 label =
                     "quickCompareSkeletonProgress"
@@ -309,42 +310,63 @@ private fun QuickComparePlaceholderCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
             .drawWithContent {
                 drawContent()
 
                 if (!reduceMotionEnabled) {
-                    val sweepWidth =
-                        size.width * 0.95f
+                    val horizontalCycle =
+                        size.width * 1.30f
 
-                    val startX =
-                        size.width * shimmerProgress
+                    val verticalCycle =
+                        size.height * 1.30f
+
+                    val horizontalMovement =
+                        horizontalCycle *
+                            shimmerProgress
+
+                    val verticalMovement =
+                        verticalCycle *
+                            shimmerProgress
 
                     drawRect(
                         brush =
                             Brush.linearGradient(
                                 colors = listOf(
                                     Color.Transparent,
+                                    Color.Transparent,
                                     shimmerColor.copy(
-                                        alpha = 0.055f
+                                        alpha = 0.025f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.16f
+                                        alpha = 0.075f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.055f
+                                        alpha = 0.18f
                                     ),
+                                    shimmerColor.copy(
+                                        alpha = 0.075f
+                                    ),
+                                    shimmerColor.copy(
+                                        alpha = 0.025f
+                                    ),
+                                    Color.Transparent,
                                     Color.Transparent
                                 ),
                                 start = Offset(
-                                    x = startX,
-                                    y = 0f
+                                    x =
+                                        -horizontalCycle +
+                                            horizontalMovement,
+                                    y =
+                                        -verticalCycle +
+                                            verticalMovement
                                 ),
                                 end = Offset(
-                                    x =
-                                        startX +
-                                            sweepWidth,
-                                    y = size.height
-                                )
+                                    x = horizontalMovement,
+                                    y = verticalMovement
+                                ),
+                                tileMode =
+                                    TileMode.Repeated
                             )
                     )
                 }

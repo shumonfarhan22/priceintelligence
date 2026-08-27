@@ -82,6 +82,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -814,12 +815,51 @@ fun OriginalDashboardScreen(
         ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.background.copy(
-                    alpha = 0.98f
-                ),
+                color = Color.Transparent,
                 shadowElevation = 0.dp
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.background(
+                        Brush.verticalGradient(
+                            colors =
+                                if (
+                                    MaterialTheme
+                                        .supremeColors
+                                        .isDark
+                                ) {
+                                    listOf(
+                                        MaterialTheme
+                                            .colorScheme
+                                            .background
+                                            .copy(alpha = 0.82f),
+                                        MaterialTheme
+                                            .colorScheme
+                                            .background
+                                            .copy(alpha = 0.58f),
+                                        MaterialTheme
+                                            .colorScheme
+                                            .background
+                                            .copy(alpha = 0.18f)
+                                    )
+                                } else {
+                                    listOf(
+                                        MaterialTheme
+                                            .colorScheme
+                                            .background
+                                            .copy(alpha = 0.98f),
+                                        MaterialTheme
+                                            .colorScheme
+                                            .background
+                                            .copy(alpha = 0.95f),
+                                        MaterialTheme
+                                            .colorScheme
+                                            .background
+                                            .copy(alpha = 0.88f)
+                                    )
+                                }
+                        )
+                    )
+                ) {
                     Box(
                         modifier =
                             Modifier.padding(

@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Notifications
@@ -39,8 +40,11 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Sell
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ShowChart
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Storefront
+import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -126,7 +130,8 @@ private enum class PersonalizationSection {
     TOP_PRIORITIES,
     PRODUCT_DETAILS,
     PRICE_MOVEMENT,
-    ALERTS_BEHAVIOUR
+    ALERTS_BEHAVIOUR,
+    DATA_BACKUP
 }
 
 @Composable
@@ -140,6 +145,8 @@ internal fun PersonalizationAccordionDialog(
     onCustomizationChanged: (AppCustomization) -> Unit,
     onAdvancedModeChanged: (Boolean) -> Unit,
     onPriceChangeNotificationsChanged: (Boolean) -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
     onResetPersonalization: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -960,6 +967,132 @@ internal fun PersonalizationAccordionDialog(
                             }
                         )
                     }
+
+                    item {
+                        AccordionSectionCard(
+                            title = "Data & backup",
+                            summary =
+                                "Inventory and price history",
+                            icon = Icons.Rounded.Storage,
+                            expanded =
+                                expandedSectionName ==
+                                    PersonalizationSection
+                                        .DATA_BACKUP
+                                        .name,
+                            onToggle = {
+                                expandedSectionName =
+                                    toggleSection(
+                                        expandedSectionName,
+                                        PersonalizationSection
+                                            .DATA_BACKUP
+                                    )
+                            }
+                        ) {
+                            Text(
+                                text =
+                                    "Move your inventory and price history safely between devices.",
+                                color =
+                                    MaterialTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp
+                            )
+
+                            BoxWithConstraints(
+                                modifier =
+                                    Modifier.fillMaxWidth()
+                            ) {
+                                val useVerticalLayout =
+                                    maxWidth < 300.dp ||
+                                        LocalDensity
+                                            .current
+                                            .fontScale >=
+                                        1.15f
+
+                                if (useVerticalLayout) {
+                                    Column(
+                                        verticalArrangement =
+                                            Arrangement
+                                                .spacedBy(
+                                                    8.dp
+                                                )
+                                    ) {
+                                        BackupActionButton(
+                                            label =
+                                                "Export backup",
+                                            icon =
+                                                Icons.Rounded
+                                                    .Upload,
+                                            primary = true,
+                                            onClick =
+                                                onExportBackup,
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                        )
+
+                                        BackupActionButton(
+                                            label =
+                                                "Import backup",
+                                            icon =
+                                                Icons.Rounded
+                                                    .Download,
+                                            primary = false,
+                                            onClick =
+                                                onImportBackup,
+                                            modifier =
+                                                Modifier
+                                                    .fillMaxWidth()
+                                        )
+                                    }
+                                } else {
+                                    Row(
+                                        modifier =
+                                            Modifier.fillMaxWidth(),
+                                        horizontalArrangement =
+                                            Arrangement.spacedBy(
+                                                8.dp
+                                            )
+                                    ) {
+                                        BackupActionButton(
+                                            label =
+                                                "Export backup",
+                                            icon =
+                                                Icons.Rounded
+                                                    .Upload,
+                                            primary = true,
+                                            onClick =
+                                                onExportBackup,
+                                            modifier =
+                                                Modifier.weight(
+                                                    1f
+                                                )
+                                        )
+
+                                        BackupActionButton(
+                                            label =
+                                                "Import backup",
+                                            icon =
+                                                Icons.Rounded
+                                                    .Download,
+                                            primary = false,
+                                            onClick =
+                                                onImportBackup,
+                                            modifier =
+                                                Modifier.weight(
+                                                    1f
+                                                )
+                                        )
+                                    }
+                                }
+                            }
+
+                            HelpText(
+                                "Import adds supported backup data without intentionally deleting your existing inventory."
+                            )
+                        }
+                    }
                 }
 
                 PersonalizationFooter(
@@ -1014,6 +1147,61 @@ internal fun PersonalizationAccordionDialog(
                 customPaletteEditorOpen = false
             }
         )
+    }
+}
+
+@Composable
+private fun BackupActionButton(
+    label: String,
+    icon: ImageVector,
+    primary: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (primary) {
+        Button(
+            onClick = onClick,
+            modifier =
+                modifier.heightIn(min = 58.dp),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(19.dp)
+            )
+
+            Spacer(modifier = Modifier.width(7.dp))
+
+            Text(
+                text = label,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier =
+                modifier.heightIn(min = 58.dp),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(19.dp)
+            )
+
+            Spacer(modifier = Modifier.width(7.dp))
+
+            Text(
+                text = label,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -1115,7 +1303,7 @@ private fun AccordionHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Rounded.Palette,
+            imageVector = Icons.Rounded.Settings,
             contentDescription = null,
             tint =
                 MaterialTheme.colorScheme.primary,
@@ -1127,7 +1315,7 @@ private fun AccordionHeader(
         )
 
         Text(
-            text = "Personalization",
+            text = "Settings",
             color =
                 MaterialTheme
                     .colorScheme
@@ -1143,7 +1331,7 @@ private fun AccordionHeader(
             Icon(
                 imageVector = Icons.Rounded.Close,
                 contentDescription =
-                    "Close personalization"
+                    "Close settings"
             )
         }
     }
