@@ -106,7 +106,11 @@ import com.supreme.priceintelligence.settings.RetailerChartPalette
 import com.supreme.priceintelligence.settings.PriorityProductLimit
 import com.supreme.priceintelligence.settings.PriorityRowStyle
 import com.supreme.priceintelligence.settings.PrioritySortMode
+import com.supreme.priceintelligence.settings.SavedColorPreset
+import com.supreme.priceintelligence.settings.SavedPersonalizationPreset
 import com.supreme.priceintelligence.settings.SectionStartState
+import com.supreme.priceintelligence.settings.readAppCustomization
+import com.supreme.priceintelligence.settings.writeAppCustomization
 import com.supreme.priceintelligence.settings.matchingPersonalizationPreset
 import com.supreme.priceintelligence.settings.personalizationForPreset
 import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
@@ -143,6 +147,11 @@ internal fun PersonalizationAccordionDialog(
     var customPaletteEditorOpen by rememberSaveable {
         mutableStateOf(false)
     }
+
+    var customRetailerColorsEditorOpen by
+        rememberSaveable {
+            mutableStateOf(false)
+        }
 
     val insight = customization.insightCustomization
     val defaults = AppCustomization()
@@ -191,10 +200,145 @@ internal fun PersonalizationAccordionDialog(
                         PresetSection(
                             selected = matchingPersonalizationPreset(customization),
                             onSelected = { preset ->
-                                onCustomizationChanged(personalizationForPreset(preset))
+                                val builtInPreset =
+                                    personalizationForPreset(
+                                        preset
+                                    )
+
+                                onCustomizationChanged(
+                                    builtInPreset.copy(
+                                        savedColorPreset =
+                                            customization
+                                                .savedColorPreset,
+                                        savedPersonalizationPreset =
+                                            customization
+                                                .savedPersonalizationPreset
+                                    )
+                                )
+
                                 if (preset == PersonalizationPreset.ANALYST) {
                                     onAdvancedModeChanged(true)
                                 }
+                            }
+                        )
+                    }
+
+                    item {
+                        SavedPresetSection(
+                            hasSavedColors =
+                                customization
+                                    .savedColorPreset != null,
+                            hasSavedFullSetup =
+                                customization
+                                    .savedPersonalizationPreset !=
+                                    null,
+                            onSaveColors = {
+                                onCustomizationChanged(
+                                    customization.copy(
+                                        savedColorPreset =
+                                            SavedColorPreset(
+                                                appColorPalette =
+                                                    customization
+                                                        .appColorPalette,
+                                                customColorPalette =
+                                                    customization
+                                                        .customColorPalette,
+                                                retailerChartPalette =
+                                                    insight
+                                                        .retailerChartPalette,
+                                                customRetailerChartColors =
+                                                    insight
+                                                        .customRetailerChartColors
+                                            )
+                                    )
+                                )
+                            },
+                            onRestoreColors = {
+                                customization
+                                    .savedColorPreset
+                                    ?.let { preset ->
+                                        onCustomizationChanged(
+                                            customization.copy(
+                                                appColorPalette =
+                                                    preset
+                                                        .appColorPalette,
+                                                customColorPalette =
+                                                    preset
+                                                        .customColorPalette,
+                                                insightCustomization =
+                                                    insight.copy(
+                                                        retailerChartPalette =
+                                                            preset
+                                                                .retailerChartPalette,
+                                                        customRetailerChartColors =
+                                                            preset
+                                                                .customRetailerChartColors
+                                                    )
+                                            )
+                                        )
+                                    }
+                            },
+                            onSaveFullSetup = {
+                                val cleanSnapshot =
+                                    customization.copy(
+                                        savedColorPreset = null,
+                                        savedPersonalizationPreset =
+                                            null
+                                    )
+
+                                onCustomizationChanged(
+                                    customization.copy(
+                                        savedPersonalizationPreset =
+                                            SavedPersonalizationPreset(
+                                                themeMode =
+                                                    themeMode,
+                                                advancedModeEnabled =
+                                                    advancedModeEnabled,
+                                                priceChangeNotificationsEnabled =
+                                                    priceChangeNotificationsEnabled,
+                                                customizationProfile =
+                                                    writeAppCustomization(
+                                                        cleanSnapshot
+                                                    )
+                                            )
+                                    )
+                                )
+                            },
+                            onRestoreFullSetup = {
+                                customization
+                                    .savedPersonalizationPreset
+                                    ?.let { preset ->
+                                        val restored =
+                                            readAppCustomization(
+                                                preset
+                                                    .customizationProfile
+                                            ).copy(
+                                                savedColorPreset =
+                                                    customization
+                                                        .savedColorPreset,
+                                                savedPersonalizationPreset =
+                                                    customization
+                                                        .savedPersonalizationPreset
+                                            )
+
+                                        onThemeModeChanged(
+                                            preset.themeMode
+                                        )
+
+                                        onAdvancedModeChanged(
+                                            preset
+                                                .advancedModeEnabled
+                                        )
+
+                                        onPriceChangeNotificationsChanged(
+                                            preset
+                                                .priceChangeNotificationsEnabled
+                                        )
+
+                                        onCustomizationChanged(
+                                            restored
+                                        )
+                                    }
                             }
                         )
                     }
@@ -521,14 +665,45 @@ internal fun PersonalizationAccordionDialog(
                                                 value
                                         )
                                     }
+
+                                    if (
+                                        value ==
+                                        RetailerChartPalette.CUSTOM
+                                    ) {
+                                        customRetailerColorsEditorOpen =
+                                            true
+                                    }
                                 },
                                 colourPreview = {
-                                    it.retailerChartColors().amazon
+                                    it.retailerChartColors(
+                                        insight.customRetailerChartColors
+                                    ).amazon
                                 },
                                 secondaryColourPreview = {
-                                    it.retailerChartColors().flipkart
+                                    it.retailerChartColors(
+                                        insight.customRetailerChartColors
+                                    ).flipkart
                                 }
                             )
+
+                            if (
+                                insight.retailerChartPalette ==
+                                RetailerChartPalette.CUSTOM
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        customRetailerColorsEditorOpen =
+                                            true
+                                    },
+                                    modifier =
+                                        Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        "Edit Amazon / Flipkart hex colours"
+                                    )
+                                }
+                            }
+
                             ChoiceGroup(
                                 "Graph size",
                                 GraphSize.entries,
@@ -553,7 +728,9 @@ internal fun PersonalizationAccordionDialog(
                                         graphSize = insightDefaults.graphSize,
                                         graphPointMode = insightDefaults.graphPointMode,
                                         retailerChartPalette =
-                                            insightDefaults.retailerChartPalette
+                                            insightDefaults.retailerChartPalette,
+                                        customRetailerChartColors =
+                                            insightDefaults.customRetailerChartColors
                                     )
                                 }
                             }
@@ -709,6 +886,30 @@ internal fun PersonalizationAccordionDialog(
                 )
             }
         }
+    }
+
+    if (customRetailerColorsEditorOpen) {
+        CustomRetailerGraphColorsDialog(
+            initialColors =
+                insight.customRetailerChartColors,
+            onApply = { updatedColors ->
+                updateInsight {
+                    it.copy(
+                        retailerChartPalette =
+                            RetailerChartPalette.CUSTOM,
+                        customRetailerChartColors =
+                            updatedColors
+                    )
+                }
+
+                customRetailerColorsEditorOpen =
+                    false
+            },
+            onDismiss = {
+                customRetailerColorsEditorOpen =
+                    false
+            }
+        )
     }
 
     if (customPaletteEditorOpen) {
@@ -920,6 +1121,170 @@ private fun PreviewMetric(value: String, label: String, color: Color, modifier: 
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
+
+@Composable
+private fun SavedPresetSection(
+    hasSavedColors: Boolean,
+    hasSavedFullSetup: Boolean,
+    onSaveColors: () -> Unit,
+    onRestoreColors: () -> Unit,
+    onSaveFullSetup: () -> Unit,
+    onRestoreFullSetup: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.supremeColors.panel,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.supremeColors.border
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "MY SAVED PRESETS",
+                color =
+                    MaterialTheme.colorScheme.primary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.8.sp
+            )
+
+            Text(
+                text =
+                    "Saved presets remain available after Reset All.",
+                color =
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp
+            )
+
+            SavedPresetRow(
+                title = "Colour preset",
+                description =
+                    "App palette and retailer graph colours",
+                hasSavedPreset = hasSavedColors,
+                onSave = onSaveColors,
+                onRestore = onRestoreColors
+            )
+
+            SavedPresetRow(
+                title = "Full setup",
+                description =
+                    "Theme, fonts, layouts, graphs and alerts",
+                hasSavedPreset = hasSavedFullSetup,
+                onSave = onSaveFullSetup,
+                onRestore = onRestoreFullSetup
+            )
+        }
+    }
+}
+
+@Composable
+private fun SavedPresetRow(
+    title: String,
+    description: String,
+    hasSavedPreset: Boolean,
+    onSave: () -> Unit,
+    onRestore: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(13.dp),
+        color =
+            MaterialTheme.supremeColors.panelMuted,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.supremeColors.border
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(11.dp),
+            verticalArrangement =
+                Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment =
+                    Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = title,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurface,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = description,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant,
+                        fontSize = 9.sp
+                    )
+                }
+
+                Text(
+                    text =
+                        if (hasSavedPreset) {
+                            "SAVED"
+                        } else {
+                            "EMPTY"
+                        },
+                    color =
+                        if (hasSavedPreset) {
+                            MaterialTheme
+                                .supremeColors
+                                .competitive
+                        } else {
+                            MaterialTheme
+                                .colorScheme
+                                .onSurfaceVariant
+                        },
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        if (hasSavedPreset) {
+                            "Replace"
+                        } else {
+                            "Save"
+                        }
+                    )
+                }
+
+                Button(
+                    onClick = onRestore,
+                    enabled = hasSavedPreset,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Restore")
+                }
+            }
         }
     }
 }

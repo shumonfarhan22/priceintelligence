@@ -1,6 +1,7 @@
 package com.supreme.priceintelligence.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import com.supreme.priceintelligence.settings.CustomRetailerChartColors
 import com.supreme.priceintelligence.settings.RetailerChartPalette
 
 internal data class RetailerChartColors(
@@ -8,8 +9,10 @@ internal data class RetailerChartColors(
     val flipkart: Color
 )
 
-internal fun RetailerChartPalette.retailerChartColors():
-        RetailerChartColors =
+internal fun RetailerChartPalette.retailerChartColors(
+    customColors: CustomRetailerChartColors =
+        CustomRetailerChartColors()
+): RetailerChartColors =
     when (this) {
         RetailerChartPalette.ORIGINAL ->
             RetailerChartColors(
@@ -57,5 +60,19 @@ internal fun RetailerChartPalette.retailerChartColors():
             RetailerChartColors(
                 amazon = Color(0xFFF472B6),
                 flipkart = Color(0xFF2DD4BF)
+            )
+
+        RetailerChartPalette.CUSTOM ->
+            RetailerChartColors(
+                amazon =
+                    paletteColorFromHex(
+                        customColors.amazonHex,
+                        Color(0xFFFF9900)
+                    ),
+                flipkart =
+                    paletteColorFromHex(
+                        customColors.flipkartHex,
+                        Color(0xFF2874F0)
+                    )
             )
     }

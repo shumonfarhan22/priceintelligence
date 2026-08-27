@@ -1166,7 +1166,10 @@ internal fun OriginalProfessionalProductDetailDialog(
                                             .graphPointMode,
                                     retailerChartPalette =
                                         insightCustomization
-                                            .retailerChartPalette
+                                            .retailerChartPalette,
+                                    customRetailerChartColors =
+                                        insightCustomization
+                                            .customRetailerChartColors
                                 )
                             }
                         }

@@ -96,8 +96,14 @@ enum class RetailerChartPalette(
     CORAL_SAPPHIRE("Coral + sapphire"),
     CYAN_VIOLET("Cyan + violet"),
     AMBER_SKY("Amber + sky"),
-    PINK_AQUA("Pink + aqua")
+    PINK_AQUA("Pink + aqua"),
+    CUSTOM("Custom hex")
 }
+
+data class CustomRetailerChartColors(
+    val amazonHex: String = "#FF9900",
+    val flipkartHex: String = "#2874F0"
+)
 
 enum class MovementDefaultRetailer(val displayName: String) {
     ALL("All"),
@@ -165,6 +171,9 @@ data class InsightCustomization(
         GraphPointMode.TAP_ONLY,
     val retailerChartPalette: RetailerChartPalette =
         RetailerChartPalette.ORIGINAL,
+    val customRetailerChartColors:
+        CustomRetailerChartColors =
+        CustomRetailerChartColors(),
     val movementDefaultRetailer: MovementDefaultRetailer =
         MovementDefaultRetailer.ALL,
     val movementLayout: MovementLayout =
@@ -267,10 +276,19 @@ fun personalizationForPreset(
 
 fun matchingPersonalizationPreset(
     customization: AppCustomization
-): PersonalizationPreset? =
-    PersonalizationPreset.entries.firstOrNull { preset ->
-        personalizationForPreset(preset) == customization
-    }
+): PersonalizationPreset? {
+    val comparableCustomization =
+        customization.copy(
+            savedColorPreset = null,
+            savedPersonalizationPreset = null
+        )
+
+    return PersonalizationPreset.entries
+        .firstOrNull { preset ->
+            personalizationForPreset(preset) ==
+                comparableCustomization
+        }
+}
 
 internal fun readInsightCustomization(
     storedValue: String?
@@ -308,7 +326,11 @@ internal fun readInsightCustomization(
         retailerChartPalette = enumInsight(
             parts.getOrNull(25),
             RetailerChartPalette.ORIGINAL
-        )
+        ),
+        customRetailerChartColors =
+            readCustomRetailerChartColors(
+                parts.getOrNull(26)
+            )
     )
 }
 
@@ -340,8 +362,47 @@ internal fun writeInsightCustomization(
     customization.movementDirectionFilter.name,
     customization.movementGraphStyle.name,
     customization.movementProductGraphState.name,
-    customization.retailerChartPalette.name
+    customization.retailerChartPalette.name,
+    writeCustomRetailerChartColors(
+        customization.customRetailerChartColors
+    )
 ).joinToString(",")
+
+private fun readCustomRetailerChartColors(
+    storedValue: String?
+): CustomRetailerChartColors {
+    val parts =
+        storedValue
+            ?.split(';')
+            .orEmpty()
+
+    val defaults =
+        CustomRetailerChartColors()
+
+    if (parts.firstOrNull() != "r1") {
+        return defaults
+    }
+
+    return CustomRetailerChartColors(
+        amazonHex =
+            normalizePaletteHex(
+                parts.getOrNull(1).orEmpty()
+            ) ?: defaults.amazonHex,
+        flipkartHex =
+            normalizePaletteHex(
+                parts.getOrNull(2).orEmpty()
+            ) ?: defaults.flipkartHex
+    )
+}
+
+private fun writeCustomRetailerChartColors(
+    colors: CustomRetailerChartColors
+): String =
+    listOf(
+        "r1",
+        colors.amazonHex,
+        colors.flipkartHex
+    ).joinToString(";")
 
 private inline fun <reified T : Enum<T>> enumInsight(
     value: String?,

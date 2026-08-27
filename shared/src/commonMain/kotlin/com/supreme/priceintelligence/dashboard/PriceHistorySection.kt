@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.PriceHistoryEntry
 import com.supreme.priceintelligence.data.PriceRetailer
 import com.supreme.priceintelligence.settings.AdvancedInfoLevel
+import com.supreme.priceintelligence.settings.CustomRetailerChartColors
 import com.supreme.priceintelligence.settings.GraphPointMode
 import com.supreme.priceintelligence.settings.GraphSize
 import com.supreme.priceintelligence.settings.HistoryGraphStyle
@@ -72,7 +73,10 @@ internal fun PriceHistorySection(
     pointMode: GraphPointMode =
         GraphPointMode.TAP_ONLY,
     retailerChartPalette: RetailerChartPalette =
-        RetailerChartPalette.ORIGINAL
+        RetailerChartPalette.ORIGINAL,
+    customRetailerChartColors:
+        CustomRetailerChartColors =
+        CustomRetailerChartColors()
 ) {
     val oldestAllowedTimestamp =
         Clock.System.now().toEpochMilliseconds() -
@@ -139,7 +143,9 @@ internal fun PriceHistorySection(
                     graphSize = graphSize,
                     pointMode = pointMode,
                     retailerChartPalette =
-                        retailerChartPalette
+                        retailerChartPalette,
+                    customRetailerChartColors =
+                        customRetailerChartColors
                 )
             }
         }
@@ -197,7 +203,9 @@ private fun RetailerPriceHistoryCard(
     graphStyle: HistoryGraphStyle,
     graphSize: GraphSize,
     pointMode: GraphPointMode,
-    retailerChartPalette: RetailerChartPalette
+    retailerChartPalette: RetailerChartPalette,
+    customRetailerChartColors:
+        CustomRetailerChartColors
 ) {
     val retailerName = when (summary.retailer) {
         PriceRetailer.AMAZON -> "Amazon"
@@ -314,7 +322,9 @@ private fun RetailerPriceHistoryCard(
                     graphSize = graphSize,
                     pointMode = pointMode,
                     retailerChartPalette =
-                        retailerChartPalette
+                        retailerChartPalette,
+                    customRetailerChartColors =
+                        customRetailerChartColors
                 )
             }
 
@@ -335,7 +345,9 @@ private fun PriceHistoryLineGraph(
     graphStyle: HistoryGraphStyle,
     graphSize: GraphSize,
     pointMode: GraphPointMode,
-    retailerChartPalette: RetailerChartPalette
+    retailerChartPalette: RetailerChartPalette,
+    customRetailerChartColors:
+        CustomRetailerChartColors
 ) {
     val points = entries
         .asSequence()
@@ -374,7 +386,9 @@ private fun PriceHistoryLineGraph(
     }
 
     val retailerColors =
-        retailerChartPalette.retailerChartColors()
+        retailerChartPalette.retailerChartColors(
+            customRetailerChartColors
+        )
 
     val lineColor = when (retailer) {
         PriceRetailer.AMAZON ->

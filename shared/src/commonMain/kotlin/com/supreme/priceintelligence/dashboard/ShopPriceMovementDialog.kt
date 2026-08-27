@@ -85,6 +85,7 @@ import com.supreme.priceintelligence.settings.RetailerChartPalette
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.roundToInt
+import com.supreme.priceintelligence.settings.CustomRetailerChartColors
 
 private val AmazonChartColor =
     Color(0xFFFF9900)
@@ -593,6 +594,9 @@ private fun LazyListScope.movementProductItems(
             retailerChartPalette =
                 customization.insightCustomization
                     .retailerChartPalette,
+            customRetailerChartColors =
+                customization.insightCustomization
+                    .customRetailerChartColors,
             graphHeightDp =
                 customization.insightCustomization
                     .graphSize.heightDp
@@ -1269,10 +1273,14 @@ private fun MovementProductCard(
     graphStyle: HistoryGraphStyle,
     graphPointMode: GraphPointMode,
     retailerChartPalette: RetailerChartPalette,
+    customRetailerChartColors:
+        CustomRetailerChartColors,
     graphHeightDp: Int
 ) {
     val retailerColors =
-        retailerChartPalette.retailerChartColors()
+        retailerChartPalette.retailerChartColors(
+            customRetailerChartColors
+        )
 
     val largeText =
         LocalDensity.current.fontScale >= 1.10f
@@ -1629,6 +1637,8 @@ private fun MovementProductCard(
                         pointMode = graphPointMode,
                         retailerChartPalette =
                             retailerChartPalette,
+                        customRetailerChartColors =
+                            customRetailerChartColors,
                         graphHeightDp = graphHeightDp
                     )
                 }

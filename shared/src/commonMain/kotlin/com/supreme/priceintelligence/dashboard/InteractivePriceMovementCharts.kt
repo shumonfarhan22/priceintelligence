@@ -54,6 +54,7 @@ import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
+import com.supreme.priceintelligence.settings.CustomRetailerChartColors
 
 private const val IndiaTimeOffsetMillis =
     5L * 60L * 60L * 1000L +
@@ -373,16 +374,22 @@ internal fun InteractiveProductMovementLineChart(
         GraphPointMode.TAP_ONLY,
     retailerChartPalette: RetailerChartPalette =
         RetailerChartPalette.ORIGINAL,
+    customRetailerChartColors:
+        CustomRetailerChartColors =
+        CustomRetailerChartColors(),
     graphHeightDp: Int = 150
 ) {
     val series = remember(
         amazonHistory,
         flipkartHistory,
-        retailerChartPalette
+        retailerChartPalette,
+        customRetailerChartColors
     ) {
         val retailerColors =
             retailerChartPalette
-                .retailerChartColors()
+                .retailerChartColors(
+                    customRetailerChartColors
+                )
 
         buildList {
             if (amazonHistory.isNotEmpty()) {

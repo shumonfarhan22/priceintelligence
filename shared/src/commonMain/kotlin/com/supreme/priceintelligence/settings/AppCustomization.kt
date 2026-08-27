@@ -230,6 +230,21 @@ enum class PriceAlertThreshold(
     PERCENT_5("5% or more")
 }
 
+data class SavedColorPreset(
+    val appColorPalette: AppColorPalette,
+    val customColorPalette: CustomAppColorPalette,
+    val retailerChartPalette: RetailerChartPalette,
+    val customRetailerChartColors:
+        CustomRetailerChartColors
+)
+
+data class SavedPersonalizationPreset(
+    val themeMode: AppThemeMode,
+    val advancedModeEnabled: Boolean,
+    val priceChangeNotificationsEnabled: Boolean,
+    val customizationProfile: String
+)
+
 data class AppCustomization(
     val accentColor: AppAccentColor =
         AppAccentColor.SUPREME,
@@ -260,7 +275,10 @@ data class AppCustomization(
     val priceAlertThreshold: PriceAlertThreshold =
         PriceAlertThreshold.ANY,
     val insightCustomization: InsightCustomization =
-        InsightCustomization()
+        InsightCustomization(),
+    val savedColorPreset: SavedColorPreset? = null,
+    val savedPersonalizationPreset:
+        SavedPersonalizationPreset? = null
 )
 
 fun readAppCustomization(
@@ -355,6 +373,14 @@ fun readAppCustomization(
         customColorPalette =
             readCustomColorPalette(
                 parts.getOrNull(15)
+            ),
+        savedColorPreset =
+            readSavedColorPreset(
+                parts.getOrNull(16)
+            ),
+        savedPersonalizationPreset =
+            readSavedPersonalizationPreset(
+                parts.getOrNull(17)
             )
     )
 }
@@ -382,6 +408,12 @@ fun writeAppCustomization(
         customization.appColorPalette.name,
         writeCustomColorPalette(
             customization.customColorPalette
+        ),
+        writeSavedColorPreset(
+            customization.savedColorPreset
+        ),
+        writeSavedPersonalizationPreset(
+            customization.savedPersonalizationPreset
         )
     ).joinToString("|")
 
@@ -435,6 +467,195 @@ private fun writeCustomColorPalette(
         palette.warningHex,
         palette.reviewHex
     ).joinToString(";")
+
+private fun readSavedColorPreset(
+    storedValue: String?
+): SavedColorPreset? {
+    val parts =
+        storedValue
+            ?.split(';')
+            .orEmpty()
+
+    if (parts.firstOrNull() != "p1") {
+        return null
+    }
+
+    val appPalette =
+        enumValueOrDefault(
+            value = parts.getOrNull(1),
+            defaultValue =
+                AppColorPalette.SUPREME_HARMONY
+        )
+
+    val customPalette =
+        CustomAppColorPalette(
+            primaryHex =
+                normalizePaletteHex(
+                    parts.getOrNull(2).orEmpty()
+                ) ?: "#10B981",
+            secondaryHex =
+                normalizePaletteHex(
+                    parts.getOrNull(3).orEmpty()
+                ) ?: "#8B7CF6",
+            competitiveHex =
+                normalizePaletteHex(
+                    parts.getOrNull(4).orEmpty()
+                ) ?: "#34D399",
+            warningHex =
+                normalizePaletteHex(
+                    parts.getOrNull(5).orEmpty()
+                ) ?: "#F59E0B",
+            reviewHex =
+                normalizePaletteHex(
+                    parts.getOrNull(6).orEmpty()
+                ) ?: "#FB7185"
+        )
+
+    val retailerPalette =
+        enumValueOrDefault(
+            value = parts.getOrNull(7),
+            defaultValue =
+                RetailerChartPalette.ORIGINAL
+        )
+
+    val retailerColors =
+        CustomRetailerChartColors(
+            amazonHex =
+                normalizePaletteHex(
+                    parts.getOrNull(8).orEmpty()
+                ) ?: "#FF9900",
+            flipkartHex =
+                normalizePaletteHex(
+                    parts.getOrNull(9).orEmpty()
+                ) ?: "#2874F0"
+        )
+
+    return SavedColorPreset(
+        appColorPalette = appPalette,
+        customColorPalette = customPalette,
+        retailerChartPalette = retailerPalette,
+        customRetailerChartColors =
+            retailerColors
+    )
+}
+
+private fun writeSavedColorPreset(
+    preset: SavedColorPreset?
+): String {
+    if (preset == null) {
+        return ""
+    }
+
+    return listOf(
+        "p1",
+        preset.appColorPalette.name,
+        preset.customColorPalette.primaryHex,
+        preset.customColorPalette.secondaryHex,
+        preset.customColorPalette.competitiveHex,
+        preset.customColorPalette.warningHex,
+        preset.customColorPalette.reviewHex,
+        preset.retailerChartPalette.name,
+        preset.customRetailerChartColors.amazonHex,
+        preset.customRetailerChartColors.flipkartHex
+    ).joinToString(";")
+}
+
+private fun readSavedPersonalizationPreset(
+    storedValue: String?
+): SavedPersonalizationPreset? {
+    val parts =
+        storedValue
+            ?.split(';')
+            .orEmpty()
+
+    if (parts.firstOrNull() != "f1") {
+        return null
+    }
+
+    val profile =
+        decodePresetText(
+            parts.getOrNull(4).orEmpty()
+        ) ?: return null
+
+    return SavedPersonalizationPreset(
+        themeMode =
+            AppThemeMode.fromStoredValue(
+                parts.getOrNull(1)
+            ),
+        advancedModeEnabled =
+            parts.getOrNull(2)
+                ?.toBooleanStrictOrNull()
+                ?: false,
+        priceChangeNotificationsEnabled =
+            parts.getOrNull(3)
+                ?.toBooleanStrictOrNull()
+                ?: false,
+        customizationProfile = profile
+    )
+}
+
+private fun writeSavedPersonalizationPreset(
+    preset: SavedPersonalizationPreset?
+): String {
+    if (preset == null) {
+        return ""
+    }
+
+    return listOf(
+        "f1",
+        preset.themeMode.name,
+        preset.advancedModeEnabled.toString(),
+        preset.priceChangeNotificationsEnabled
+            .toString(),
+        encodePresetText(
+            preset.customizationProfile
+        )
+    ).joinToString(";")
+}
+
+private fun encodePresetText(
+    value: String
+): String =
+    value
+        .encodeToByteArray()
+        .joinToString(separator = "") { byte ->
+            byte
+                .toUByte()
+                .toString(16)
+                .padStart(2, '0')
+        }
+
+private fun decodePresetText(
+    value: String
+): String? {
+    if (
+        value.isBlank() ||
+        value.length % 2 != 0 ||
+        value.any { character ->
+            character !in '0'..'9' &&
+                character !in 'a'..'f' &&
+                character !in 'A'..'F'
+        }
+    ) {
+        return null
+    }
+
+    val bytes =
+        ByteArray(value.length / 2)
+
+    for (index in bytes.indices) {
+        bytes[index] =
+            value
+                .substring(
+                    index * 2,
+                    index * 2 + 2
+                )
+                .toInt(16)
+                .toByte()
+    }
+
+    return bytes.decodeToString()
+}
 
 private fun readFontStyle(
     value: String?

@@ -439,12 +439,24 @@ fun App(
                                                     AppThemeMode.DARK
                                                 appPreferences.themeMode =
                                                     AppThemeMode.DARK
+
+                                                val resetCustomization =
+                                                    AppCustomization(
+                                                        savedColorPreset =
+                                                            customization
+                                                                .savedColorPreset,
+                                                        savedPersonalizationPreset =
+                                                            customization
+                                                                .savedPersonalizationPreset
+                                                    )
+
                                                 customization =
-                                                    AppCustomization()
+                                                    resetCustomization
+
                                                 appPreferences
                                                     .customizationProfile =
                                                     writeAppCustomization(
-                                                        AppCustomization()
+                                                        resetCustomization
                                                     )
                                             },
                                             advancedModeEnabled =
