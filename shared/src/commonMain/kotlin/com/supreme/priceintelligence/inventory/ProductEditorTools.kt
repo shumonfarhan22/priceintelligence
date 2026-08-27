@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -47,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -54,12 +56,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.supreme.priceintelligence.network.Retailer
 import com.supreme.priceintelligence.network.normalizeRetailerUrl
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 internal enum class PriceEditorField(
     val displayName: String
@@ -681,25 +685,18 @@ internal fun RetailerBrowserDialog(
         }
     }
 
-    Dialog(
-        onDismissRequest = {
-            closeWithAnimation()
-        },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnClickOutside = false
-        )
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(10f)
     ) {
-        BoxWithConstraints(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val density = LocalDensity.current
-            val browserHeightPx = with(density) {
-                maxHeight.toPx()
-            }.coerceAtLeast(1f)
+        val density = LocalDensity.current
+        val browserHeightPx = with(density) {
+            maxHeight.toPx()
+        }.coerceAtLeast(1f)
 
-            val dismissThresholdPx =
-                browserHeightPx * 0.42f
+        val dismissThresholdPx =
+            browserHeightPx * 0.42f
 
             val visibleDragOffset = if (isDragging) {
                 dragOffsetPx
@@ -747,10 +744,11 @@ internal fun RetailerBrowserDialog(
             Surface(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer {
-                        translationY = totalOffset
-                        alpha = entryProgress.value
-                            .coerceIn(0f, 1f)
+                    .offset {
+                        IntOffset(
+                            x = 0,
+                            y = totalOffset.roundToInt()
+                        )
                     },
                 color =
                     MaterialTheme.colorScheme.background
@@ -950,6 +948,17 @@ internal fun RetailerBrowserDialog(
                         onLoadingChanged = { loading ->
                             isLoading = loading
                         },
+                        onUseLink = { url ->
+                            normalizeRetailerUrl(
+                                value = url,
+                                retailer = site.retailer
+                            )?.let { accepted ->
+                                useLinkWithAnimation(accepted)
+                            }
+                        },
+                        onBrowserClosed = {
+                            closeWithAnimation()
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -958,12 +967,13 @@ internal fun RetailerBrowserDialog(
             }
         }
     }
-}
 
 @Composable
 internal expect fun PlatformRetailerWebView(
     initialUrl: String,
     onUrlChanged: (String) -> Unit,
     onLoadingChanged: (Boolean) -> Unit,
+    onUseLink: (String) -> Unit,
+    onBrowserClosed: () -> Unit,
     modifier: Modifier = Modifier
 )

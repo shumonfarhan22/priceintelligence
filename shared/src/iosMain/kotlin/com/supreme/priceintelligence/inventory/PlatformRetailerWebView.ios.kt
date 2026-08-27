@@ -34,6 +34,8 @@ internal actual fun PlatformRetailerWebView(
     initialUrl: String,
     onUrlChanged: (String) -> Unit,
     onLoadingChanged: (Boolean) -> Unit,
+    onUseLink: (String) -> Unit,
+    onBrowserClosed: () -> Unit,
     modifier: Modifier
 ) {
     val urlCallback =

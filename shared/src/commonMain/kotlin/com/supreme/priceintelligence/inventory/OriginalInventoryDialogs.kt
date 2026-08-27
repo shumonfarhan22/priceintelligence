@@ -173,7 +173,13 @@ internal fun OriginalProductEditorDialog(
     )
 
     KeyboardAwareEditorDialog(
-        onDismissRequest = requestDismiss
+        onDismissRequest = {
+            if (browserSite != null) {
+                browserSite = null
+            } else {
+                requestDismiss()
+            }
+        }
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -591,6 +597,25 @@ internal fun OriginalProductEditorDialog(
                 }
             }
 
+            browserSite?.let { site ->
+                RetailerBrowserDialog(
+                    site = site,
+                    onUseLink = { url ->
+                        when (site) {
+                            RetailerBrowserSite.AMAZON ->
+                                onAmazonUrlChanged(url)
+
+                            RetailerBrowserSite.FLIPKART ->
+                                onFlipkartUrlChanged(url)
+                        }
+
+                        browserSite = null
+                    },
+                    onDismiss = {
+                        browserSite = null
+                    }
+                )
+            }
         }
     }
 
@@ -614,25 +639,6 @@ internal fun OriginalProductEditorDialog(
         )
     }
 
-    browserSite?.let { site ->
-        RetailerBrowserDialog(
-            site = site,
-            onUseLink = { url ->
-                when (site) {
-                    RetailerBrowserSite.AMAZON ->
-                        onAmazonUrlChanged(url)
-
-                    RetailerBrowserSite.FLIPKART ->
-                        onFlipkartUrlChanged(url)
-                }
-
-                browserSite = null
-            },
-            onDismiss = {
-                browserSite = null
-            }
-        )
-    }
 }
 
 @Composable

@@ -1,278 +1,360 @@
 package com.supreme.priceintelligence.inventory
 
-import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.net.Uri
-import android.os.Build
-import android.os.Message
-import android.webkit.CookieManager
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebStorage
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.widget.Toast
+import androidx.browser.customtabs.CustomTabColorSchemeParams
+import androidx.browser.customtabs.CustomTabsClient
+import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import kotlin.math.roundToInt
 
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
 internal actual fun PlatformRetailerWebView(
     initialUrl: String,
     onUrlChanged: (String) -> Unit,
     onLoadingChanged: (Boolean) -> Unit,
+    onUseLink: (String) -> Unit,
+    onBrowserClosed: () -> Unit,
     modifier: Modifier
 ) {
     val context = LocalContext.current
-    val urlCallback =
-        rememberUpdatedState(onUrlChanged)
+    val activity = remember(context) {
+        context.findActivity()
+    }
+
+    val useLinkCallback =
+        rememberUpdatedState(onUseLink)
+    val browserClosedCallback =
+        rememberUpdatedState(onBrowserClosed)
     val loadingCallback =
         rememberUpdatedState(onLoadingChanged)
 
-    val webView = remember(initialUrl) {
-        WebView(context).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.loadsImagesAutomatically = true
-            settings.useWideViewPort = true
-            settings.loadWithOverviewMode = false
-            settings.setSupportZoom(true)
-            settings.builtInZoomControls = true
-            settings.displayZoomControls = false
-            settings.cacheMode =
-                WebSettings.LOAD_NO_CACHE
-            settings.javaScriptCanOpenWindowsAutomatically =
-                false
-            settings.setSupportMultipleWindows(true)
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            settings.mixedContentMode =
-                WebSettings.MIXED_CONTENT_NEVER_ALLOW
+    val providerPackage = remember(context) {
+        findEphemeralBrowserProvider(context)
+    }
 
-            settings.userAgentString =
-                settings.userAgentString
-                    .replace("; wv", "")
-                    .replace("Version/4.0 ", "")
+    val resultAction = remember(initialUrl) {
+        "${context.packageName}.USE_RETAILER_LINK.${System.nanoTime()}"
+    }
 
-            val cookieManager =
-                CookieManager.getInstance()
-            cookieManager.setAcceptCookie(true)
-            cookieManager.setAcceptThirdPartyCookies(
-                this,
-                true
+    var browserLaunched by remember(initialUrl) {
+        mutableStateOf(false)
+    }
+    var activityPausedForBrowser by remember(initialUrl) {
+        mutableStateOf(false)
+    }
+    var linkSelected by remember(initialUrl) {
+        mutableStateOf(false)
+    }
+
+    val resultReceiver = remember(resultAction) {
+        object : BroadcastReceiver() {
+            override fun onReceive(
+                receiverContext: Context?,
+                intent: Intent?
+            ) {
+                val selectedUrl =
+                    intent?.dataString
+                        ?.takeIf { value ->
+                            value.startsWith(
+                                prefix = "https://",
+                                ignoreCase = true
+                            )
+                        }
+                        ?: return
+
+                linkSelected = true
+                useLinkCallback.value(selectedUrl)
+                context.bringApplicationToFront()
+            }
+        }
+    }
+
+    DisposableEffect(
+        context,
+        resultAction,
+        resultReceiver
+    ) {
+        ContextCompat.registerReceiver(
+            context,
+            resultReceiver,
+            IntentFilter(resultAction),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+
+        onDispose {
+            runCatching {
+                context.unregisterReceiver(resultReceiver)
+            }
+        }
+    }
+
+    DisposableEffect(activity) {
+        val lifecycleOwner =
+            activity as? LifecycleOwner
+
+        val observer = LifecycleEventObserver {
+                _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    if (browserLaunched) {
+                        activityPausedForBrowser = true
+                    }
+                }
+
+                Lifecycle.Event.ON_RESUME -> {
+                    if (
+                        browserLaunched &&
+                        activityPausedForBrowser &&
+                        !linkSelected
+                    ) {
+                        browserLaunched = false
+                        activityPausedForBrowser = false
+                        browserClosedCallback.value()
+                    }
+                }
+
+                else -> Unit
+            }
+        }
+
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+
+        onDispose {
+            lifecycleOwner?.lifecycle
+                ?.removeObserver(observer)
+        }
+    }
+
+    val toolbarColor =
+        MaterialTheme.colorScheme.surface.toArgb()
+    val navigationColor =
+        MaterialTheme.colorScheme.background.toArgb()
+
+    LaunchedEffect(
+        initialUrl,
+        providerPackage,
+        resultAction
+    ) {
+        val provider = providerPackage
+
+        if (provider == null) {
+            loadingCallback.value(false)
+            Toast.makeText(
+                context,
+                "Private browser needs Chrome 137 or newer. Please update Chrome.",
+                Toast.LENGTH_LONG
+            ).show()
+            browserClosedCallback.value()
+            return@LaunchedEffect
+        }
+
+        val actionIntent = Intent(resultAction)
+            .setPackage(context.packageName)
+
+        val actionPendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                resultAction.hashCode(),
+                actionIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_MUTABLE
             )
 
-            clearCache(true)
-            clearHistory()
-            WebStorage.getInstance().deleteAllData()
+        val colorParams =
+            CustomTabColorSchemeParams.Builder()
+                .setToolbarColor(toolbarColor)
+                .setNavigationBarColor(navigationColor)
+                .setNavigationBarDividerColor(
+                    navigationColor
+                )
+                .build()
 
-            webChromeClient =
-                object : WebChromeClient() {
-                    override fun onCreateWindow(
-                        view: WebView?,
-                        isDialog: Boolean,
-                        isUserGesture: Boolean,
-                        resultMsg: Message?
-                    ): Boolean {
-                        val mainWebView =
-                            view ?: return false
-                        val message =
-                            resultMsg ?: return false
-                        val transport = message.obj
-                            as? WebView.WebViewTransport
-                            ?: return false
+        val initialHeight =
+            (context.resources.displayMetrics.heightPixels *
+                    0.94f).roundToInt()
 
-                        if (!isUserGesture) {
-                            return false
-                        }
-
-                        val popupWebView =
-                            WebView(mainWebView.context)
-                        var destinationRouted = false
-
-                        fun routeToMainWebView(
-                            destination: Uri?
-                        ): Boolean {
-                            if (
-                                destinationRouted ||
-                                destination == null ||
-                                !destination.isSafeBrowserScheme()
-                            ) {
-                                return false
-                            }
-
-                            destinationRouted = true
-                            mainWebView.loadUrl(
-                                destination.toString()
-                            )
-                            popupWebView.stopLoading()
-                            popupWebView.post {
-                                popupWebView.destroy()
-                            }
-                            return true
-                        }
-
-                        popupWebView.settings.apply {
-                            javaScriptEnabled = true
-                            domStorageEnabled = true
-                            cacheMode =
-                                WebSettings.LOAD_NO_CACHE
-                        }
-
-                        popupWebView.webViewClient =
-                            object : WebViewClient() {
-                                override fun shouldOverrideUrlLoading(
-                                    popup: WebView?,
-                                    request: WebResourceRequest?
-                                ): Boolean =
-                                    routeToMainWebView(
-                                        request?.url
-                                    )
-
-                                @Deprecated(
-                                    "Used on Android versions before API 24"
-                                )
-                                override fun shouldOverrideUrlLoading(
-                                    popup: WebView?,
-                                    url: String?
-                                ): Boolean =
-                                    routeToMainWebView(
-                                        url?.let(Uri::parse)
-                                    )
-
-                                override fun onPageStarted(
-                                    popup: WebView?,
-                                    url: String?,
-                                    favicon: Bitmap?
-                                ) {
-                                    routeToMainWebView(
-                                        url?.let(Uri::parse)
-                                    )
-                                }
-                            }
-
-                        transport.webView = popupWebView
-                        message.sendToTarget()
-                        return true
-                    }
+        val customTab =
+            CustomTabsIntent.Builder()
+                .setEphemeralBrowsingEnabled(true)
+                .setDefaultColorSchemeParams(colorParams)
+                .setShowTitle(true)
+                .setUrlBarHidingEnabled(false)
+                .setShareState(
+                    CustomTabsIntent.SHARE_STATE_OFF
+                )
+                .setBookmarksButtonEnabled(false)
+                .setDownloadButtonEnabled(false)
+                .setOpenInBrowserButtonState(
+                    CustomTabsIntent.OPEN_IN_BROWSER_STATE_OFF
+                )
+                .setCloseButtonPosition(
+                    CustomTabsIntent.CLOSE_BUTTON_POSITION_START
+                )
+                .setInitialActivityHeightPx(
+                    initialHeight,
+                    CustomTabsIntent.ACTIVITY_HEIGHT_ADJUSTABLE
+                )
+                .setToolbarCornerRadiusDp(16)
+                .setActionButton(
+                    createCheckIcon(context),
+                    "Use this product link",
+                    actionPendingIntent,
+                    true
+                )
+                .build()
+                .apply {
+                    intent.setPackage(provider)
                 }
 
-            if (
-                Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.O
-            ) {
-                settings.safeBrowsingEnabled = true
-            }
-
-            webViewClient =
-                object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView?,
-                        request: WebResourceRequest?
-                    ): Boolean {
-                        val requestedUrl =
-                            request?.url ?: return true
-
-                        return !requestedUrl
-                            .isSafeBrowserScheme()
-                    }
-
-                    @Deprecated(
-                        "Used on Android versions before API 24"
-                    )
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView?,
-                        url: String?
-                    ): Boolean {
-                        val requestedUrl = url
-                            ?.let(Uri::parse)
-                            ?: return true
-
-                        return !requestedUrl
-                            .isSafeBrowserScheme()
-                    }
-
-                    override fun onPageStarted(
-                        view: WebView?,
-                        url: String?,
-                        favicon: Bitmap?
-                    ) {
-                        url?.let(urlCallback.value)
-                        loadingCallback.value(true)
-                    }
-
-                    override fun onPageFinished(
-                        view: WebView?,
-                        url: String?
-                    ) {
-                        url?.let(urlCallback.value)
-                        loadingCallback.value(false)
-                    }
-
-                    override fun doUpdateVisitedHistory(
-                        view: WebView?,
-                        url: String?,
-                        isReload: Boolean
-                    ) {
-                        url?.let(urlCallback.value)
-                    }
-
-                    override fun onReceivedError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        error: WebResourceError?
-                    ) {
-                        if (
-                            request?.isForMainFrame != false
-                        ) {
-                            loadingCallback.value(false)
-                        }
-                    }
-                }
-
-            cookieManager.removeAllCookies {
-                loadUrl(initialUrl)
-            }
+        runCatching {
+            browserLaunched = true
+            loadingCallback.value(false)
+            customTab.launchUrl(
+                context,
+                Uri.parse(initialUrl)
+            )
+        }.onFailure {
+            browserLaunched = false
+            Toast.makeText(
+                context,
+                "The private browser could not be opened.",
+                Toast.LENGTH_LONG
+            ).show()
+            browserClosedCallback.value()
         }
     }
 
-    DisposableEffect(webView) {
-        onDispose {
-            webView.stopLoading()
-            webView.loadUrl("about:blank")
-            webView.clearHistory()
-            webView.clearCache(true)
-            webView.webViewClient =
-                WebViewClient()
-            WebStorage.getInstance().deleteAllData()
-            CookieManager.getInstance().apply {
-                removeAllCookies(null)
-                flush()
-            }
-            webView.destroy()
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment =
+                Alignment.CenterHorizontally
+        ) {
+            CircularProgressIndicator()
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Opening private browser…",
+                color =
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
-
-    AndroidView(
-        factory = {
-            webView
-        },
-        modifier = modifier
-    )
 }
 
-private fun Uri.isSafeBrowserScheme(): Boolean =
-    scheme.equals(
-        other = "https",
-        ignoreCase = true
-    ) ||
-            scheme.equals(
-                other = "http",
-                ignoreCase = true
+private fun findEphemeralBrowserProvider(
+    context: Context
+): String? {
+    val candidates = buildList {
+        CustomTabsClient.getPackageName(
+            context,
+            null
+        )?.let(::add)
+
+        add("com.android.chrome")
+        add("com.chrome.beta")
+        add("com.chrome.dev")
+    }.distinct()
+
+    return candidates.firstOrNull { packageName ->
+        runCatching {
+            CustomTabsClient.isEphemeralBrowsingSupported(
+                context,
+                packageName
             )
+        }.getOrDefault(false)
+    }
+}
+
+private fun createCheckIcon(
+    context: Context
+): Bitmap {
+    val density =
+        context.resources.displayMetrics.density
+    val size =
+        (24f * density).roundToInt()
+            .coerceAtLeast(24)
+
+    return Bitmap.createBitmap(
+        size,
+        size,
+        Bitmap.Config.ARGB_8888
+    ).apply {
+        val scale = size / 24f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 2.7f * scale
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        Canvas(this).drawLines(
+            floatArrayOf(
+                4.5f * scale,
+                12.5f * scale,
+                9.5f * scale,
+                17.5f * scale,
+                19.5f * scale,
+                6.5f * scale
+            ),
+            paint
+        )
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper ->
+            baseContext.findActivity()
+        else -> null
+    }
+
+private fun Context.bringApplicationToFront() {
+    packageManager
+        .getLaunchIntentForPackage(packageName)
+        ?.apply {
+            addFlags(
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
+        }
+        ?.let(::startActivity)
+}
