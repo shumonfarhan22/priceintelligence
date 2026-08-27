@@ -546,16 +546,29 @@ internal fun ProfessionalDashboardProductCard(
             fontScale = LocalDensity.current.fontScale
         )
 
+        // A larger font does not automatically mean that the phone has a
+        // narrow display. Only use the narrow layout when the available
+        // card width is genuinely small.
         val constrainedLayout =
-            layoutPolicy.shouldStack(
-                minimumWidthForRowDp = 340f
-            )
+            maxWidth < 330.dp
 
         val resolvedImageSize =
-            if (constrainedLayout) {
-                if (compact) 60.dp else 68.dp
-            } else {
-                imageSize
+            when {
+                constrainedLayout ->
+                    if (compact) {
+                        60.dp
+                    } else {
+                        68.dp
+                    }
+
+                layoutPolicy.isLargeText ->
+                    when {
+                        compact -> 76.dp
+                        priceFocused -> 88.dp
+                        else -> 92.dp
+                    }
+
+                else -> imageSize
             }
 
         val resolvedContentGap =
@@ -563,6 +576,13 @@ internal fun ProfessionalDashboardProductCard(
                 8.dp
             } else {
                 contentGap
+            }
+
+        val productTitleMaxLines =
+            if (layoutPolicy.isLargeText) {
+                3
+            } else {
+                2
             }
 
         val formattedShopPrice =
@@ -669,20 +689,15 @@ internal fun ProfessionalDashboardProductCard(
                     text = item.productName,
                     color = TextPrimary,
                     fontSize = titleSize,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines =
-                        layoutPolicy
-                            .importantTextMaxLines,
-                    overflow =
-                        if (
-                            layoutPolicy
-                                .importantTextMaxLines ==
-                                Int.MAX_VALUE
-                        ) {
-                            TextOverflow.Clip
+                    lineHeight =
+                        if (compact || priceFocused) {
+                            18.sp
                         } else {
-                            TextOverflow.Ellipsis
-                        }
+                            20.sp
+                        },
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = productTitleMaxLines,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(modifier = Modifier.height(titlePriceGap))

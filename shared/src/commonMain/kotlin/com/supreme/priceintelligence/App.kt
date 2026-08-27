@@ -334,36 +334,38 @@ fun App(
                 label = "statusBannerPosition"
             )
 
-            PlatformBackHandler(
-                enabled = !hubVisible,
-                onBack = {
-                    when {
-                        destination ==
-                            MainDestination.Inventory &&
-                            inventoryState.isSelectionMode -> {
-                            inventoryViewModel.clearSelection()
-                        }
+            val navigateBack: () -> Unit = {
+                when {
+                    destination ==
+                        MainDestination.Inventory &&
+                        inventoryState.isSelectionMode -> {
+                        inventoryViewModel.clearSelection()
+                    }
 
-                        destination ==
-                            MainDestination.Dashboard &&
-                            dashboardState.currentPage > 1 -> {
-                            dashboardViewModel.goToPage(
-                                dashboardState.currentPage - 1
+                    destination ==
+                        MainDestination.Dashboard &&
+                        dashboardState.currentPage > 1 -> {
+                        dashboardViewModel.goToPage(
+                            dashboardState.currentPage - 1
+                        )
+                    }
+
+                    else -> {
+                        priceMovementNotificationTarget
+                            ?.requestId
+                            ?.let(
+                                PriceChangeNotificationNavigation::
+                                    consume
                             )
-                        }
 
-                        else -> {
-                            priceMovementNotificationTarget
-                                ?.requestId
-                                ?.let(
-                                    PriceChangeNotificationNavigation::
-                                        consume
-                                )
-
-                            hubVisible = true
-                        }
+                        hubVisible = true
                     }
                 }
+            }
+
+            PlatformBackHandler(
+                enabled = !hubVisible,
+                onBack = navigateBack
             )
 
             LaunchedEffect(inventoryState.pendingDeletes) {
@@ -382,6 +384,10 @@ fun App(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .platformBackSwipe(
+                            enabled = !hubVisible,
+                            onBack = navigateBack
+                        )
                         .statusBarsPadding()
                         .navigationBarsPadding()
                 ) {

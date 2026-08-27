@@ -2,6 +2,7 @@ package com.supreme.priceintelligence
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 
 @Composable
 actual fun PlatformBackHandler(
@@ -13,3 +14,9 @@ actual fun PlatformBackHandler(
         onBack = onBack
     )
 }
+
+@Composable
+actual fun Modifier.platformBackSwipe(
+    enabled: Boolean,
+    onBack: () -> Unit
+): Modifier = this
