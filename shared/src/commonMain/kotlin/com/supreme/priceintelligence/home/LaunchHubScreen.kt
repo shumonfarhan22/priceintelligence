@@ -159,7 +159,7 @@ internal fun LaunchHubScreen(
                     Arrangement.spacedBy(12.dp)
             ) {
                 LaunchDestinationTile(
-                    title = "Dashboard",
+                    title = "Insights",
                     icon = Icons.Rounded.Dashboard,
                     accent =
                         MaterialTheme

@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.dialogs.FileKitDialogException
@@ -25,9 +26,13 @@ internal data class InventoryBackupActions(
 
 @Composable
 internal fun rememberInventoryBackupActions(
-    viewModel: InventoryViewModel
+    viewModel: InventoryViewModel,
+    onImportCompleted: () -> Unit = {}
 ): InventoryBackupActions {
     val coroutineScope = rememberCoroutineScope()
+
+    val currentOnImportCompleted by
+        rememberUpdatedState(onImportCompleted)
 
     var pendingBackupJson by remember {
         mutableStateOf<String?>(null)
@@ -92,6 +97,8 @@ internal fun rememberInventoryBackupActions(
                         viewModel.restoreBackupJson(
                             file.readString()
                         )
+
+                        currentOnImportCompleted()
                     } catch (
                         error: CancellationException
                     ) {

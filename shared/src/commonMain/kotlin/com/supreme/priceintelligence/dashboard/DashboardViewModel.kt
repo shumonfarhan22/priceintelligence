@@ -72,6 +72,7 @@ data class DashboardUiState(
     val suggestions: List<String> = emptyList(),
     val totalMatchCount: Int = 0,
     val pageItems: List<ProductCardUiState> = emptyList(),
+    val refreshingProductIds: Set<Long> = emptySet(),
     val manualResultLightProductIds: Set<Long> = emptySet(),
     val allMatchingItems: List<InventoryItem> = emptyList(),
     val priceFilter: PricePositionFilter? = null,
@@ -1403,31 +1404,24 @@ class DashboardViewModel(
         isRefreshing: Boolean
     ) {
         _uiState.update { state ->
-            val productIsVisible =
-                state.pageItems.any { card ->
-                    card.item.id == productId
-                }
-
-            if (!productIsVisible) {
-                state
-            } else {
-                state.copy(
-                    pageItems =
-                        state.pageItems.map { card ->
-                            if (
-                                card.item.id ==
-                                productId
-                            ) {
-                                card.copy(
-                                    isRefreshing =
-                                        isRefreshing
-                                )
-                            } else {
-                                card
-                            }
+            state.copy(
+                refreshingProductIds =
+                    if (isRefreshing) {
+                        state.refreshingProductIds + productId
+                    } else {
+                        state.refreshingProductIds - productId
+                    },
+                pageItems =
+                    state.pageItems.map { card ->
+                        if (card.item.id == productId) {
+                            card.copy(
+                                isRefreshing = isRefreshing
+                            )
+                        } else {
+                            card
                         }
-                )
-            }
+                    }
+            )
         }
     }
 }

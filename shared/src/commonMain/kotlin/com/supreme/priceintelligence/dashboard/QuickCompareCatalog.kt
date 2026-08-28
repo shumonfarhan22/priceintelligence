@@ -132,7 +132,7 @@ internal fun QuickCompareCatalogGrid(
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
-                    bottom = 28.dp
+                    bottom = 96.dp
                 ),
                 horizontalArrangement =
                     Arrangement.spacedBy(12.dp),
@@ -249,7 +249,7 @@ private fun QuickComparePlaceholderCard(
                 animationSpec =
                     infiniteRepeatable(
                         animation = tween(
-                            durationMillis = 1800,
+                            durationMillis = 3400,
                             easing = LinearEasing
                         ),
                         repeatMode = RepeatMode.Restart
@@ -290,19 +290,19 @@ private fun QuickComparePlaceholderCard(
                                     Color.Transparent,
                                     Color.Transparent,
                                     shimmerColor.copy(
-                                        alpha = 0.025f
+                                        alpha = 0.012f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.075f
+                                        alpha = 0.035f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.18f
+                                        alpha = 0.10f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.075f
+                                        alpha = 0.035f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.025f
+                                        alpha = 0.012f
                                     ),
                                     Color.Transparent,
                                     Color.Transparent
@@ -320,7 +320,7 @@ private fun QuickComparePlaceholderCard(
                                     y = verticalMovement
                                 ),
                                 tileMode =
-                                    TileMode.Repeated
+                                    TileMode.Clamp
                             )
                     )
                 }

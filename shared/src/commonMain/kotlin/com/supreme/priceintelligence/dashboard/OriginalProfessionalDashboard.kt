@@ -800,6 +800,7 @@ internal fun ProfessionalDashboardSearchOverlay(
     onScanClick: () -> Unit,
     onFocusChange: (Boolean) -> Unit,
     onDismissFocus: () -> Unit,
+    scrimFollowsSuggestions: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val keyboardBottom =
@@ -844,7 +845,10 @@ internal fun ProfessionalDashboardSearchOverlay(
         }
 
     val focusScrimAlpha by animateFloatAsState(
-        targetValue = if (isFocused) {
+        targetValue = if (
+            isFocused &&
+            (!scrimFollowsSuggestions || suggestions.isNotEmpty())
+        ) {
             if (query.isBlank()) {
                 0.82f
             } else {

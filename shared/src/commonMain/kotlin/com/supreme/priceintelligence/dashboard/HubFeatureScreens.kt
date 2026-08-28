@@ -9,6 +9,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +36,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -110,8 +110,8 @@ internal fun QuickCompareScreen(
         mutableStateOf(false)
     }
 
-    var focusRequestId by rememberSaveable {
-        mutableStateOf(0)
+    var catalogRevealed by rememberSaveable {
+        mutableStateOf(false)
     }
 
     val quickCompareGridState =
@@ -164,9 +164,11 @@ internal fun QuickCompareScreen(
         }
 
         searchSubmitted = true
+        catalogRevealed = true
         pendingExactQuery = cleanQuery
         viewModel.onSearchSubmitted(cleanQuery)
         viewModel.onSearchFocusChanged(false)
+        quickCompareSearchFocused = false
         keyboardController?.hide()
         focusManager.clearFocus()
     }
@@ -185,15 +187,8 @@ internal fun QuickCompareScreen(
 
     LaunchedEffect(Unit) {
         viewModel.prepareQuickCompare()
-        focusRequestId += 1
-    }
-
-    LaunchedEffect(focusRequestId) {
-        if (focusRequestId > 0) {
-            delay(120)
-            searchFocusRequester.requestFocus()
-            keyboardController?.show()
-        }
+        delay(120)
+        quickCompareSearchFocused = true
     }
 
     LaunchedEffect(
@@ -338,27 +333,58 @@ internal fun QuickCompareScreen(
         return
     }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(
                 MaterialTheme.colorScheme.background
             )
     ) {
-        QuickCompareHeader(
-            onNavigateHome = onNavigateHome
-        )
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            AnimatedVisibility(
+                visible = quickCompareSearchVisible,
+                enter =
+                    if (reduceMotionEnabled) {
+                        fadeIn(
+                            animationSpec =
+                                tween(durationMillis = 0)
+                        )
+                    } else {
+                        expandVertically(
+                            animationSpec =
+                                tween(durationMillis = 180),
+                            expandFrom = Alignment.Top
+                        ) + fadeIn(
+                            animationSpec =
+                                tween(durationMillis = 140)
+                        )
+                    },
+                exit =
+                    if (reduceMotionEnabled) {
+                        fadeOut(
+                            animationSpec =
+                                tween(durationMillis = 0)
+                        )
+                    } else {
+                        shrinkVertically(
+                            animationSpec =
+                                tween(durationMillis = 160),
+                            shrinkTowards = Alignment.Top
+                        ) + fadeOut(
+                            animationSpec =
+                                tween(durationMillis = 110)
+                        )
+                    }
+            ) {
+                QuickCompareHeader(
+                    onNavigateHome = onNavigateHome
+                )
+            }
 
-        HorizontalDivider(
-            color =
-                MaterialTheme
-                    .supremeColors
-                    .border
-                    .copy(alpha = 0.7f)
-        )
-
-        AnimatedVisibility(
-            visible = quickCompareSearchVisible,
+            AnimatedVisibility(
+                visible = false,
             enter =
                 if (reduceMotionEnabled) {
                     fadeIn(
@@ -574,9 +600,7 @@ internal fun QuickCompareScreen(
             cards = state.pageItems,
             query = state.searchQuery,
             gridState = quickCompareGridState,
-            showResults =
-                searchSubmitted &&
-                    state.searchQuery.isNotBlank(),
+            showResults = catalogRevealed,
             reduceMotionEnabled =
                 reduceMotionEnabled,
             isLoading = state.isLoading,
@@ -591,6 +615,110 @@ internal fun QuickCompareScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+        )
+        }
+
+        if (
+            quickCompareSearchFocused &&
+            (
+                state.searchDraft.isBlank() ||
+                    state.suggestions.isEmpty()
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource =
+                            remember {
+                                MutableInteractionSource()
+                            },
+                        indication = null,
+                        onClick = {
+                            quickCompareSearchFocused = false
+                            catalogRevealed = true
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+
+                            viewModel.onSearchFocusChanged(
+                                focused = false,
+                                suggestionsEnabled = false
+                            )
+                        }
+                    )
+            )
+        }
+
+        ProfessionalDashboardSearchOverlay(
+            query = state.searchDraft,
+            suggestions =
+                if (state.searchDraft.isNotBlank()) {
+                    state.suggestions
+                } else {
+                    emptyList()
+                },
+            isFocused = quickCompareSearchFocused,
+            bottomBannerHeight = 0.dp,
+            additionalBannerHeight = 0.dp,
+            reduceMotionEnabled =
+                reduceMotionEnabled,
+            onQueryChange = { query ->
+                searchSubmitted = false
+                pendingExactQuery = null
+
+                viewModel.onSearchQueryChanged(
+                    query = query,
+                    suggestionsEnabled =
+                        query.isNotBlank()
+                )
+            },
+            onSubmit = ::submitQuery,
+            onScanClick =
+                permissionRequester::requestPermission,
+            onFocusChange = { focused ->
+                val reopeningSearch =
+                    focused && catalogRevealed
+
+                if (focused) {
+                    catalogRevealed = false
+                    quickCompareSearchVisible = true
+
+                    if (reopeningSearch) {
+                        searchSubmitted = false
+                        pendingExactQuery = null
+
+                        viewModel.onSearchQueryChanged(
+                            query = "",
+                            suggestionsEnabled = false
+                        )
+                    }
+                } else {
+                    catalogRevealed = true
+                }
+
+                quickCompareSearchFocused = focused
+
+                viewModel.onSearchFocusChanged(
+                    focused = focused,
+                    suggestionsEnabled =
+                        focused &&
+                            !reopeningSearch &&
+                            state.searchDraft.isNotBlank()
+                )
+            },
+            onDismissFocus = {
+                quickCompareSearchFocused = false
+                catalogRevealed = true
+                keyboardController?.hide()
+                focusManager.clearFocus()
+
+                viewModel.onSearchFocusChanged(
+                    focused = false,
+                    suggestionsEnabled = false
+                )
+            },
+            scrimFollowsSuggestions = true,
+            modifier = Modifier.fillMaxSize()
         )
     }
 

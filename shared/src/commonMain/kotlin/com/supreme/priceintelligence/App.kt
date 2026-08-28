@@ -48,7 +48,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room3.RoomDatabase
-import com.supreme.priceintelligence.dashboard.OriginalDashboardScreen
+import com.supreme.priceintelligence.dashboard.PricingInsightsScreen
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.dashboard.HubPriceMovementScreen
 import com.supreme.priceintelligence.dashboard.QuickCompareScreen
@@ -131,11 +131,6 @@ fun App(
             val inventoryViewModel: InventoryViewModel = viewModel {
                 InventoryViewModel(repository)
             }
-
-            val backupActions =
-                rememberInventoryBackupActions(
-                    inventoryViewModel
-                )
 
             val priceScraper = remember { PriceScraper() }
 
@@ -223,6 +218,15 @@ fun App(
             var personalizationOpen by rememberSaveable {
                 mutableStateOf(false)
             }
+
+            val backupActions =
+                rememberInventoryBackupActions(
+                    viewModel = inventoryViewModel,
+                    onImportCompleted = {
+                        personalizationOpen = false
+                        hubVisible = true
+                    }
+                )
 
             var advancedModeEnabled by remember {
                 mutableStateOf(appPreferences.advancedModeEnabled)
@@ -340,14 +344,6 @@ fun App(
                         MainDestination.Inventory &&
                         inventoryState.isSelectionMode -> {
                         inventoryViewModel.clearSelection()
-                    }
-
-                    destination ==
-                        MainDestination.Dashboard &&
-                        dashboardState.currentPage > 1 -> {
-                        dashboardViewModel.goToPage(
-                            dashboardState.currentPage - 1
-                        )
                     }
 
                     else -> {
@@ -607,17 +603,14 @@ fun App(
                                         )
 
                                     MainDestination.Dashboard ->
-                                        OriginalDashboardScreen(
+                                        PricingInsightsScreen(
                                             viewModel = dashboardViewModel,
-                                            modifier = Modifier.fillMaxSize(),
-                                            advancedModeEnabled =
-                                                advancedModeEnabled,
-                                            bottomBannerHeight =
-                                                bottomBannerHeight,
+                                            insightCustomization =
+                                                customization
+                                                    .insightCustomization,
                                             reduceMotionEnabled =
                                                 reduceMotionEnabled,
-                                            customization =
-                                                customization,
+                                            modifier = Modifier.fillMaxSize(),
                                             onNavigateHome = {
                                                 hubVisible = true
                                             }
