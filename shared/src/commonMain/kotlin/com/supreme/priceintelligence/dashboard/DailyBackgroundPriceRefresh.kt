@@ -33,6 +33,18 @@ class DailyBackgroundPriceRefresh(
         maximumProducts: Int,
         maximumRuntimeMillis: Long
     ): DailyPriceRefreshBatchResult {
+        val customization =
+            readAppCustomization(
+                preferences.customizationProfile
+            )
+
+        if (!customization.automaticPriceChecksEnabled) {
+            return DailyPriceRefreshBatchResult(
+                checkedProducts = 0,
+                remainingProducts = 0
+            )
+        }
+
         val safeMaximumProducts =
             maximumProducts.coerceIn(1, 8)
 
@@ -67,6 +79,14 @@ class DailyBackgroundPriceRefresh(
         var checkedProducts = 0
 
         for (item in plan) {
+            if (
+                !readAppCustomization(
+                    preferences.customizationProfile
+                ).automaticPriceChecksEnabled
+            ) {
+                break
+            }
+
             if (checkedProducts >= safeMaximumProducts) {
                 break
             }

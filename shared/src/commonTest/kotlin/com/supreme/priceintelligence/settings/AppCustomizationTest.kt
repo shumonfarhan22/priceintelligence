@@ -28,6 +28,7 @@ class AppCustomizationTest {
             displayDensity = AppDisplayDensity.COMPACT,
             motionPreference = AppMotionPreference.REDUCED,
             hapticsEnabled = false,
+            automaticPriceChecksEnabled = false,
             dashboardCardStyle = DashboardCardStyle.COMPACT,
             dashboardDefaultSort = DashboardDefaultSort.BEST_SAVING,
             dashboardPageSize = DashboardPageSize.TWENTY,

@@ -63,6 +63,7 @@ import com.supreme.priceintelligence.data.getRoomDatabase
 import com.supreme.priceintelligence.inventory.OriginalInventoryScreen
 import com.supreme.priceintelligence.inventory.OriginalInventoryUndoBanner
 import com.supreme.priceintelligence.inventory.InventoryViewModel
+import com.supreme.priceintelligence.inventory.AppToolsDialog
 import com.supreme.priceintelligence.inventory.PersonalizationAccordionDialog
 import com.supreme.priceintelligence.inventory.rememberInventoryBackupActions
 import com.supreme.priceintelligence.network.NetworkMonitor
@@ -205,6 +206,16 @@ fun App(
                     )
             }
 
+            LaunchedEffect(
+                customization.automaticPriceChecksEnabled
+            ) {
+                dashboardViewModel
+                    .applyAutomaticPriceCheckPreference(
+                        customization
+                            .automaticPriceChecksEnabled
+                    )
+            }
+
             var destinationName by rememberSaveable {
                 mutableStateOf(
                     MainDestination.Dashboard.name
@@ -219,10 +230,15 @@ fun App(
                 mutableStateOf(false)
             }
 
+            var appToolsOpen by rememberSaveable {
+                mutableStateOf(false)
+            }
+
             val backupActions =
                 rememberInventoryBackupActions(
                     viewModel = inventoryViewModel,
                     onImportCompleted = {
+                        appToolsOpen = false
                         personalizationOpen = false
                         hubVisible = true
                     }
@@ -583,8 +599,7 @@ fun App(
                                                 hubVisible = false
                                             },
                                             onSettingsClick = {
-                                                personalizationOpen =
-                                                    true
+                                                appToolsOpen = true
                                             },
                                             onFilterSelected = {
                                                     filter ->
@@ -751,8 +766,30 @@ fun App(
                 }
             }
 
+            if (appToolsOpen) {
+                AppToolsDialog(
+                    onImportBackup = {
+                        appToolsOpen = false
+                        backupActions.importBackup()
+                    },
+                    onExportBackup = {
+                        appToolsOpen = false
+                        backupActions.exportBackup()
+                    },
+                    onPersonalize = {
+                        appToolsOpen = false
+                        personalizationOpen = true
+                    },
+                    onDismiss = {
+                        appToolsOpen = false
+                    }
+                )
+            }
+
             if (personalizationOpen) {
                 PersonalizationAccordionDialog(
+                    dashboardViewModel =
+                        dashboardViewModel,
                     themeMode = themeMode,
                     customization = customization,
                     advancedModeEnabled =
@@ -789,10 +826,6 @@ fun App(
                                 .requestPermission()
                         }
                     },
-                    onExportBackup =
-                        backupActions.exportBackup,
-                    onImportBackup =
-                        backupActions.importBackup,
                     onResetPersonalization = {
                         themeMode = AppThemeMode.DARK
                         appPreferences.themeMode =

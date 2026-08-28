@@ -262,6 +262,7 @@ data class AppCustomization(
     val motionPreference: AppMotionPreference =
         AppMotionPreference.SYSTEM,
     val hapticsEnabled: Boolean = true,
+    val automaticPriceChecksEnabled: Boolean = true,
     val dashboardCardStyle: DashboardCardStyle =
         DashboardCardStyle.DETAILED,
     val dashboardDefaultSort: DashboardDefaultSort =
@@ -399,7 +400,11 @@ fun readAppCustomization(
                         )
                     )
                 }.orEmpty()
-            }
+            },
+        automaticPriceChecksEnabled =
+            parts.getOrNull(19)
+                ?.toBooleanStrictOrNull()
+                ?: true
     )
 }
 
@@ -435,7 +440,9 @@ fun writeAppCustomization(
         ),
         writeSavedPersonalizationPresetList(
             customization.savedPersonalizationPresets
-        )
+        ),
+        customization.automaticPriceChecksEnabled
+            .toString()
     ).joinToString("|")
 
 private fun readCustomColorPalette(

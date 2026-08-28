@@ -79,6 +79,7 @@ internal fun QuickCompareScreen(
     reduceMotionEnabled: Boolean,
     customization: AppCustomization,
     onNavigateHome: () -> Unit,
+    previewMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -186,9 +187,11 @@ internal fun QuickCompareScreen(
         }
 
     LaunchedEffect(Unit) {
-        viewModel.prepareQuickCompare()
-        delay(120)
-        quickCompareSearchFocused = true
+        if (!previewMode) {
+            viewModel.prepareQuickCompare()
+            delay(120)
+            quickCompareSearchFocused = true
+        }
     }
 
     LaunchedEffect(

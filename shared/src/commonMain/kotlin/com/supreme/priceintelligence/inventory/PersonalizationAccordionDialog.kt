@@ -1,6 +1,7 @@
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,24 +28,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Dashboard
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Sell
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ShowChart
-import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Storefront
-import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -90,7 +89,6 @@ import com.supreme.priceintelligence.settings.MAX_SAVED_PERSONALIZATION_PRESETS
 import com.supreme.priceintelligence.settings.MAX_SAVED_PRESET_NAME_LENGTH
 import com.supreme.priceintelligence.settings.BreakdownLayout
 import com.supreme.priceintelligence.settings.BreakdownValueMode
-import com.supreme.priceintelligence.settings.DashboardCardStyle
 import com.supreme.priceintelligence.settings.DashboardDefaultSort
 import com.supreme.priceintelligence.settings.DashboardPageSize
 import com.supreme.priceintelligence.settings.GraphPointMode
@@ -117,25 +115,25 @@ import com.supreme.priceintelligence.settings.SavedPersonalizationPreset
 import com.supreme.priceintelligence.settings.SectionStartState
 import com.supreme.priceintelligence.settings.readAppCustomization
 import com.supreme.priceintelligence.settings.writeAppCustomization
+import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.settings.matchingPersonalizationPreset
 import com.supreme.priceintelligence.settings.personalizationForPreset
 import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
 
-private enum class PersonalizationSection {
+internal enum class PersonalizationSection {
     APPEARANCE,
-    DASHBOARD,
-    SHOP_OVERVIEW,
-    TOP_PRIORITIES,
+    QUICK_COMPARE,
+    SHOP_SUMMARY,
     PRODUCT_DETAILS,
     PRICE_MOVEMENT,
-    ALERTS_BEHAVIOUR,
-    DATA_BACKUP
+    ALERTS_BEHAVIOUR
 }
 
 @Composable
 internal fun PersonalizationAccordionDialog(
+    dashboardViewModel: DashboardViewModel,
     themeMode: AppThemeMode,
     customization: AppCustomization,
     advancedModeEnabled: Boolean,
@@ -145,13 +143,17 @@ internal fun PersonalizationAccordionDialog(
     onCustomizationChanged: (AppCustomization) -> Unit,
     onAdvancedModeChanged: (Boolean) -> Unit,
     onPriceChangeNotificationsChanged: (Boolean) -> Unit,
-    onExportBackup: () -> Unit,
-    onImportBackup: () -> Unit,
     onResetPersonalization: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var expandedSectionName by rememberSaveable {
         mutableStateOf<String?>(null)
+    }
+
+    var previewTargetName by rememberSaveable {
+        mutableStateOf(
+            PersonalizationPreviewTarget.LAUNCH_HUB.name
+        )
     }
 
     var customPaletteEditorOpen by rememberSaveable {
@@ -168,22 +170,17 @@ internal fun PersonalizationAccordionDialog(
     val insightDefaults = InsightCustomization()
 
     val previewTarget =
-        when (expandedSectionName) {
-            PersonalizationSection.DASHBOARD.name ->
-                PersonalizationPreviewTarget.DASHBOARD
+        PersonalizationPreviewTarget.entries
+            .firstOrNull { target ->
+                target.name == previewTargetName
+            }
+            ?: PersonalizationPreviewTarget.LAUNCH_HUB
 
-            PersonalizationSection.PRODUCT_DETAILS.name ->
-                PersonalizationPreviewTarget.PRODUCT_DETAILS
-
-            PersonalizationSection.PRICE_MOVEMENT.name ->
-                PersonalizationPreviewTarget.PRICE_MOVEMENT
-
-            PersonalizationSection.ALERTS_BEHAVIOUR.name ->
-                PersonalizationPreviewTarget.ALERTS
-
-            else ->
-                PersonalizationPreviewTarget.LAUNCH_HUB
-        }
+    val selectedSection =
+        PersonalizationSection.entries
+            .firstOrNull { section ->
+                section.name == expandedSectionName
+            }
 
     val activeSetupName =
         activePersonalizationSetupName(
@@ -247,24 +244,44 @@ internal fun PersonalizationAccordionDialog(
             Column {
                 AccordionHeader(onDismiss)
 
-                Box(
-                    modifier = Modifier.padding(
-                        start = 12.dp,
-                        end = 12.dp,
-                        bottom = 8.dp
-                    )
-                ) {
-                    AdaptivePersonalizationPreview(
-                        customization = customization,
-                        target = previewTarget,
-                        reduceMotionEnabled =
-                            reduceMotionEnabled
-                    )
-                }
-
-                LazyColumn(
+                AdaptivePersonalizationPreview(
+                    dashboardViewModel = dashboardViewModel,
+                    customization = customization,
+                    target = previewTarget,
+                    selectedSection = selectedSection,
+                    reduceMotionEnabled =
+                        reduceMotionEnabled,
+                    onSectionSelected = { section ->
+                        expandedSectionName =
+                            toggleSection(
+                                expandedSectionName,
+                                section
+                            )
+                    },
+                    onTargetSelected = { target ->
+                        previewTargetName = target.name
+                        expandedSectionName = null
+                    },
                     modifier = Modifier
-                        .weight(1f)
+                        .weight(
+                            if (expandedSectionName == null) {
+                                1f
+                            } else {
+                                1.05f
+                            }
+                        )
+                        .fillMaxWidth()
+                        .padding(
+                            start = 12.dp,
+                            end = 12.dp,
+                            bottom = 8.dp
+                        )
+                )
+
+                if (expandedSectionName != null) {
+                    LazyColumn(
+                    modifier = Modifier
+                        .weight(0.90f)
                         .fillMaxWidth(),
                     contentPadding = PaddingValues(
                         start = 14.dp,
@@ -384,23 +401,19 @@ internal fun PersonalizationAccordionDialog(
 
                     item {
                         AccordionSectionCard(
-                            "Dashboard",
-                            "${customization.dashboardCardStyle.displayName} • ${customization.dashboardDefaultSort.displayName} • ${customization.dashboardPageSize.displayName} per page",
-                            Icons.Rounded.Dashboard,
-                            expandedSectionName == PersonalizationSection.DASHBOARD.name,
+                            "Quick Compare",
+                            "${customization.dashboardDefaultSort.displayName} • ${customization.dashboardPageSize.displayName} products per page",
+                            Icons.Rounded.Search,
+                            expandedSectionName == PersonalizationSection.QUICK_COMPARE.name,
                             {
                                 expandedSectionName = toggleSection(
                                     expandedSectionName,
-                                    PersonalizationSection.DASHBOARD
+                                    PersonalizationSection.QUICK_COMPARE
                                 )
                             }
                         ) {
-                            ChoiceGroup(
-                                "Product card style",
-                                DashboardCardStyle.entries,
-                                customization.dashboardCardStyle,
-                                { it.displayName },
-                                { onCustomizationChanged(customization.copy(dashboardCardStyle = it)) }
+                            HelpText(
+                                "These options control the product results shown in Quick Compare."
                             )
                             ChoiceGroup(
                                 "Default sorting",
@@ -419,7 +432,6 @@ internal fun PersonalizationAccordionDialog(
                             SectionResetButton {
                                 onCustomizationChanged(
                                     customization.copy(
-                                        dashboardCardStyle = defaults.dashboardCardStyle,
                                         dashboardDefaultSort = defaults.dashboardDefaultSort,
                                         dashboardPageSize = defaults.dashboardPageSize
                                     )
@@ -430,17 +442,20 @@ internal fun PersonalizationAccordionDialog(
 
                     item {
                         AccordionSectionCard(
-                            "Shop Overview & breakdown",
-                            "${insight.shopOverviewStartState.displayName} • ${insight.breakdownLayout.displayName} • ${insight.breakdownValueMode.displayName}",
+                            "Shop Summary",
+                            "${insight.breakdownLayout.displayName} • ${insight.priorityProductLimit.displayName} • ${insight.prioritySortMode.displayName}",
                             Icons.Rounded.Storefront,
-                            expandedSectionName == PersonalizationSection.SHOP_OVERVIEW.name,
+                            expandedSectionName == PersonalizationSection.SHOP_SUMMARY.name,
                             {
                                 expandedSectionName = toggleSection(
                                     expandedSectionName,
-                                    PersonalizationSection.SHOP_OVERVIEW
+                                    PersonalizationSection.SHOP_SUMMARY
                                 )
                             }
                         ) {
+                            HelpText(
+                                "Controls the Shop Overview, breakdown and Top Priorities shown on the Launch Hub."
+                            )
                             ChoiceGroup(
                                 "Shop Overview starts",
                                 SectionStartState.entries,
@@ -469,34 +484,8 @@ internal fun PersonalizationAccordionDialog(
                                 { it.displayName },
                                 { value -> updateInsight { it.copy(breakdownValueMode = value) } }
                             )
-                            SectionResetButton {
-                                updateInsight {
-                                    it.copy(
-                                        shopOverviewStartState = insightDefaults.shopOverviewStartState,
-                                        breakdownStartState = insightDefaults.breakdownStartState,
-                                        breakdownLayout = insightDefaults.breakdownLayout,
-                                        breakdownValueMode = insightDefaults.breakdownValueMode
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        AccordionSectionCard(
-                            "Top Priorities",
-                            "${insight.priorityProductLimit.displayName} • ${insight.prioritySortMode.displayName} • ${insight.priorityRowStyle.displayName}",
-                            Icons.Rounded.PriorityHigh,
-                            expandedSectionName == PersonalizationSection.TOP_PRIORITIES.name,
-                            {
-                                expandedSectionName = toggleSection(
-                                    expandedSectionName,
-                                    PersonalizationSection.TOP_PRIORITIES
-                                )
-                            }
-                        ) {
                             ChoiceGroup(
-                                "Section starts",
+                                "Top Priorities starts",
                                 SectionStartState.entries,
                                 insight.prioritiesStartState,
                                 { it.displayName },
@@ -526,6 +515,10 @@ internal fun PersonalizationAccordionDialog(
                             SectionResetButton {
                                 updateInsight {
                                     it.copy(
+                                        shopOverviewStartState = insightDefaults.shopOverviewStartState,
+                                        breakdownStartState = insightDefaults.breakdownStartState,
+                                        breakdownLayout = insightDefaults.breakdownLayout,
+                                        breakdownValueMode = insightDefaults.breakdownValueMode,
                                         prioritiesStartState = insightDefaults.prioritiesStartState,
                                         priorityProductLimit = insightDefaults.priorityProductLimit,
                                         prioritySortMode = insightDefaults.prioritySortMode,
@@ -538,7 +531,7 @@ internal fun PersonalizationAccordionDialog(
 
                     item {
                         AccordionSectionCard(
-                            "Product Details",
+                            "Product Details & analysis",
                             "${insight.advancedInfoLevel.displayName} • ${insight.priceHistoryRange.displayName} • ${insight.historyGraphStyle.displayName}",
                             Icons.Rounded.Info,
                             expandedSectionName == PersonalizationSection.PRODUCT_DETAILS.name,
@@ -741,8 +734,8 @@ internal fun PersonalizationAccordionDialog(
 
                     item {
                         AccordionSectionCard(
-                            "Alerts & behaviour",
-                            "${customization.motionPreference.displayName} • Scan vibration ${if (customization.hapticsEnabled) "on" else "off"} • Alerts ${if (priceChangeNotificationsEnabled) "on" else "off"}",
+                            "Alerts & automatic checks",
+                            "Daily checks ${if (customization.automaticPriceChecksEnabled) "on" else "off"} • Alerts ${if (priceChangeNotificationsEnabled) "on" else "off"} • ${customization.motionPreference.displayName}",
                             Icons.Rounded.Notifications,
                             expandedSectionName == PersonalizationSection.ALERTS_BEHAVIOUR.name,
                             {
@@ -764,6 +757,17 @@ internal fun PersonalizationAccordionDialog(
                                 "Vibrate after a barcode is read successfully.",
                                 customization.hapticsEnabled
                             ) { onCustomizationChanged(customization.copy(hapticsEnabled = it)) }
+                            SettingSwitch(
+                                "Automatic daily price checks",
+                                "Checks each linked product at most once per day and keeps the rolling price history useful.",
+                                customization.automaticPriceChecksEnabled
+                            ) { value ->
+                                onCustomizationChanged(
+                                    customization.copy(
+                                        automaticPriceChecksEnabled = value
+                                    )
+                                )
+                            }
                             SettingSwitch(
                                 "Price change alerts",
                                 "Automatic checks notify only for qualifying changes.",
@@ -793,6 +797,8 @@ internal fun PersonalizationAccordionDialog(
                                     customization.copy(
                                         motionPreference = defaults.motionPreference,
                                         hapticsEnabled = defaults.hapticsEnabled,
+                                        automaticPriceChecksEnabled =
+                                            defaults.automaticPriceChecksEnabled,
                                         priceAlertDirection = defaults.priceAlertDirection,
                                         priceAlertThreshold = defaults.priceAlertThreshold
                                     )
@@ -968,131 +974,7 @@ internal fun PersonalizationAccordionDialog(
                         )
                     }
 
-                    item {
-                        AccordionSectionCard(
-                            title = "Data & backup",
-                            summary =
-                                "Inventory and price history",
-                            icon = Icons.Rounded.Storage,
-                            expanded =
-                                expandedSectionName ==
-                                    PersonalizationSection
-                                        .DATA_BACKUP
-                                        .name,
-                            onToggle = {
-                                expandedSectionName =
-                                    toggleSection(
-                                        expandedSectionName,
-                                        PersonalizationSection
-                                            .DATA_BACKUP
-                                    )
-                            }
-                        ) {
-                            Text(
-                                text =
-                                    "Move your inventory and price history safely between devices.",
-                                color =
-                                    MaterialTheme
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                fontSize = 12.sp,
-                                lineHeight = 17.sp
-                            )
-
-                            BoxWithConstraints(
-                                modifier =
-                                    Modifier.fillMaxWidth()
-                            ) {
-                                val useVerticalLayout =
-                                    maxWidth < 300.dp ||
-                                        LocalDensity
-                                            .current
-                                            .fontScale >=
-                                        1.15f
-
-                                if (useVerticalLayout) {
-                                    Column(
-                                        verticalArrangement =
-                                            Arrangement
-                                                .spacedBy(
-                                                    8.dp
-                                                )
-                                    ) {
-                                        BackupActionButton(
-                                            label =
-                                                "Export backup",
-                                            icon =
-                                                Icons.Rounded
-                                                    .Upload,
-                                            primary = true,
-                                            onClick =
-                                                onExportBackup,
-                                            modifier =
-                                                Modifier
-                                                    .fillMaxWidth()
-                                        )
-
-                                        BackupActionButton(
-                                            label =
-                                                "Import backup",
-                                            icon =
-                                                Icons.Rounded
-                                                    .Download,
-                                            primary = false,
-                                            onClick =
-                                                onImportBackup,
-                                            modifier =
-                                                Modifier
-                                                    .fillMaxWidth()
-                                        )
-                                    }
-                                } else {
-                                    Row(
-                                        modifier =
-                                            Modifier.fillMaxWidth(),
-                                        horizontalArrangement =
-                                            Arrangement.spacedBy(
-                                                8.dp
-                                            )
-                                    ) {
-                                        BackupActionButton(
-                                            label =
-                                                "Export backup",
-                                            icon =
-                                                Icons.Rounded
-                                                    .Upload,
-                                            primary = true,
-                                            onClick =
-                                                onExportBackup,
-                                            modifier =
-                                                Modifier.weight(
-                                                    1f
-                                                )
-                                        )
-
-                                        BackupActionButton(
-                                            label =
-                                                "Import backup",
-                                            icon =
-                                                Icons.Rounded
-                                                    .Download,
-                                            primary = false,
-                                            onClick =
-                                                onImportBackup,
-                                            modifier =
-                                                Modifier.weight(
-                                                    1f
-                                                )
-                                        )
-                                    }
-                                }
-                            }
-
-                            HelpText(
-                                "Import adds supported backup data without intentionally deleting your existing inventory."
-                            )
-                        }
-                    }
+                }
                 }
 
                 PersonalizationFooter(
@@ -1147,61 +1029,6 @@ internal fun PersonalizationAccordionDialog(
                 customPaletteEditorOpen = false
             }
         )
-    }
-}
-
-@Composable
-private fun BackupActionButton(
-    label: String,
-    icon: ImageVector,
-    primary: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (primary) {
-        Button(
-            onClick = onClick,
-            modifier =
-                modifier.heightIn(min = 58.dp),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(19.dp)
-            )
-
-            Spacer(modifier = Modifier.width(7.dp))
-
-            Text(
-                text = label,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    } else {
-        OutlinedButton(
-            onClick = onClick,
-            modifier =
-                modifier.heightIn(min = 58.dp),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(19.dp)
-            )
-
-            Spacer(modifier = Modifier.width(7.dp))
-
-            Text(
-                text = label,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }
 
@@ -1315,7 +1142,7 @@ private fun AccordionHeader(
         )
 
         Text(
-            text = "Settings",
+            text = "Personalization",
             color =
                 MaterialTheme
                     .colorScheme
@@ -1331,7 +1158,7 @@ private fun AccordionHeader(
             Icon(
                 imageVector = Icons.Rounded.Close,
                 contentDescription =
-                    "Close settings"
+                    "Close personalization"
             )
         }
     }
@@ -1606,6 +1433,157 @@ private fun PresetSection(selected: PersonalizationPreset?, onSelected: (Persona
 }
 
 @Composable
+private fun PersonalizationSectionTabRow(
+    selectedSectionName: String?,
+    onSectionSelected: (PersonalizationSection) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(
+            horizontal = 14.dp,
+            vertical = 6.dp
+        ),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(
+            items = PersonalizationSection.entries,
+            key = { section -> section.name }
+        ) { section ->
+            val selected =
+                selectedSectionName == section.name
+
+            Surface(
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .animateContentSize(
+                        animationSpec = tween(180)
+                    )
+                    .clip(RoundedCornerShape(15.dp))
+                    .clickable {
+                        onSectionSelected(section)
+                    }
+                    .semantics {
+                        role = Role.Tab
+                        this.selected = selected
+                    },
+                shape = RoundedCornerShape(15.dp),
+                color =
+                    if (selected) {
+                        MaterialTheme
+                            .colorScheme
+                            .primaryContainer
+                    } else {
+                        MaterialTheme
+                            .supremeColors
+                            .panelMuted
+                    },
+                border = BorderStroke(
+                    width = 1.dp,
+                    color =
+                        if (selected) {
+                            MaterialTheme
+                                .colorScheme
+                                .primary
+                        } else {
+                            MaterialTheme
+                                .supremeColors
+                                .border
+                        }
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(
+                        horizontal = 13.dp,
+                        vertical = 11.dp
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement =
+                        Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = section.icon(),
+                        contentDescription = section.title(),
+                        tint =
+                            if (selected) {
+                                MaterialTheme
+                                    .colorScheme
+                                    .onPrimaryContainer
+                            } else {
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurfaceVariant
+                            },
+                        modifier = Modifier.size(21.dp)
+                    )
+
+                    AnimatedVisibility(
+                        visible = selected,
+                        enter = fadeIn(tween(140)),
+                        exit = fadeOut(tween(90))
+                    ) {
+                        Row {
+                            Spacer(Modifier.width(8.dp))
+
+                            Text(
+                                text = section.title(),
+                                color = MaterialTheme
+                                    .colorScheme
+                                    .onPrimaryContainer,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun PersonalizationSection.title(): String =
+    when (this) {
+        PersonalizationSection.APPEARANCE ->
+            "Appearance"
+
+        PersonalizationSection.QUICK_COMPARE ->
+            "Quick Compare"
+
+        PersonalizationSection.SHOP_SUMMARY ->
+            "Shop Summary"
+
+        PersonalizationSection.PRODUCT_DETAILS ->
+            "Product Details"
+
+        PersonalizationSection.PRICE_MOVEMENT ->
+            "Price Movement"
+
+        PersonalizationSection.ALERTS_BEHAVIOUR ->
+            "Alerts"
+    }
+
+private fun PersonalizationSection.icon(): ImageVector =
+    when (this) {
+        PersonalizationSection.APPEARANCE ->
+            Icons.Rounded.Palette
+
+        PersonalizationSection.QUICK_COMPARE ->
+            Icons.Rounded.Search
+
+        PersonalizationSection.SHOP_SUMMARY ->
+            Icons.Rounded.Storefront
+
+        PersonalizationSection.PRODUCT_DETAILS ->
+            Icons.Rounded.Info
+
+        PersonalizationSection.PRICE_MOVEMENT ->
+            Icons.Rounded.ShowChart
+
+        PersonalizationSection.ALERTS_BEHAVIOUR ->
+            Icons.Rounded.Notifications
+    }
+
+@Composable
 private fun AccordionSectionCard(
     title: String,
     summary: String,
@@ -1614,44 +1592,83 @@ private fun AccordionSectionCard(
     onToggle: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val rotation by animateFloatAsState(if (expanded) 180f else 0f, tween(180), label = "personalizationChevron")
+    if (!expanded) return
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.supremeColors.panel,
-        border = BorderStroke(1.dp, if (expanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f) else MaterialTheme.supremeColors.border)
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.primary.copy(
+                alpha = 0.45f
+            )
+        )
     ) {
-        Column {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.size(38.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(
+                            MaterialTheme
+                                .colorScheme
+                                .primary
+                                .copy(alpha = 0.13f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
+
                 Spacer(Modifier.width(11.dp))
+
                 Column(Modifier.weight(1f)) {
-                    Text(title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-                    Text(summary, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        text = title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Text(
+                        text = summary,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-                Icon(
-                    Icons.Rounded.ExpandMore,
-                    if (expanded) "Collapse $title" else "Expand $title",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = rotation }
-                )
+
+                IconButton(
+                    onClick = onToggle,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Close $title editor",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically(tween(220)) + fadeIn(tween(150)),
-                exit = shrinkVertically(tween(180)) + fadeOut(tween(110))
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    content = content
-                )
-            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                content = content
+            )
         }
     }
 }

@@ -423,6 +423,18 @@ class DashboardViewModel(
         runSearch(_uiState.value.searchQuery)
     }
 
+    fun applyAutomaticPriceCheckPreference(
+        enabled: Boolean
+    ) {
+        if (enabled) {
+            startAutomaticDailyRefreshIfPossible()
+        } else {
+            val runningJob = automaticRefreshJob
+            automaticRefreshJob = null
+            runningJob?.cancel()
+        }
+    }
+
     // Tapping an active filter again clears it; tapping the other one
     // switches straight to it.
     fun setPriceFilter(filter: PricePositionFilter) {
@@ -939,7 +951,13 @@ class DashboardViewModel(
     private fun startAutomaticDailyRefreshIfPossible() {
         val preferences = appPreferences ?: return
 
+        val automaticChecksEnabled =
+            readAppCustomization(
+                preferences.customizationProfile
+            ).automaticPriceChecksEnabled
+
         if (
+            !automaticChecksEnabled ||
             !_uiState.value.isConnected ||
             automaticRefreshPauseReasons.isNotEmpty() ||
             automaticRefreshJob?.isActive == true ||
