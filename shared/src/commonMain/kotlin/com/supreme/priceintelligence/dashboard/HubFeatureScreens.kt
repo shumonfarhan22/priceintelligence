@@ -724,6 +724,7 @@ internal fun QuickCompareScreen(
                 )
             },
             scrimFollowsSuggestions = true,
+            morphSearchButton = true,
             modifier = Modifier.fillMaxSize()
         )
     }

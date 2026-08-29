@@ -2,6 +2,7 @@ package com.supreme.priceintelligence.dashboard
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -801,6 +802,7 @@ internal fun ProfessionalDashboardSearchOverlay(
     onFocusChange: (Boolean) -> Unit,
     onDismissFocus: () -> Unit,
     scrimFollowsSuggestions: Boolean = false,
+    morphSearchButton: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val keyboardBottom =
@@ -872,7 +874,13 @@ internal fun ProfessionalDashboardSearchOverlay(
     LaunchedEffect(isFocused) {
         if (isFocused) {
             if (!reduceMotionEnabled) {
-                delay(90)
+                delay(
+                    if (morphSearchButton) {
+                        135
+                    } else {
+                        90
+                    }
+                )
             }
 
             searchFocusRequester.requestFocus()
@@ -923,7 +931,9 @@ internal fun ProfessionalDashboardSearchOverlay(
         modifier = modifier.fillMaxSize()
     ) {
         AnimatedVisibility(
-            visible = !isFocused,
+            visible =
+                !morphSearchButton &&
+                    !isFocused,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
@@ -1178,7 +1188,23 @@ internal fun ProfessionalDashboardSearchOverlay(
                 }
             }
 
-            AnimatedVisibility(
+            if (morphSearchButton) {
+                MorphingQuickCompareSearchBar(
+                    isFocused = isFocused,
+                    query = query,
+                    reduceMotionEnabled =
+                        reduceMotionEnabled,
+                    searchFocusRequester =
+                        searchFocusRequester,
+                    onQueryChange = onQueryChange,
+                    onSubmit = onSubmit,
+                    onScanClick = onScanClick,
+                    onOpen = {
+                        onFocusChange(true)
+                    }
+                )
+            } else {
+                AnimatedVisibility(
                 visible = isFocused,
                 modifier = Modifier.align(Alignment.End),
                 enter = if (reduceMotionEnabled) {
@@ -1328,6 +1354,324 @@ internal fun ProfessionalDashboardSearchOverlay(
                             tint = Brand,
                             modifier = Modifier.size(22.dp)
                         )
+                    }
+                }
+            }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MorphingQuickCompareSearchBar(
+    isFocused: Boolean,
+    query: String,
+    reduceMotionEnabled: Boolean,
+    searchFocusRequester: FocusRequester,
+    onQueryChange: (String) -> Unit,
+    onSubmit: (String) -> Unit,
+    onScanClick: () -> Unit,
+    onOpen: () -> Unit
+) {
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        val animationDuration = 125
+
+        val containerWidth by animateDpAsState(
+            targetValue =
+                if (isFocused) maxWidth else 56.dp,
+            animationSpec =
+                if (reduceMotionEnabled) {
+                    snap()
+                } else {
+                    tween(
+                        durationMillis =
+                            animationDuration
+                    )
+                },
+            label = "quickCompareSearchWidth"
+        )
+
+        val cornerRadius by animateDpAsState(
+            targetValue =
+                if (isFocused) 12.dp else 28.dp,
+            animationSpec =
+                if (reduceMotionEnabled) {
+                    snap()
+                } else {
+                    tween(
+                        durationMillis =
+                            animationDuration
+                    )
+                },
+            label = "quickCompareSearchShape"
+        )
+
+        val containerColor by animateColorAsState(
+            targetValue =
+                if (isFocused) {
+                    MaterialTheme.supremeColors.field
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+            animationSpec =
+                if (reduceMotionEnabled) {
+                    snap()
+                } else {
+                    tween(durationMillis = 95)
+                },
+            label = "quickCompareSearchColor"
+        )
+
+        val shape = RoundedCornerShape(cornerRadius)
+
+        Surface(
+            modifier = Modifier
+                .width(containerWidth)
+                .height(56.dp)
+                .clickable(
+                    enabled = !isFocused,
+                    onClick = onOpen
+                ),
+            shape = shape,
+            color = containerColor,
+            border =
+                androidx.compose.foundation.BorderStroke(
+                    width = 1.dp,
+                    color =
+                        MaterialTheme
+                            .supremeColors
+                            .border
+                ),
+            shadowElevation =
+                if (
+                    MaterialTheme.supremeColors.isDark
+                ) {
+                    0.dp
+                } else {
+                    3.dp
+                }
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                AnimatedVisibility(
+                    visible = !isFocused,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(56.dp)
+                        .fillMaxHeight(),
+                    enter =
+                        if (reduceMotionEnabled) {
+                            fadeIn(
+                                animationSpec =
+                                    tween(0)
+                            )
+                        } else {
+                            fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = 45,
+                                    delayMillis = 70
+                                )
+                            )
+                        },
+                    exit =
+                        if (reduceMotionEnabled) {
+                            fadeOut(
+                                animationSpec =
+                                    tween(0)
+                            )
+                        } else {
+                            fadeOut(
+                                animationSpec = tween(
+                                    durationMillis = 35
+                                )
+                            )
+                        }
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment =
+                            Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector =
+                                Icons.Rounded.Search,
+                            contentDescription =
+                                "Open product search",
+                            tint =
+                                MaterialTheme
+                                    .colorScheme
+                                    .onPrimary,
+                            modifier = Modifier.size(25.dp)
+                        )
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = isFocused,
+                    modifier = Modifier.fillMaxSize(),
+                    enter =
+                        if (reduceMotionEnabled) {
+                            fadeIn(
+                                animationSpec =
+                                    tween(0)
+                            )
+                        } else {
+                            fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = 45,
+                                    delayMillis = 70
+                                )
+                            )
+                        },
+                    exit =
+                        if (reduceMotionEnabled) {
+                            fadeOut(
+                                animationSpec =
+                                    tween(0)
+                            )
+                        } else {
+                            fadeOut(
+                                animationSpec = tween(
+                                    durationMillis = 35
+                                )
+                            )
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector =
+                                Icons.Rounded.Search,
+                            contentDescription =
+                                "Search products",
+                            tint = Brand,
+                            modifier = Modifier
+                                .padding(start = 16.dp)
+                                .size(20.dp)
+                        )
+
+                        Spacer(
+                            modifier = Modifier.width(7.dp)
+                        )
+
+                        TextField(
+                            value = query,
+                            onValueChange = onQueryChange,
+                            placeholder = {
+                                Text(
+                                    text = "Search...",
+                                    color = TextLight
+                                )
+                            },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .focusRequester(
+                                    searchFocusRequester
+                                )
+                                .onFocusChanged {
+                                    focusState ->
+
+                                    if (
+                                        focusState.isFocused
+                                    ) {
+                                        onOpen()
+                                    }
+                                },
+                            trailingIcon = {
+                                if (query.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = {
+                                            onQueryChange("")
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector =
+                                                Icons.Rounded
+                                                    .Close,
+                                            contentDescription =
+                                                "Clear search",
+                                            tint = TextMuted,
+                                            modifier =
+                                                Modifier.size(
+                                                    19.dp
+                                                )
+                                        )
+                                    }
+                                }
+                            },
+                            colors =
+                                TextFieldDefaults.colors(
+                                    focusedContainerColor =
+                                        Color.Transparent,
+                                    unfocusedContainerColor =
+                                        Color.Transparent,
+                                    disabledContainerColor =
+                                        Color.Transparent,
+                                    focusedIndicatorColor =
+                                        Color.Transparent,
+                                    unfocusedIndicatorColor =
+                                        Color.Transparent,
+                                    disabledIndicatorColor =
+                                        Color.Transparent,
+                                    focusedTextColor =
+                                        TextPrimary,
+                                    unfocusedTextColor =
+                                        TextPrimary,
+                                    cursorColor = Brand
+                                ),
+                            keyboardOptions =
+                                KeyboardOptions(
+                                    imeAction =
+                                        ImeAction.Search
+                                ),
+                            keyboardActions =
+                                KeyboardActions(
+                                    onSearch = {
+                                        if (
+                                            query.isNotBlank()
+                                        ) {
+                                            onSubmit(query)
+                                        }
+                                    }
+                                )
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(24.dp)
+                                .background(SurfaceAlt)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .width(56.dp)
+                                .clickable(
+                                    onClick = onScanClick
+                                ),
+                            contentAlignment =
+                                Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector =
+                                    Icons.Rounded.CameraAlt,
+                                contentDescription =
+                                    "Scan barcode",
+                                tint = Brand,
+                                modifier =
+                                    Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
             }
