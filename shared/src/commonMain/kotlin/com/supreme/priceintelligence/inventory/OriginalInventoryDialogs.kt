@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.animation.animateColorAsState
@@ -22,8 +24,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Calculate
@@ -62,22 +67,23 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
+import com.supreme.priceintelligence.ui.input.BarcodeInputTransformation
+import com.supreme.priceintelligence.ui.input.DecimalNumberInputTransformation
+import com.supreme.priceintelligence.ui.input.KeyboardAccessoryAction
+import com.supreme.priceintelligence.ui.input.rememberPlatformTextInputOptions
 import com.supreme.priceintelligence.ui.theme.supremeColors
 
 @Composable
 internal fun OriginalProductEditorDialog(
     form: InventoryFormState,
+    textState: InventoryEditorTextState,
     statusMessage: String?,
     statusIsError: Boolean,
-    onProductNameChanged: (String) -> Unit,
-    onPurchaseCostChanged: (String) -> Unit,
-    onShopPriceChanged: (String) -> Unit,
-    onBarcodeChanged: (String) -> Unit,
     onScanBarcode: () -> Unit,
-    onAmazonUrlChanged: (String) -> Unit,
-    onFlipkartUrlChanged: (String) -> Unit,
-    onClear: () -> Unit,
-    onSave: (onSaved: () -> Unit) -> Unit,
+    onSave: (
+        form: InventoryFormState,
+        onSaved: () -> Unit
+    ) -> Unit,
     reduceMotionEnabled: Boolean,
     onDismiss: () -> Unit
 ) {
@@ -320,16 +326,13 @@ internal fun OriginalProductEditorDialog(
                         OriginalEditorField(
                             label = "Product Name",
                             placeholder = "e.g., Hawkins 3.5L Cooker",
-                            value = form.productName,
-                            onValueChange = onProductNameChanged,
+                            state = textState.productName,
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Next
                             ),
-                            keyboardActions = KeyboardActions(
-                                onNext = {
-                                    purchaseCostFocusRequester.requestFocus()
-                                }
-                            )
+                            onImeAction = {
+                                purchaseCostFocusRequester.requestFocus()
+                            }
                         )
 
                         Column(
@@ -374,10 +377,8 @@ internal fun OriginalProductEditorDialog(
                                         label =
                                             "Purchase Cost",
                                         placeholder = "₹ 0.00",
-                                        value =
-                                            form.purchaseCost,
-                                        onValueChange =
-                                            onPurchaseCostChanged,
+                                        state =
+                                            textState.purchaseCost,
                                         optional = true,
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -392,23 +393,22 @@ internal fun OriginalProductEditorDialog(
                                                 imeAction =
                                                     ImeAction.Next
                                             ),
-                                        keyboardActions =
-                                            KeyboardActions(
-                                                onNext = {
-                                                    sellingPriceFocusRequester
-                                                        .requestFocus()
-                                                }
-                                            )
+                                        inputTransformation =
+                                            DecimalNumberInputTransformation,
+                                        keyboardAccessoryAction =
+                                            KeyboardAccessoryAction.NEXT,
+                                        onImeAction = {
+                                            sellingPriceFocusRequester
+                                                .requestFocus()
+                                        }
                                     )
 
                                     OriginalEditorField(
                                         label =
                                             "Selling Price",
                                         placeholder = "₹ 0.00",
-                                        value =
-                                            form.shopPrice,
-                                        onValueChange =
-                                            onShopPriceChanged,
+                                        state =
+                                            textState.shopPrice,
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .focusRequester(
@@ -422,13 +422,14 @@ internal fun OriginalProductEditorDialog(
                                                 imeAction =
                                                     ImeAction.Next
                                             ),
-                                        keyboardActions =
-                                            KeyboardActions(
-                                                onNext = {
-                                                    barcodeFocusRequester
-                                                        .requestFocus()
-                                                }
-                                            )
+                                        inputTransformation =
+                                            DecimalNumberInputTransformation,
+                                        keyboardAccessoryAction =
+                                            KeyboardAccessoryAction.NEXT,
+                                        onImeAction = {
+                                            barcodeFocusRequester
+                                                .requestFocus()
+                                        }
                                     )
                                 }
                             } else {
@@ -444,10 +445,8 @@ internal fun OriginalProductEditorDialog(
                                         label =
                                             "Purchase Cost",
                                         placeholder = "₹ 0.00",
-                                        value =
-                                            form.purchaseCost,
-                                        onValueChange =
-                                            onPurchaseCostChanged,
+                                        state =
+                                            textState.purchaseCost,
                                         optional = true,
                                         modifier = Modifier
                                             .weight(1f)
@@ -462,23 +461,22 @@ internal fun OriginalProductEditorDialog(
                                                 imeAction =
                                                     ImeAction.Next
                                             ),
-                                        keyboardActions =
-                                            KeyboardActions(
-                                                onNext = {
-                                                    sellingPriceFocusRequester
-                                                        .requestFocus()
-                                                }
-                                            )
+                                        inputTransformation =
+                                            DecimalNumberInputTransformation,
+                                        keyboardAccessoryAction =
+                                            KeyboardAccessoryAction.NEXT,
+                                        onImeAction = {
+                                            sellingPriceFocusRequester
+                                                .requestFocus()
+                                        }
                                     )
 
                                     OriginalEditorField(
                                         label =
                                             "Selling Price",
                                         placeholder = "₹ 0.00",
-                                        value =
-                                            form.shopPrice,
-                                        onValueChange =
-                                            onShopPriceChanged,
+                                        state =
+                                            textState.shopPrice,
                                         modifier = Modifier
                                             .weight(1f)
                                             .focusRequester(
@@ -492,13 +490,14 @@ internal fun OriginalProductEditorDialog(
                                                 imeAction =
                                                     ImeAction.Next
                                             ),
-                                        keyboardActions =
-                                            KeyboardActions(
-                                                onNext = {
-                                                    barcodeFocusRequester
-                                                        .requestFocus()
-                                                }
-                                            )
+                                        inputTransformation =
+                                            DecimalNumberInputTransformation,
+                                        keyboardAccessoryAction =
+                                            KeyboardAccessoryAction.NEXT,
+                                        onImeAction = {
+                                            barcodeFocusRequester
+                                                .requestFocus()
+                                        }
                                     )
                                 }
                             }
@@ -507,8 +506,7 @@ internal fun OriginalProductEditorDialog(
                         OriginalEditorField(
                             label = "Barcode",
                             placeholder = "Scan or enter barcode",
-                            value = form.barcode,
-                            onValueChange = onBarcodeChanged,
+                            state = textState.barcode,
                             optional = true,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -520,12 +518,13 @@ internal fun OriginalProductEditorDialog(
                                     KeyboardType.Number,
                                 imeAction = ImeAction.Done
                             ),
-                            keyboardActions =
-                                KeyboardActions(
-                                    onDone = {
-                                        focusManager.clearFocus()
-                                    }
-                                ),
+                            inputTransformation =
+                                BarcodeInputTransformation,
+                            keyboardAccessoryAction =
+                                KeyboardAccessoryAction.DONE,
+                            onImeAction = {
+                                focusManager.clearFocus()
+                            },
                             trailingIcon = {
                                 IconButton(
                                     onClick = onScanBarcode
@@ -542,9 +541,13 @@ internal fun OriginalProductEditorDialog(
                             }
                         )
 
+                        val amazonUrl =
+                            textState.amazonUrl.text.toString()
+                        val flipkartUrl =
+                            textState.flipkartUrl.text.toString()
                         val hasRetailerUrl =
-                            form.amazonUrl.isNotBlank() ||
-                                form.flipkartUrl.isNotBlank()
+                            amazonUrl.isNotBlank() ||
+                                flipkartUrl.isNotBlank()
 
                         if (!hasRetailerUrl) {
                             if (stackEditorRows) {
@@ -619,7 +622,7 @@ internal fun OriginalProductEditorDialog(
                                 }
                             }
                         } else {
-                            if (form.amazonUrl.isBlank()) {
+                            if (amazonUrl.isBlank()) {
                                 RetailerBrowserButton(
                                     label = "Amazon",
                                     onClick = {
@@ -634,9 +637,7 @@ internal fun OriginalProductEditorDialog(
                                     label = "Amazon URL",
                                     placeholder =
                                         "https://amazon.in/product",
-                                    value = form.amazonUrl,
-                                    onValueChange =
-                                        onAmazonUrlChanged,
+                                    state = textState.amazonUrl,
                                     optional = true,
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -648,7 +649,7 @@ internal fun OriginalProductEditorDialog(
                                             keyboardType =
                                                 KeyboardType.Uri,
                                             imeAction = if (
-                                                form.flipkartUrl
+                                                flipkartUrl
                                                     .isNotBlank()
                                             ) {
                                                 ImeAction.Next
@@ -656,16 +657,14 @@ internal fun OriginalProductEditorDialog(
                                                 ImeAction.Done
                                             }
                                         ),
-                                    keyboardActions =
-                                        KeyboardActions(
-                                            onNext = {
-                                                flipkartFocusRequester
-                                                    .requestFocus()
-                                            },
-                                            onDone = {
-                                                focusManager.clearFocus()
-                                            }
-                                        ),
+                                    onImeAction = {
+                                        if (flipkartUrl.isNotBlank()) {
+                                            flipkartFocusRequester
+                                                .requestFocus()
+                                        } else {
+                                            focusManager.clearFocus()
+                                        }
+                                    },
                                     trailingIcon = {
                                         IconButton(
                                             onClick = {
@@ -687,7 +686,7 @@ internal fun OriginalProductEditorDialog(
                                 )
                             }
 
-                            if (form.flipkartUrl.isBlank()) {
+                            if (flipkartUrl.isBlank()) {
                                 RetailerBrowserButton(
                                     label = "Flipkart",
                                     onClick = {
@@ -702,9 +701,7 @@ internal fun OriginalProductEditorDialog(
                                     label = "Flipkart URL",
                                     placeholder =
                                         "https://flipkart.com/product",
-                                    value = form.flipkartUrl,
-                                    onValueChange =
-                                        onFlipkartUrlChanged,
+                                    state = textState.flipkartUrl,
                                     optional = true,
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -718,12 +715,9 @@ internal fun OriginalProductEditorDialog(
                                             imeAction =
                                                 ImeAction.Done
                                         ),
-                                    keyboardActions =
-                                        KeyboardActions(
-                                            onDone = {
-                                                focusManager.clearFocus()
-                                            }
-                                        ),
+                                    onImeAction = {
+                                        focusManager.clearFocus()
+                                    },
                                     trailingIcon = {
                                         IconButton(
                                             onClick = {
@@ -767,9 +761,14 @@ internal fun OriginalProductEditorDialog(
                         EditorActionButtons(
                             stackVertically =
                                 stackEditorRows,
-                            onClear = onClear,
+                            onClear = textState::clear,
                             onSave = {
-                                onSave(requestDismiss)
+                                onSave(
+                                    textState.formWithEditingItem(
+                                        form.editingItem
+                                    ),
+                                    requestDismiss
+                                )
                             }
                         )
                     }
@@ -782,10 +781,12 @@ internal fun OriginalProductEditorDialog(
                     onUseLink = { url ->
                         when (site) {
                             RetailerBrowserSite.AMAZON ->
-                                onAmazonUrlChanged(url)
+                                textState.amazonUrl
+                                    .setTextAndPlaceCursorAtEnd(url)
 
                             RetailerBrowserSite.FLIPKART ->
-                                onFlipkartUrlChanged(url)
+                                textState.flipkartUrl
+                                    .setTextAndPlaceCursorAtEnd(url)
                         }
 
                         browserSite = null
@@ -801,15 +802,19 @@ internal fun OriginalProductEditorDialog(
     calculatorTarget?.let { target ->
         ProductPriceCalculatorDialog(
             initialField = target,
-            purchaseCost = form.purchaseCost,
-            sellingPrice = form.shopPrice,
+            purchaseCost =
+                textState.purchaseCost.text.toString(),
+            sellingPrice =
+                textState.shopPrice.text.toString(),
             onApply = { field, value ->
                 when (field) {
                     PriceEditorField.PURCHASE_COST ->
-                        onPurchaseCostChanged(value)
+                        textState.purchaseCost
+                            .setTextAndPlaceCursorAtEnd(value)
 
                     PriceEditorField.SELLING_PRICE ->
-                        onShopPriceChanged(value)
+                        textState.shopPrice
+                            .setTextAndPlaceCursorAtEnd(value)
                 }
             },
             onDismiss = {
@@ -966,14 +971,25 @@ private fun EditorActionButtons(
 private fun OriginalEditorField(
     label: String,
     placeholder: String,
-    value: String,
-    onValueChange: (String) -> Unit,
+    state: TextFieldState,
     optional: Boolean = false,
     modifier: Modifier = Modifier,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    inputTransformation: InputTransformation? = null,
+    keyboardAccessoryAction: KeyboardAccessoryAction =
+        KeyboardAccessoryAction.NONE,
+    onImeAction: (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
+    val platformKeyboardOptions =
+        rememberPlatformTextInputOptions(
+            keyboardOptions = keyboardOptions,
+            accessoryAction = keyboardAccessoryAction,
+            onAccessoryAction = {
+                onImeAction?.invoke()
+            }
+        )
+
     Column(
         modifier = modifier
     ) {
@@ -1002,8 +1018,7 @@ private fun OriginalEditorField(
         }
 
         OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
+            state = state,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 56.dp),
@@ -1014,10 +1029,15 @@ private fun OriginalEditorField(
                 )
             },
             trailingIcon = trailingIcon,
-            singleLine = true,
             shape = RoundedCornerShape(12.dp),
-            keyboardOptions = keyboardOptions,
-            keyboardActions = keyboardActions,
+            inputTransformation = inputTransformation,
+            keyboardOptions = platformKeyboardOptions,
+            onKeyboardAction = if (onImeAction == null) {
+                null
+            } else {
+                { onImeAction() }
+            },
+            lineLimits = TextFieldLineLimits.SingleLine,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor =
                     MaterialTheme.supremeColors.panelMuted,

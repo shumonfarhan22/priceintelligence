@@ -1,5 +1,6 @@
 @file:OptIn(
-    androidx.compose.foundation.ExperimentalFoundationApi::class
+    androidx.compose.foundation.ExperimentalFoundationApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class
 )
 
 package com.supreme.priceintelligence.inventory
@@ -24,8 +25,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Close
@@ -70,6 +72,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.dashboard.formatIndianPrice
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.ui.input.withPlatformTextInput
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -104,14 +107,13 @@ private val ProfessionalInventoryDelete: Color
 
 @Composable
 internal fun ProfessionalInventorySearchField(
-    value: String,
-    onValueChange: (String) -> Unit,
+    state: TextFieldState,
     onClear: () -> Unit,
+    onScan: () -> Unit,
     onDone: () -> Unit
 ) {
     OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
+        state = state,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp),
@@ -129,27 +131,36 @@ internal fun ProfessionalInventorySearchField(
             )
         },
         trailingIcon = {
-            if (value.isNotBlank()) {
-                IconButton(onClick = onClear) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (state.text.isNotBlank()) {
+                    IconButton(onClick = onClear) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Clear inventory search",
+                            tint = ProfessionalInventoryMuted,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                IconButton(onClick = onScan) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "Clear inventory search",
+                        imageVector = Icons.Rounded.CameraAlt,
+                        contentDescription = "Scan barcode to search inventory",
                         tint = ProfessionalInventoryMuted,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(21.dp)
                     )
                 }
             }
         },
         shape = RoundedCornerShape(12.dp),
-        singleLine = true,
         keyboardOptions = KeyboardOptions(
             imeAction = ImeAction.Done
-        ),
-        keyboardActions = KeyboardActions(
-            onDone = {
-                onDone()
-            }
-        ),
+        ).withPlatformTextInput(),
+        onKeyboardAction = { onDone() },
+        lineLimits = TextFieldLineLimits.SingleLine,
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = ProfessionalInventoryCard,
             unfocusedContainerColor = ProfessionalInventoryCard,

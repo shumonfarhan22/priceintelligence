@@ -26,19 +26,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.CameraAlt
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,14 +49,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,19 +76,29 @@ internal fun QuickCompareScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
+    val quickCompareSearchState =
+        rememberTextFieldState(state.searchDraft)
     val focusManager = LocalFocusManager.current
     val keyboardController =
         LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(state.searchDraft) {
+        if (
+            state.searchDraft !=
+            quickCompareSearchState.text.toString()
+        ) {
+            quickCompareSearchState
+                .setTextAndPlaceCursorAtEnd(
+                    state.searchDraft
+                )
+        }
+    }
 
     val searchFocusRequester = remember {
         FocusRequester()
     }
 
     var scannerOpen by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    var cameraPermissionDenied by rememberSaveable {
         mutableStateOf(false)
     }
 
@@ -177,12 +180,9 @@ internal fun QuickCompareScreen(
     val permissionRequester =
         rememberCameraPermissionRequester { granted ->
             if (granted) {
-                cameraPermissionDenied = false
                 keyboardController?.hide()
                 focusManager.clearFocus()
                 scannerOpen = true
-            } else {
-                cameraPermissionDenied = true
             }
         }
 
@@ -322,11 +322,12 @@ internal fun QuickCompareScreen(
                 customization.hapticsEnabled,
             onScanned = { barcode ->
                 scannerOpen = false
+                quickCompareSearchState
+                    .setTextAndPlaceCursorAtEnd(barcode)
                 submitQuery(barcode)
             },
             onError = {
                 scannerOpen = false
-                cameraPermissionDenied = true
             },
             onCanceled = {
                 scannerOpen = false
@@ -388,219 +389,6 @@ internal fun QuickCompareScreen(
                 )
             }
 
-            AnimatedVisibility(
-                visible = false,
-            enter =
-                if (reduceMotionEnabled) {
-                    fadeIn(
-                        animationSpec =
-                            tween(durationMillis = 0)
-                    )
-                } else {
-                    expandVertically(
-                        animationSpec =
-                            tween(durationMillis = 190),
-                        expandFrom = Alignment.Top
-                    ) + fadeIn(
-                        animationSpec =
-                            tween(durationMillis = 140)
-                    )
-                },
-            exit =
-                if (reduceMotionEnabled) {
-                    fadeOut(
-                        animationSpec =
-                            tween(durationMillis = 0)
-                    )
-                } else {
-                    shrinkVertically(
-                        animationSpec =
-                            tween(durationMillis = 170),
-                        shrinkTowards = Alignment.Top
-                    ) + fadeOut(
-                        animationSpec =
-                            tween(durationMillis = 110)
-                    )
-                }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = 16.dp,
-                        vertical = 7.dp
-                    ),
-                verticalArrangement =
-                    Arrangement.spacedBy(6.dp)
-            ) {
-                OutlinedTextField(
-                value = state.searchDraft,
-                onValueChange = { query ->
-                    searchSubmitted = false
-                    pendingExactQuery = null
-
-                    viewModel.onSearchQueryChanged(
-                        query = query,
-                        suggestionsEnabled = false
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(
-                        searchFocusRequester
-                    )
-                    .onFocusChanged { focusState ->
-                        quickCompareSearchFocused =
-                            focusState.isFocused
-
-                        if (focusState.isFocused) {
-                            quickCompareSearchVisible = true
-                        }
-
-                        viewModel.onSearchFocusChanged(
-                            focused =
-                                focusState.isFocused,
-                            suggestionsEnabled = false
-                        )
-                    },
-                placeholder = {
-                    Text(
-                        text =
-                            "Name, barcode, or retailer link",
-                        maxLines = 1,
-                        overflow =
-                            TextOverflow.Ellipsis
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector =
-                            Icons.Rounded.Search,
-                        contentDescription = null
-                    )
-                },
-                trailingIcon = {
-                    Row(
-                        verticalAlignment =
-                            Alignment.CenterVertically
-                    ) {
-                        if (
-                            state.searchDraft.isNotBlank()
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    searchSubmitted = false
-                                    pendingExactQuery = null
-                                    viewModel
-                                        .onSearchQueryChanged(
-                                            query = "",
-                                            suggestionsEnabled =
-                                                false
-                                        )
-                                }
-                            ) {
-                                Icon(
-                                    imageVector =
-                                        Icons.Rounded.Close,
-                                    contentDescription =
-                                        "Clear Quick Compare search"
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick =
-                                permissionRequester::
-                                requestPermission
-                        ) {
-                            Icon(
-                                imageVector =
-                                    Icons.Rounded.CameraAlt,
-                                contentDescription =
-                                    "Scan product barcode"
-                            )
-                        }
-                    }
-                },
-                singleLine = true,
-                keyboardOptions =
-                    KeyboardOptions(
-                        imeAction =
-                            ImeAction.Search
-                    ),
-                keyboardActions =
-                    KeyboardActions(
-                        onSearch = {
-                            submitQuery(
-                                state.searchDraft
-                            )
-                        }
-                    ),
-                shape = RoundedCornerShape(18.dp)
-            )
-
-            if (
-                searchSubmitted &&
-                state.searchQuery.isNotBlank()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement =
-                        Arrangement.SpaceBetween,
-                    verticalAlignment =
-                        Alignment.CenterVertically
-                ) {
-                    Text(
-                        text =
-                            if (state.totalMatchCount == 1) {
-                                "1 matching product"
-                            } else {
-                                "${state.totalMatchCount} matching products"
-                            },
-                        color =
-                            MaterialTheme
-                                .colorScheme
-                                .onSurfaceVariant,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    if (state.isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp
-                        )
-                    }
-                }
-            }
-
-            if (cameraPermissionDenied) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .errorContainer
-                ) {
-                    Text(
-                        text =
-                            "Camera access is unavailable. You can still enter the barcode manually.",
-                        color =
-                            MaterialTheme
-                                .colorScheme
-                                .onErrorContainer,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                        modifier = Modifier.padding(11.dp)
-                    )
-                }
-            }
-        }
-    }
-
         QuickCompareCatalogGrid(
             cards = state.pageItems,
             query = state.searchQuery,
@@ -624,7 +412,7 @@ internal fun QuickCompareScreen(
         }
 
         ProfessionalDashboardSearchOverlay(
-            query = state.searchDraft,
+            searchState = quickCompareSearchState,
             suggestions =
                 if (state.searchDraft.isNotBlank()) {
                     state.suggestions
@@ -660,11 +448,8 @@ internal fun QuickCompareScreen(
                     if (reopeningSearch) {
                         searchSubmitted = false
                         pendingExactQuery = null
-
-                        viewModel.onSearchQueryChanged(
-                            query = "",
-                            suggestionsEnabled = false
-                        )
+                        quickCompareSearchState
+                            .setTextAndPlaceCursorAtEnd("")
                     }
                 } else {
                     catalogRevealed = true

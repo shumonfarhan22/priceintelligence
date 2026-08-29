@@ -33,8 +33,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
@@ -68,6 +69,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +105,14 @@ import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
 import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+
+private enum class InventoryScannerTarget {
+    DIRECTORY_SEARCH,
+    EDITOR_BARCODE
+}
 
 @Composable
 fun OriginalInventoryScreen(
@@ -116,9 +126,32 @@ fun OriginalInventoryScreen(
     val state by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
     val inventoryListState = rememberLazyListState()
+    val directorySearchState =
+        rememberTextFieldState(state.directoryQuery)
+    val editorTextState = rememberInventoryEditorTextState()
 
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var scannerOpen by rememberSaveable { mutableStateOf(false) }
+    var scannerTarget by rememberSaveable {
+        mutableStateOf(InventoryScannerTarget.EDITOR_BARCODE)
+    }
+
+    LaunchedEffect(directorySearchState) {
+        snapshotFlow {
+            directorySearchState.text.toString()
+        }
+            .distinctUntilChanged()
+            .collectLatest { query ->
+                if (query.isNotBlank()) {
+                    delay(250L)
+                }
+
+                viewModel.onDirectoryQueryChanged(
+                    query = query,
+                    debounceMillis = 0L
+                )
+            }
+    }
 
     val cameraPermissionRequester =
         rememberCameraPermissionRequester { granted ->
@@ -138,7 +171,16 @@ fun OriginalInventoryScreen(
             hapticFeedbackEnabled =
                 customization.hapticsEnabled,
             onScanned = { barcode ->
-                viewModel.onFormFieldChanged(barcode = barcode)
+                when (scannerTarget) {
+                    InventoryScannerTarget.DIRECTORY_SEARCH ->
+                        directorySearchState
+                            .setTextAndPlaceCursorAtEnd(barcode)
+
+                    InventoryScannerTarget.EDITOR_BARCODE ->
+                        editorTextState.barcode
+                            .setTextAndPlaceCursorAtEnd(barcode)
+                }
+
                 scannerOpen = false
             },
             onError = { message ->
@@ -278,13 +320,21 @@ fun OriginalInventoryScreen(
             }
 
             ProfessionalInventorySearchField(
-                value = state.directoryQuery,
-                onValueChange = viewModel::onDirectoryQueryChanged,
+                state = directorySearchState,
                 onClear = {
-                    viewModel.onDirectoryQueryChanged("")
+                    directorySearchState.clearText()
                     focusManager.clearFocus()
                 },
+                onScan = {
+                    scannerTarget =
+                        InventoryScannerTarget.DIRECTORY_SEARCH
+                    cameraPermissionRequester.requestPermission()
+                },
                 onDone = {
+                    viewModel.onDirectoryQueryChanged(
+                        query = directorySearchState.text.toString(),
+                        debounceMillis = 0L
+                    )
                     focusManager.clearFocus()
                 }
             )
@@ -402,6 +452,7 @@ fun OriginalInventoryScreen(
                                             viewModel.toggleSelection(item.id)
                                         },
                                         onEdit = {
+                                            editorTextState.load(item)
                                             viewModel.startEditing(item)
                                             editorOpen = true
                                         },
@@ -447,6 +498,7 @@ fun OriginalInventoryScreen(
                 onClick = {
                     viewModel.clearSelection()
                     viewModel.clearForm()
+                    editorTextState.clear()
                     editorOpen = true
                 },
                 modifier = Modifier
@@ -470,34 +522,21 @@ fun OriginalInventoryScreen(
     if (editorOpen) {
         OriginalProductEditorDialog(
             form = state.form,
+            textState = editorTextState,
             statusMessage = state.statusMessage,
             statusIsError = state.statusIsError,
+            onScanBarcode = {
+                scannerTarget =
+                    InventoryScannerTarget.EDITOR_BARCODE
+                cameraPermissionRequester.requestPermission()
+            },
+            onSave = { editedForm, onSaved ->
+                viewModel.saveProduct(
+                    form = editedForm,
+                    onSuccess = onSaved
+                )
+            },
             reduceMotionEnabled = reduceMotionEnabled,
-            onProductNameChanged = { value ->
-                viewModel.onFormFieldChanged(productName = value)
-            },
-            onPurchaseCostChanged = { value ->
-                viewModel.onFormFieldChanged(purchaseCost = value)
-            },
-            onShopPriceChanged = { value ->
-                viewModel.onFormFieldChanged(shopPrice = value)
-            },
-            onBarcodeChanged = { value ->
-                viewModel.onFormFieldChanged(barcode = value)
-            },
-            onScanBarcode = cameraPermissionRequester::requestPermission,
-            onAmazonUrlChanged = { value ->
-                viewModel.onFormFieldChanged(amazonUrl = value)
-            },
-            onFlipkartUrlChanged = { value ->
-                viewModel.onFormFieldChanged(flipkartUrl = value)
-            },
-            onClear = {
-                viewModel.clearFormFields()
-            },
-            onSave = { onSaved ->
-                viewModel.saveProduct(onSaved)
-            },
             onDismiss = {
                 viewModel.clearForm()
                 editorOpen = false

@@ -96,11 +96,16 @@ class InventoryViewModel(
         }
     }
 
-    fun onDirectoryQueryChanged(query: String) {
+    fun onDirectoryQueryChanged(
+        query: String,
+        debounceMillis: Long = 250L
+    ) {
         _uiState.update { it.copy(directoryQuery = query) }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            delay(250.milliseconds)
+            if (debounceMillis > 0L) {
+                delay(debounceMillis.milliseconds)
+            }
             val results = if (query.isBlank()) repository.getAllRecent() else repository.search(query)
             updateVisibleProducts(results)
         }
@@ -204,7 +209,16 @@ class InventoryViewModel(
     }
 
     fun saveProduct(onSuccess: () -> Unit = {}) {
-        val form = _uiState.value.form
+        saveProduct(
+            form = _uiState.value.form,
+            onSuccess = onSuccess
+        )
+    }
+
+    fun saveProduct(
+        form: InventoryFormState,
+        onSuccess: () -> Unit = {}
+    ) {
         val validation = validateInventoryInput(
             productName = form.productName,
             shopPrice = form.shopPrice,

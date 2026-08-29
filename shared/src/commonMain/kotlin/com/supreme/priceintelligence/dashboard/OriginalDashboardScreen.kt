@@ -40,8 +40,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -138,6 +138,8 @@ fun OriginalDashboardScreen(
         (String) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
+    val dashboardSearchState =
+        rememberTextFieldState(state.searchDraft)
     val screenHorizontalPadding =
         if (
             customization.displayDensity ==
@@ -148,6 +150,17 @@ fun OriginalDashboardScreen(
             16.dp
         }
     val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(state.searchDraft) {
+        if (
+            state.searchDraft !=
+            dashboardSearchState.text.toString()
+        ) {
+            dashboardSearchState.setTextAndPlaceCursorAtEnd(
+                state.searchDraft
+            )
+        }
+    }
 
     val priceFreshnessSummary = remember(
         state.allMatchingItems
@@ -548,6 +561,9 @@ fun OriginalDashboardScreen(
                 customization.hapticsEnabled,
             onScanned = { barcode ->
                 scannerOpen = false
+                dashboardSearchState.setTextAndPlaceCursorAtEnd(
+                    barcode
+                )
                 submitDashboardSearch(barcode)
             },
             onError = {
@@ -909,7 +925,7 @@ fun OriginalDashboardScreen(
         }
 
         ProfessionalDashboardSearchOverlay(
-            query = state.searchDraft,
+            searchState = dashboardSearchState,
             suggestions = emptyList(),
             isFocused = searchFocused,
             bottomBannerHeight = bottomBannerHeight,

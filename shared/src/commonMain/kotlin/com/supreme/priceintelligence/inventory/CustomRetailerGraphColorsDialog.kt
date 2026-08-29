@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.foundation.BorderStroke
@@ -17,6 +19,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ShowChart
@@ -37,7 +43,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -46,6 +55,8 @@ import com.supreme.priceintelligence.settings.CustomRetailerChartColors
 import com.supreme.priceintelligence.settings.normalizePaletteHex
 import com.supreme.priceintelligence.ui.theme.paletteColorFromHex
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.input.HexColorInputTransformation
+import com.supreme.priceintelligence.ui.input.withPlatformTextInput
 
 private enum class RetailerGraphColorRole {
     AMAZON,
@@ -68,9 +79,10 @@ internal fun CustomRetailerGraphColorsDialog(
         )
     }
 
-    var hexInput by remember {
-        mutableStateOf(initialColors.amazonHex)
-    }
+    val focusManager = LocalFocusManager.current
+    val hexInputState =
+        rememberTextFieldState(initialColors.amazonHex)
+    val hexInput = hexInputState.text.toString()
 
     val normalizedHex =
         normalizePaletteHex(hexInput)
@@ -80,7 +92,7 @@ internal fun CustomRetailerGraphColorsDialog(
     ) {
         selectedRole = role
 
-        hexInput =
+        hexInputState.setTextAndPlaceCursorAtEnd(
             when (role) {
                 RetailerGraphColorRole.AMAZON ->
                     workingColors.amazonHex
@@ -88,6 +100,7 @@ internal fun CustomRetailerGraphColorsDialog(
                 RetailerGraphColorRole.FLIPKART ->
                     workingColors.flipkartHex
             }
+        )
     }
 
     fun useColor(
@@ -110,7 +123,7 @@ internal fun CustomRetailerGraphColorsDialog(
                     )
             }
 
-        hexInput = normalized
+        hexInputState.setTextAndPlaceCursorAtEnd(normalized)
     }
 
     Dialog(
@@ -284,12 +297,7 @@ internal fun CustomRetailerGraphColorsDialog(
                     )
 
                     OutlinedTextField(
-                        value = hexInput,
-                        onValueChange = { value ->
-                            if (value.length <= 7) {
-                                hexInput = value
-                            }
-                        },
+                        state = hexInputState,
                         modifier =
                             Modifier.fillMaxWidth(),
                         label = {
@@ -332,7 +340,17 @@ internal fun CustomRetailerGraphColorsDialog(
                             )
                         },
                         isError = normalizedHex == null,
-                        singleLine = true,
+                        inputTransformation =
+                            HexColorInputTransformation,
+                        keyboardOptions = KeyboardOptions(
+                            autoCorrectEnabled = false,
+                            keyboardType = KeyboardType.Ascii,
+                            imeAction = ImeAction.Done
+                        ).withPlatformTextInput(),
+                        onKeyboardAction = {
+                            focusManager.clearFocus()
+                        },
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         shape = RoundedCornerShape(12.dp)
                     )
 

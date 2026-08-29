@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.animation.AnimatedContent
@@ -27,6 +29,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.maxLength
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
@@ -68,7 +75,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -85,6 +94,7 @@ import com.supreme.priceintelligence.settings.readAppCustomization
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.semanticPalette
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.input.withPlatformTextInput
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.dashboard.InteractiveAggregateMovementChart
 import com.supreme.priceintelligence.dashboard.OriginalProfessionalProductDetailDialog
@@ -2412,9 +2422,9 @@ private fun SavedSetupNameDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var value by rememberSaveable(initialName) {
-        mutableStateOf(initialName)
-    }
+    val focusManager = LocalFocusManager.current
+    val valueState = rememberTextFieldState(initialName)
+    val value = valueState.text.toString()
 
     val normalizedValue = value.trim()
 
@@ -2449,19 +2459,21 @@ private fun SavedSetupNameDialog(
         },
         text = {
             OutlinedTextField(
-                value = value,
-                onValueChange = {
-                    if (
-                        it.length <=
-                        MAX_SAVED_PRESET_NAME_LENGTH
-                    ) {
-                        value = it
-                    }
-                },
+                state = valueState,
                 label = {
                     Text("Setup name")
                 },
-                singleLine = true,
+                inputTransformation =
+                    InputTransformation.maxLength(
+                        MAX_SAVED_PRESET_NAME_LENGTH
+                    ),
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Done
+                ).withPlatformTextInput(),
+                onKeyboardAction = {
+                    focusManager.clearFocus()
+                },
+                lineLimits = TextFieldLineLimits.SingleLine,
                 isError = duplicate,
                 supportingText = {
                     Text(

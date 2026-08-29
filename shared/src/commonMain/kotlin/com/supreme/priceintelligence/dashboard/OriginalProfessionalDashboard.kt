@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.supreme.priceintelligence.dashboard
 
 import androidx.compose.animation.AnimatedVisibility
@@ -41,8 +43,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
@@ -71,7 +75,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,6 +107,9 @@ import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import com.supreme.priceintelligence.ui.input.withPlatformTextInput
 import org.jetbrains.compose.resources.painterResource
 
 private enum class DashboardCardGlow {
@@ -790,7 +799,7 @@ internal fun ProfessionalDashboardProductCard(
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun ProfessionalDashboardSearchOverlay(
-    query: String,
+    searchState: TextFieldState,
     suggestions: List<String>,
     isFocused: Boolean,
     bottomBannerHeight: Dp,
@@ -805,6 +814,24 @@ internal fun ProfessionalDashboardSearchOverlay(
     morphSearchButton: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val query = searchState.text.toString()
+    val currentOnQueryChange by
+        rememberUpdatedState(onQueryChange)
+
+    LaunchedEffect(searchState) {
+        snapshotFlow {
+            searchState.text.toString()
+        }
+            .distinctUntilChanged()
+            .collectLatest { changedQuery ->
+                if (changedQuery.isNotBlank()) {
+                    delay(80L)
+                }
+
+                currentOnQueryChange(changedQuery)
+            }
+    }
+
     val keyboardBottom =
         WindowInsets.ime
             .asPaddingValues()
@@ -1191,12 +1218,11 @@ internal fun ProfessionalDashboardSearchOverlay(
             if (morphSearchButton) {
                 MorphingQuickCompareSearchBar(
                     isFocused = isFocused,
-                    query = query,
+                    searchState = searchState,
                     reduceMotionEnabled =
                         reduceMotionEnabled,
                     searchFocusRequester =
                         searchFocusRequester,
-                    onQueryChange = onQueryChange,
                     onSubmit = onSubmit,
                     onScanClick = onScanClick,
                     onOpen = {
@@ -1271,15 +1297,13 @@ internal fun ProfessionalDashboardSearchOverlay(
                 Spacer(modifier = Modifier.width(7.dp))
 
                 TextField(
-                    value = query,
-                    onValueChange = onQueryChange,
+                    state = searchState,
                     placeholder = {
                         Text(
                             text = "Search...",
                             color = TextLight
                         )
                     },
-                    singleLine = true,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -1293,7 +1317,7 @@ internal fun ProfessionalDashboardSearchOverlay(
                         if (query.isNotEmpty()) {
                             IconButton(
                                 onClick = {
-                                    onQueryChange("")
+                                    searchState.clearText()
                                 }
                             ) {
                                 Icon(
@@ -1318,14 +1342,13 @@ internal fun ProfessionalDashboardSearchOverlay(
                     ),
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Search
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSearch = {
-                            if (query.isNotBlank()) {
-                                onSubmit(query)
-                            }
+                    ).withPlatformTextInput(),
+                    onKeyboardAction = {
+                        if (query.isNotBlank()) {
+                            onSubmit(query)
                         }
-                    )
+                    },
+                    lineLimits = TextFieldLineLimits.SingleLine
                 )
 
                 Box(
@@ -1365,14 +1388,14 @@ internal fun ProfessionalDashboardSearchOverlay(
 @Composable
 private fun MorphingQuickCompareSearchBar(
     isFocused: Boolean,
-    query: String,
+    searchState: TextFieldState,
     reduceMotionEnabled: Boolean,
     searchFocusRequester: FocusRequester,
-    onQueryChange: (String) -> Unit,
     onSubmit: (String) -> Unit,
     onScanClick: () -> Unit,
     onOpen: () -> Unit
 ) {
+    val query = searchState.text.toString()
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterEnd
@@ -1562,15 +1585,13 @@ private fun MorphingQuickCompareSearchBar(
                         )
 
                         TextField(
-                            value = query,
-                            onValueChange = onQueryChange,
+                            state = searchState,
                             placeholder = {
                                 Text(
                                     text = "Search...",
                                     color = TextLight
                                 )
                             },
-                            singleLine = true,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
@@ -1590,7 +1611,7 @@ private fun MorphingQuickCompareSearchBar(
                                 if (query.isNotEmpty()) {
                                     IconButton(
                                         onClick = {
-                                            onQueryChange("")
+                                            searchState.clearText()
                                         }
                                     ) {
                                         Icon(
@@ -1632,17 +1653,16 @@ private fun MorphingQuickCompareSearchBar(
                                 KeyboardOptions(
                                     imeAction =
                                         ImeAction.Search
-                                ),
-                            keyboardActions =
-                                KeyboardActions(
-                                    onSearch = {
-                                        if (
-                                            query.isNotBlank()
-                                        ) {
-                                            onSubmit(query)
-                                        }
-                                    }
-                                )
+                                ).withPlatformTextInput(),
+                            onKeyboardAction = {
+                                if (
+                                    query.isNotBlank()
+                                ) {
+                                    onSubmit(query)
+                                }
+                            },
+                            lineLimits =
+                                TextFieldLineLimits.SingleLine
                         )
 
                         Box(

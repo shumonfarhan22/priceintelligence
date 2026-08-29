@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.supreme.priceintelligence.inventory
 
 import androidx.compose.foundation.BorderStroke
@@ -21,6 +23,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -37,6 +43,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,11 +51,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,6 +72,8 @@ import com.supreme.priceintelligence.settings.normalizePaletteHex
 import com.supreme.priceintelligence.ui.theme.paletteColorFromHex
 import com.supreme.priceintelligence.ui.theme.semanticPalette
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.input.HexColorInputTransformation
+import com.supreme.priceintelligence.ui.input.withPlatformTextInput
 
 @Composable
 internal fun AppColorPaletteControl(
@@ -189,30 +201,39 @@ internal fun InlineCustomAppColorPaletteEditor(
     palette: CustomAppColorPalette,
     onPaletteChanged: (CustomAppColorPalette) -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
     var selectedRole by remember {
         mutableStateOf(CustomPaletteRole.PRIMARY)
     }
 
-    var hexInput by remember(
-        selectedRole,
-        palette.hexFor(selectedRole)
-    ) {
-        mutableStateOf(palette.hexFor(selectedRole))
-    }
+    val hexInputState =
+        rememberTextFieldState(
+            palette.hexFor(CustomPaletteRole.PRIMARY)
+        )
+    val hexInput = hexInputState.text.toString()
 
     val normalizedHex = normalizePaletteHex(hexInput)
+
+    LaunchedEffect(
+        normalizedHex,
+        selectedRole
+    ) {
+        val validHex = normalizedHex ?: return@LaunchedEffect
+
+        if (palette.hexFor(selectedRole) != validHex) {
+            onPaletteChanged(
+                palette.withHex(
+                    role = selectedRole,
+                    value = validHex
+                )
+            )
+        }
+    }
 
     fun selectColor(hex: String) {
         val normalized = normalizePaletteHex(hex) ?: return
 
-        hexInput = normalized
-
-        onPaletteChanged(
-            palette.withHex(
-                role = selectedRole,
-                value = normalized
-            )
-        )
+        hexInputState.setTextAndPlaceCursorAtEnd(normalized)
     }
 
     Surface(
@@ -276,7 +297,10 @@ internal fun InlineCustomAppColorPaletteEditor(
                                 selected = role == selectedRole,
                                 onClick = {
                                     selectedRole = role
-                                    hexInput = palette.hexFor(role)
+                                    hexInputState
+                                        .setTextAndPlaceCursorAtEnd(
+                                            palette.hexFor(role)
+                                        )
                                 },
                                 modifier = Modifier.weight(1f)
                             )
@@ -303,23 +327,7 @@ internal fun InlineCustomAppColorPaletteEditor(
             )
 
             OutlinedTextField(
-                value = hexInput,
-                onValueChange = { value ->
-                    if (value.length <= 7) {
-                        hexInput = value
-
-                        normalizePaletteHex(value)?.let {
-                                validHex ->
-
-                            onPaletteChanged(
-                                palette.withHex(
-                                    role = selectedRole,
-                                    value = validHex
-                                )
-                            )
-                        }
-                    }
-                },
+                state = hexInputState,
                 modifier = Modifier.fillMaxWidth(),
                 label = {
                     Text("Exact hex colour")
@@ -350,7 +358,17 @@ internal fun InlineCustomAppColorPaletteEditor(
                     )
                 },
                 isError = normalizedHex == null,
-                singleLine = true,
+                inputTransformation =
+                    HexColorInputTransformation,
+                keyboardOptions = KeyboardOptions(
+                    autoCorrectEnabled = false,
+                    keyboardType = KeyboardType.Ascii,
+                    imeAction = ImeAction.Done
+                ).withPlatformTextInput(),
+                onKeyboardAction = {
+                    focusManager.clearFocus()
+                },
+                lineLimits = TextFieldLineLimits.SingleLine,
                 shape = RoundedCornerShape(12.dp)
             )
 
@@ -501,6 +519,7 @@ internal fun CustomAppColorPaletteDialog(
     onApply: (CustomAppColorPalette) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val focusManager = LocalFocusManager.current
     var workingPalette by remember(
         initialPalette
     ) {
@@ -513,11 +532,9 @@ internal fun CustomAppColorPaletteDialog(
         )
     }
 
-    var hexInput by remember {
-        mutableStateOf(
-            initialPalette.primaryHex
-        )
-    }
+    val hexInputState =
+        rememberTextFieldState(initialPalette.primaryHex)
+    val hexInput = hexInputState.text.toString()
 
     val normalizedHex =
         normalizePaletteHex(hexInput)
@@ -526,8 +543,9 @@ internal fun CustomAppColorPaletteDialog(
         role: CustomPaletteRole
     ) {
         selectedRole = role
-        hexInput =
+        hexInputState.setTextAndPlaceCursorAtEnd(
             workingPalette.hexFor(role)
+        )
     }
 
     fun selectColor(
@@ -543,7 +561,7 @@ internal fun CustomAppColorPaletteDialog(
                 value = normalized
             )
 
-        hexInput = normalized
+        hexInputState.setTextAndPlaceCursorAtEnd(normalized)
     }
 
     Dialog(
@@ -724,12 +742,7 @@ internal fun CustomAppColorPaletteDialog(
                     )
 
                     OutlinedTextField(
-                        value = hexInput,
-                        onValueChange = { value ->
-                            if (value.length <= 7) {
-                                hexInput = value
-                            }
-                        },
+                        state = hexInputState,
                         modifier =
                             Modifier.fillMaxWidth(),
                         label = {
@@ -762,7 +775,17 @@ internal fun CustomAppColorPaletteDialog(
                             )
                         },
                         isError = normalizedHex == null,
-                        singleLine = true,
+                        inputTransformation =
+                            HexColorInputTransformation,
+                        keyboardOptions = KeyboardOptions(
+                            autoCorrectEnabled = false,
+                            keyboardType = KeyboardType.Ascii,
+                            imeAction = ImeAction.Done
+                        ).withPlatformTextInput(),
+                        onKeyboardAction = {
+                            focusManager.clearFocus()
+                        },
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         shape = RoundedCornerShape(12.dp)
                     )
 
