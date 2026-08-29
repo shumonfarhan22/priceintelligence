@@ -837,7 +837,9 @@ internal fun ProfessionalDashboardSearchOverlay(
                 additionalBannerHeight
 
     val searchBarBottom =
-        if (isFocused || keyboardVisible) {
+        if (platformUsesNativeFocusKeyboardPan) {
+            restingSearchBarBottom
+        } else if (isFocused || keyboardVisible) {
             maxOf(
                 restingSearchBarBottom,
                 keyboardClearance + 8.dp
@@ -1003,7 +1005,7 @@ internal fun ProfessionalDashboardSearchOverlay(
             }
         }
 
-        if (focusScrimAlpha > 0f) {
+        if (isFocused) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

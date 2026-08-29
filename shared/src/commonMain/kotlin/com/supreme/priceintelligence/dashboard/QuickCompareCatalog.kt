@@ -88,6 +88,34 @@ internal fun QuickCompareCatalogGrid(
         gridState.scrollToItem(0)
     }
 
+    val skeletonShimmerProgress =
+        if (reduceMotionEnabled) {
+            0f
+        } else {
+            val transition =
+                rememberInfiniteTransition(
+                    label =
+                        "quickCompareSkeletonShimmer"
+                )
+
+            val progress by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec =
+                    infiniteRepeatable(
+                        animation = tween(
+                            durationMillis = 1800,
+                            easing = LinearEasing
+                        ),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                label =
+                    "quickCompareSkeletonProgress"
+            )
+
+            progress
+        }
+
     Column(
         modifier = modifier.fillMaxSize()
     ) {
@@ -153,7 +181,9 @@ internal fun QuickCompareCatalogGrid(
                             singleColumn =
                                 singleColumn,
                             reduceMotionEnabled =
-                                reduceMotionEnabled
+                                reduceMotionEnabled,
+                            shimmerProgress =
+                                skeletonShimmerProgress
                         )
                     }
                 } else {
@@ -220,7 +250,8 @@ internal fun QuickCompareCatalogGrid(
 @Composable
 private fun QuickComparePlaceholderCard(
     singleColumn: Boolean,
-    reduceMotionEnabled: Boolean
+    reduceMotionEnabled: Boolean,
+    shimmerProgress: Float
 ) {
     val placeholderColor =
         MaterialTheme
@@ -232,34 +263,6 @@ private fun QuickComparePlaceholderCard(
         MaterialTheme
             .colorScheme
             .onSurface
-
-    val shimmerProgress =
-        if (reduceMotionEnabled) {
-            0f
-        } else {
-            val transition =
-                rememberInfiniteTransition(
-                    label =
-                        "quickCompareSkeletonShimmer"
-                )
-
-            val progress by transition.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec =
-                    infiniteRepeatable(
-                        animation = tween(
-                            durationMillis = 3400,
-                            easing = LinearEasing
-                        ),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                label =
-                    "quickCompareSkeletonProgress"
-            )
-
-            progress
-        }
 
     Surface(
         modifier = Modifier
@@ -290,19 +293,19 @@ private fun QuickComparePlaceholderCard(
                                     Color.Transparent,
                                     Color.Transparent,
                                     shimmerColor.copy(
-                                        alpha = 0.012f
+                                        alpha = 0.025f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.035f
+                                        alpha = 0.075f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.10f
+                                        alpha = 0.18f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.035f
+                                        alpha = 0.075f
                                     ),
                                     shimmerColor.copy(
-                                        alpha = 0.012f
+                                        alpha = 0.025f
                                     ),
                                     Color.Transparent,
                                     Color.Transparent
@@ -320,7 +323,7 @@ private fun QuickComparePlaceholderCard(
                                     y = verticalMovement
                                 ),
                                 tileMode =
-                                    TileMode.Clamp
+                                    TileMode.Repeated
                             )
                     )
                 }

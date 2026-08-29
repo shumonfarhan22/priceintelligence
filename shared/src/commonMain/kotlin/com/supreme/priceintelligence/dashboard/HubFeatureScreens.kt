@@ -9,7 +9,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -622,37 +621,6 @@ internal fun QuickCompareScreen(
                 .weight(1f)
                 .fillMaxWidth()
         )
-        }
-
-        if (
-            quickCompareSearchFocused &&
-            (
-                state.searchDraft.isBlank() ||
-                    state.suggestions.isEmpty()
-            )
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource =
-                            remember {
-                                MutableInteractionSource()
-                            },
-                        indication = null,
-                        onClick = {
-                            quickCompareSearchFocused = false
-                            catalogRevealed = true
-                            keyboardController?.hide()
-                            focusManager.clearFocus()
-
-                            viewModel.onSearchFocusChanged(
-                                focused = false,
-                                suggestionsEnabled = false
-                            )
-                        }
-                    )
-            )
         }
 
         ProfessionalDashboardSearchOverlay(
