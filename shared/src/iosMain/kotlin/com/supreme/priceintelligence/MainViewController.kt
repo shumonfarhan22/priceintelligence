@@ -2,6 +2,7 @@ package com.supreme.priceintelligence
 
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.uikit.OnFocusBehavior
 import androidx.compose.ui.window.ComposeUIViewController
 import com.supreme.priceintelligence.dashboard.IosPriceChangeNotifier
 import com.supreme.priceintelligence.data.getDatabaseBuilder
@@ -27,7 +28,11 @@ fun MainViewController(): UIViewController {
     val appPreferences = IosAppPreferences()
     var controllerReference: UIViewController? = null
 
-    val controller = ComposeUIViewController {
+    val controller = ComposeUIViewController(
+        configure = {
+            onFocusBehavior = OnFocusBehavior.DoNothing
+        }
+    ) {
         val databaseBuilder = remember {
             getDatabaseBuilder()
         }
