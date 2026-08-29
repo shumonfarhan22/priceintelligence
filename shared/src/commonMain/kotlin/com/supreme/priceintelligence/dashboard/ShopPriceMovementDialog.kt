@@ -104,6 +104,8 @@ fun ShopPriceMovementDialog(
     notificationTarget:
         PriceMovementNotificationTarget? = null,
     useInternalTransition: Boolean = true,
+    applySystemInsets: Boolean = true,
+    focusOverviewPreview: Boolean = false,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -279,21 +281,30 @@ fun ShopPriceMovementDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
+                    .then(
+                        if (applySystemInsets) {
+                            Modifier
+                                .statusBarsPadding()
+                                .navigationBarsPadding()
+                        } else {
+                            Modifier
+                        }
+                    )
             ) {
-                MovementHeader(
-                    isLoading = isLoading,
-                    onRefresh = onRefresh,
-                    onBack = requestDismiss
-                )
+                if (!focusOverviewPreview) {
+                    MovementHeader(
+                        isLoading = isLoading,
+                        onRefresh = onRefresh,
+                        onBack = requestDismiss
+                    )
 
-                HorizontalDivider(
-                    color =
-                        MaterialTheme
-                            .supremeColors
-                            .border
-                )
+                    HorizontalDivider(
+                        color =
+                            MaterialTheme
+                                .supremeColors
+                                .border
+                    )
+                }
 
                 when {
                     isLoading -> {
@@ -329,6 +340,8 @@ fun ShopPriceMovementDialog(
                                 reduceMotionEnabled,
                             customization =
                                 customization,
+                            focusOverviewPreview =
+                                focusOverviewPreview,
                             onRangeSelected = {
                                 selectedRangeName =
                                     it.name
@@ -441,6 +454,7 @@ private fun MovementContent(
         PriceMovementNotificationTarget?,
     reduceMotionEnabled: Boolean,
     customization: AppCustomization,
+    focusOverviewPreview: Boolean,
     onRangeSelected:
         (ShopMovementRange) -> Unit,
     onRetailerSelected:
@@ -449,6 +463,38 @@ private fun MovementContent(
 ) {
     val listState = rememberLazyListState()
     val insight = customization.insightCustomization
+    val focusedGraphItemIndex =
+        when {
+            movementView.products.isEmpty() &&
+                insight.movementLayout ==
+                    MovementLayout.OVERVIEW_FIRST ->
+                1
+
+            movementView.products.isEmpty() ->
+                2
+
+            insight.movementLayout ==
+                MovementLayout.OVERVIEW_FIRST ->
+                3
+
+            else ->
+                2
+        }
+
+    LaunchedEffect(
+        focusOverviewPreview,
+        focusedGraphItemIndex
+    ) {
+        listState.scrollToItem(
+            index =
+                if (focusOverviewPreview) {
+                    focusedGraphItemIndex
+                } else {
+                    0
+                },
+            scrollOffset = 0
+        )
+    }
 
     LaunchedEffect(
         notificationTarget?.requestId,

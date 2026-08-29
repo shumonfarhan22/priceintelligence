@@ -109,7 +109,8 @@ internal fun OriginalProfessionalProductDetailDialog(
     isHistoryLoading: Boolean,
     priceHistory: List<PriceHistoryEntry>,
     onRefresh: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    embeddedPreview: Boolean = false
 ) {
     val item = card.item
     val openUrl = rememberUrlOpener()
@@ -468,13 +469,7 @@ internal fun OriginalProfessionalProductDetailDialog(
         }
     }
 
-    Dialog(
-        onDismissRequest = requestDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnClickOutside = false
-        )
-    ) {
+    val detailContent: @Composable () -> Unit = {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1177,6 +1172,20 @@ internal fun OriginalProfessionalProductDetailDialog(
                     }
                 }
             }
+        }
+    }
+
+    if (embeddedPreview) {
+        detailContent()
+    } else {
+        Dialog(
+            onDismissRequest = requestDismiss,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnClickOutside = false
+            )
+        ) {
+            detailContent()
         }
     }
 

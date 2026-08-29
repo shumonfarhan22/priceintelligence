@@ -160,11 +160,6 @@ internal fun PersonalizationAccordionDialog(
         mutableStateOf(false)
     }
 
-    var customRetailerColorsEditorOpen by
-        rememberSaveable {
-            mutableStateOf(false)
-        }
-
     val insight = customization.insightCustomization
     val defaults = AppCustomization()
     val insightDefaults = InsightCustomization()
@@ -267,7 +262,7 @@ internal fun PersonalizationAccordionDialog(
                             if (expandedSectionName == null) {
                                 1f
                             } else {
-                                1.05f
+                                1.25f
                             }
                         )
                         .fillMaxWidth()
@@ -281,7 +276,7 @@ internal fun PersonalizationAccordionDialog(
                 if (expandedSectionName != null) {
                     LazyColumn(
                     modifier = Modifier
-                        .weight(0.90f)
+                        .weight(0.75f)
                         .fillMaxWidth(),
                     contentPadding = PaddingValues(
                         start = 14.dp,
@@ -292,7 +287,7 @@ internal fun PersonalizationAccordionDialog(
                 ) {
                     item {
                         AccordionSectionCard(
-                            title = "Appearance & accessibility",
+                            title = "Appearance",
                             summary = appearanceSummary(themeMode, customization),
                             icon = Icons.Rounded.Palette,
                             expanded = expandedSectionName == PersonalizationSection.APPEARANCE.name,
@@ -313,8 +308,18 @@ internal fun PersonalizationAccordionDialog(
                             AppColorPaletteControl(
                                 customization =
                                     customization,
+                                customEditorExpanded =
+                                    customPaletteEditorOpen,
                                 onPaletteSelected = {
                                         palette ->
+
+                                    if (
+                                        palette !=
+                                            AppColorPalette.CUSTOM
+                                    ) {
+                                        customPaletteEditorOpen =
+                                            false
+                                    }
 
                                     onCustomizationChanged(
                                         customization.copy(
@@ -325,9 +330,34 @@ internal fun PersonalizationAccordionDialog(
                                 },
                                 onEditCustomPalette = {
                                     customPaletteEditorOpen =
-                                        true
+                                        !customPaletteEditorOpen
                                 }
                             )
+
+                            if (
+                                customization.appColorPalette ==
+                                    AppColorPalette.CUSTOM &&
+                                customPaletteEditorOpen
+                            ) {
+                                InlineCustomAppColorPaletteEditor(
+                                    palette =
+                                        customization
+                                            .customColorPalette,
+                                    onPaletteChanged = {
+                                            updatedPalette ->
+
+                                        onCustomizationChanged(
+                                            customization.copy(
+                                                appColorPalette =
+                                                    AppColorPalette.CUSTOM,
+                                                customColorPalette =
+                                                    updatedPalette
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+
                             ChoiceGroup(
                                 "Font style",
                                 AppFontStyle.entries,
@@ -343,32 +373,11 @@ internal fun PersonalizationAccordionDialog(
                                 { onCustomizationChanged(customization.copy(textSize = it)) }
                             )
                             ChoiceGroup(
-                                "Screen spacing",
-                                AppDisplayDensity.entries,
-                                customization.displayDensity,
-                                { it.displayName },
-                                { onCustomizationChanged(customization.copy(displayDensity = it)) }
-                            )
-                            ChoiceGroup(
                                 "Contrast",
                                 AppContrastMode.entries,
                                 insight.contrastMode,
                                 { it.displayName },
                                 { value -> updateInsight { it.copy(contrastMode = value) } }
-                            )
-                            ChoiceGroup(
-                                "Surface style",
-                                AppSurfaceStyle.entries,
-                                insight.surfaceStyle,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(surfaceStyle = value) } }
-                            )
-                            ChoiceGroup(
-                                "Price emphasis",
-                                PriceEmphasis.entries,
-                                insight.priceEmphasis,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(priceEmphasis = value) } }
                             )
                             SettingSwitch(
                                 "Reduce transparency",
@@ -443,7 +452,7 @@ internal fun PersonalizationAccordionDialog(
                     item {
                         AccordionSectionCard(
                             "Shop Summary",
-                            "${insight.breakdownLayout.displayName} • ${insight.priorityProductLimit.displayName} • ${insight.prioritySortMode.displayName}",
+                            "${insight.priorityProductLimit.displayName} • ${insight.prioritySortMode.displayName} • ${insight.priorityRowStyle.displayName}",
                             Icons.Rounded.Storefront,
                             expandedSectionName == PersonalizationSection.SHOP_SUMMARY.name,
                             {
@@ -454,35 +463,7 @@ internal fun PersonalizationAccordionDialog(
                             }
                         ) {
                             HelpText(
-                                "Controls the Shop Overview, breakdown and Top Priorities shown on the Launch Hub."
-                            )
-                            ChoiceGroup(
-                                "Shop Overview starts",
-                                SectionStartState.entries,
-                                insight.shopOverviewStartState,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(shopOverviewStartState = value) } }
-                            )
-                            ChoiceGroup(
-                                "Breakdown starts",
-                                SectionStartState.entries,
-                                insight.breakdownStartState,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(breakdownStartState = value) } }
-                            )
-                            ChoiceGroup(
-                                "Breakdown appearance",
-                                BreakdownLayout.entries,
-                                insight.breakdownLayout,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(breakdownLayout = value) } }
-                            )
-                            ChoiceGroup(
-                                "Breakdown values",
-                                BreakdownValueMode.entries,
-                                insight.breakdownValueMode,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(breakdownValueMode = value) } }
+                                "Controls the Top Priorities section shown on the Launch Hub."
                             )
                             ChoiceGroup(
                                 "Top Priorities starts",
@@ -577,56 +558,6 @@ internal fun PersonalizationAccordionDialog(
                                 { value -> updateInsight { it.copy(historyGraphStyle = value) } }
                             )
                             ChoiceGroup(
-                                title = "Retailer colours · Amazon / Flipkart",
-                                options = RetailerChartPalette.entries,
-                                selected = insight.retailerChartPalette,
-                                label = { it.displayName },
-                                onSelected = { value ->
-                                    updateInsight {
-                                        it.copy(
-                                            retailerChartPalette =
-                                                value
-                                        )
-                                    }
-                                },
-                                colourPreview = {
-                                    it.retailerChartColors(
-                                        insight.customRetailerChartColors
-                                    ).amazon
-                                },
-                                secondaryColourPreview = {
-                                    it.retailerChartColors(
-                                        insight.customRetailerChartColors
-                                    ).flipkart
-                                }
-                            )
-
-                            if (
-                                insight.retailerChartPalette ==
-                                RetailerChartPalette.CUSTOM
-                            ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        customRetailerColorsEditorOpen =
-                                            true
-                                    },
-                                    modifier =
-                                        Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        "Edit Amazon / Flipkart hex colours"
-                                    )
-                                }
-                            }
-
-                            ChoiceGroup(
-                                "Graph size",
-                                GraphSize.entries,
-                                insight.graphSize,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(graphSize = value) } }
-                            )
-                            ChoiceGroup(
                                 "Point information",
                                 GraphPointMode.entries,
                                 insight.graphPointMode,
@@ -680,25 +611,11 @@ internal fun PersonalizationAccordionDialog(
                                 { value -> updateInsight { it.copy(movementDefaultRetailer = value) } }
                             )
                             ChoiceGroup(
-                                "Opening layout",
-                                MovementLayout.entries,
-                                insight.movementLayout,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(movementLayout = value) } }
-                            )
-                            ChoiceGroup(
                                 "Changed-product sorting",
                                 MovementProductSort.entries,
                                 insight.movementProductSort,
                                 { it.displayName },
                                 { value -> updateInsight { it.copy(movementProductSort = value) } }
-                            )
-                            ChoiceGroup(
-                                "Direction filter",
-                                MovementDirectionFilter.entries,
-                                insight.movementDirectionFilter,
-                                { it.displayName },
-                                { value -> updateInsight { it.copy(movementDirectionFilter = value) } }
                             )
                             ChoiceGroup(
                                 "Product graph style",
@@ -735,7 +652,7 @@ internal fun PersonalizationAccordionDialog(
                     item {
                         AccordionSectionCard(
                             "Alerts & automatic checks",
-                            "Daily checks ${if (customization.automaticPriceChecksEnabled) "on" else "off"} • Alerts ${if (priceChangeNotificationsEnabled) "on" else "off"} • ${customization.motionPreference.displayName}",
+                            "Daily checks ${if (customization.automaticPriceChecksEnabled) "on" else "off"} • Alerts ${if (priceChangeNotificationsEnabled) "on" else "off"}",
                             Icons.Rounded.Notifications,
                             expandedSectionName == PersonalizationSection.ALERTS_BEHAVIOUR.name,
                             {
@@ -745,18 +662,6 @@ internal fun PersonalizationAccordionDialog(
                                 )
                             }
                         ) {
-                            ChoiceGroup(
-                                "Motion",
-                                AppMotionPreference.entries,
-                                customization.motionPreference,
-                                { it.displayName },
-                                { onCustomizationChanged(customization.copy(motionPreference = it)) }
-                            )
-                            SettingSwitch(
-                                "Scan vibration",
-                                "Vibrate after a barcode is read successfully.",
-                                customization.hapticsEnabled
-                            ) { onCustomizationChanged(customization.copy(hapticsEnabled = it)) }
                             SettingSwitch(
                                 "Automatic daily price checks",
                                 "Checks each linked product at most once per day and keeps the rolling price history useful.",
@@ -795,8 +700,6 @@ internal fun PersonalizationAccordionDialog(
                                 onPriceChangeNotificationsChanged(false)
                                 onCustomizationChanged(
                                     customization.copy(
-                                        motionPreference = defaults.motionPreference,
-                                        hapticsEnabled = defaults.hapticsEnabled,
                                         automaticPriceChecksEnabled =
                                             defaults.automaticPriceChecksEnabled,
                                         priceAlertDirection = defaults.priceAlertDirection,
@@ -807,8 +710,15 @@ internal fun PersonalizationAccordionDialog(
                         }
                     }
 
-                    item {
-                        NamedPersonalizationSetupsSection(
+                    if (
+                        selectedSection ==
+                            PersonalizationSection.APPEARANCE &&
+                        customization
+                            .savedPersonalizationPresets
+                            .isNotEmpty()
+                    ) {
+                        item {
+                            NamedPersonalizationSetupsSection(
                             presets =
                                 customization
                                     .savedPersonalizationPresets,
@@ -971,7 +881,8 @@ internal fun PersonalizationAccordionDialog(
                                     )
                                 )
                             }
-                        )
+                            )
+                        }
                     }
 
                 }
@@ -985,51 +896,6 @@ internal fun PersonalizationAccordionDialog(
         }
     }
 
-    if (customRetailerColorsEditorOpen) {
-        CustomRetailerGraphColorsDialog(
-            initialColors =
-                insight.customRetailerChartColors,
-            onApply = { updatedColors ->
-                updateInsight {
-                    it.copy(
-                        retailerChartPalette =
-                            RetailerChartPalette.CUSTOM,
-                        customRetailerChartColors =
-                            updatedColors
-                    )
-                }
-
-                customRetailerColorsEditorOpen =
-                    false
-            },
-            onDismiss = {
-                customRetailerColorsEditorOpen =
-                    false
-            }
-        )
-    }
-
-    if (customPaletteEditorOpen) {
-        CustomAppColorPaletteDialog(
-            initialPalette =
-                customization.customColorPalette,
-            onApply = { updatedPalette ->
-                onCustomizationChanged(
-                    customization.copy(
-                        appColorPalette =
-                            AppColorPalette.CUSTOM,
-                        customColorPalette =
-                            updatedPalette
-                    )
-                )
-
-                customPaletteEditorOpen = false
-            },
-            onDismiss = {
-                customPaletteEditorOpen = false
-            }
-        )
-    }
 }
 
 @Composable

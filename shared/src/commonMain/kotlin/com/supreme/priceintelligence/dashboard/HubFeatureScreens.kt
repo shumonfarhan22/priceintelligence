@@ -80,6 +80,7 @@ internal fun QuickCompareScreen(
     customization: AppCustomization,
     onNavigateHome: () -> Unit,
     previewMode: Boolean = false,
+    focusCatalogPreview: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -112,7 +113,7 @@ internal fun QuickCompareScreen(
     }
 
     var catalogRevealed by rememberSaveable {
-        mutableStateOf(false)
+        mutableStateOf(previewMode)
     }
 
     val quickCompareGridState =
@@ -347,7 +348,9 @@ internal fun QuickCompareScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             AnimatedVisibility(
-                visible = quickCompareSearchVisible,
+                visible =
+                    quickCompareSearchVisible &&
+                        !focusCatalogPreview,
                 enter =
                     if (reduceMotionEnabled) {
                         fadeIn(

@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +69,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -85,8 +87,10 @@ import com.supreme.priceintelligence.ui.theme.semanticPalette
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.dashboard.InteractiveAggregateMovementChart
+import com.supreme.priceintelligence.dashboard.OriginalProfessionalProductDetailDialog
 import com.supreme.priceintelligence.dashboard.ProductCardUiState
 import com.supreme.priceintelligence.dashboard.QuickCompareScreen
+import com.supreme.priceintelligence.dashboard.ShopPriceMovementDialog
 import com.supreme.priceintelligence.dashboard.ShopMovementRange
 import com.supreme.priceintelligence.dashboard.buildDecisionSummary
 import com.supreme.priceintelligence.dashboard.buildPriceFreshnessSummary
@@ -141,85 +145,75 @@ internal fun AdaptivePersonalizationPreview(
             )
     }
 
-    val currentDensity = LocalDensity.current
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.supremeColors.panel,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.supremeColors.border
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp)
+    LaunchedEffect(target) {
+        if (
+            target ==
+                PersonalizationPreviewTarget.PRICE_MOVEMENT
         ) {
-            Box(
+            dashboardViewModel.loadShopPriceMovement()
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 8.dp)
+    ) {
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .aspectRatio(
-                            ratio = 9f / 16f,
-                            matchHeightConstraintsFirst = true
+                val currentDensity =
+                    LocalDensity.current
+
+                val previewScale =
+                    minOf(
+                        maxWidth.value / 390f,
+                        maxHeight.value / 820f,
+                        0.92f
+                    )
+
+                val fittedDensity = remember(
+                    currentDensity.density,
+                    currentDensity.fontScale,
+                    previewScale
+                ) {
+                    Density(
+                        density =
+                            currentDensity.density *
+                                previewScale,
+                        fontScale =
+                            currentDensity.fontScale
+                    )
+                }
+
+                CompositionLocalProvider(
+                    LocalDensity provides
+                        fittedDensity
+                ) {
+                    Surface(
+                        modifier = Modifier.size(
+                            width = 390.dp,
+                            height = 820.dp
                         ),
-                    shape = RoundedCornerShape(18.dp),
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .background,
-                    border = BorderStroke(
-                        width = 1.5.dp,
+                        shape = RoundedCornerShape(22.dp),
                         color =
                             MaterialTheme
                                 .colorScheme
-                                .primary
-                                .copy(alpha = 0.55f)
-                    )
-                ) {
-                    BoxWithConstraints(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(4.dp)
+                                .background,
+                        border = BorderStroke(
+                            width = 1.5.dp,
+                            color =
+                                MaterialTheme
+                                    .colorScheme
+                                    .primary
+                                    .copy(alpha = 0.55f)
+                        )
                     ) {
-                        val previewScale =
-                            minOf(
-                                maxWidth.value / 390f,
-                                maxHeight.value / 820f
-                            ).coerceIn(
-                                minimumValue = 0.22f,
-                                maximumValue = 0.82f
-                            )
-
-                        val miniatureDensity = remember(
-                            currentDensity.density,
-                            currentDensity.fontScale,
-                            previewScale
-                        ) {
-                            Density(
-                                density =
-                                    currentDensity.density *
-                                        previewScale,
-                                fontScale =
-                                    currentDensity
-                                        .fontScale
-                                        .coerceIn(
-                                            minimumValue = 0.90f,
-                                            maximumValue = 1.20f
-                                        )
-                            )
-                        }
-
-                        CompositionLocalProvider(
-                            LocalDensity provides
-                                miniatureDensity
+                        Box(
+                            modifier = Modifier.fillMaxSize()
                         ) {
                             PersonalizationLivePreviewContent(
                                 dashboardViewModel =
@@ -237,7 +231,6 @@ internal fun AdaptivePersonalizationPreview(
                                     reduceMotionEnabled
                             )
                         }
-
                     }
                 }
             }
@@ -257,7 +250,6 @@ internal fun AdaptivePersonalizationPreview(
                     onTargetSelected = onTargetSelected
                 )
             }
-        }
     }
 }
 
@@ -284,22 +276,35 @@ private fun PersonalizationEditorZones(
                 PersonalizationSection.ALERTS_BEHAVIOUR
         }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    if (
+        target ==
+            PersonalizationPreviewTarget.LAUNCH_HUB
     ) {
-        PersonalizationEditorButton(
-            label = "Appearance",
-            section = PersonalizationSection.APPEARANCE,
-            onSectionSelected = onSectionSelected,
-            modifier = Modifier.weight(1f)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            PersonalizationEditorButton(
+                label = "Appearance",
+                section =
+                    PersonalizationSection.APPEARANCE,
+                onSectionSelected = onSectionSelected,
+                modifier = Modifier.weight(1f)
+            )
 
+            PersonalizationEditorButton(
+                label = targetSection.editorLabel(),
+                section = targetSection,
+                onSectionSelected = onSectionSelected,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    } else {
         PersonalizationEditorButton(
             label = targetSection.editorLabel(),
             section = targetSection,
             onSectionSelected = onSectionSelected,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -496,15 +501,20 @@ private fun PersonalizationLivePreviewContent(
             when (visibleTarget) {
                 PersonalizationPreviewTarget.LAUNCH_HUB ->
                     LaunchHubScreen(
-                        isConnected = dashboardState.isConnected,
+                        isConnected =
+                            dashboardState.isConnected,
                         decisionSummary = decisionSummary,
-                        freshnessSummary = freshnessSummary,
-                        activeFilter = dashboardState.priceFilter,
+                        freshnessSummary =
+                            freshnessSummary,
+                        activeFilter =
+                            dashboardState.priceFilter,
                         refreshTick =
-                            dashboardState.refreshCollapseTick,
+                            dashboardState
+                                .refreshCollapseTick,
                         reduceMotionEnabled = true,
                         insightCustomization =
-                            customization.insightCustomization,
+                            customization
+                                .insightCustomization,
                         onDashboardClick = {},
                         onInventoryClick = {},
                         onPriceMovementClick = {},
@@ -517,25 +527,78 @@ private fun PersonalizationLivePreviewContent(
                 PersonalizationPreviewTarget.QUICK_COMPARE ->
                     QuickCompareScreen(
                         viewModel = dashboardViewModel,
-                        advancedModeEnabled = false,
+                        advancedModeEnabled = true,
                         reduceMotionEnabled = true,
                         customization = customization,
                         onNavigateHome = {},
                         previewMode = true,
+                        focusCatalogPreview = false,
                         modifier = Modifier.fillMaxSize()
                     )
 
-                PersonalizationPreviewTarget.PRODUCT_DETAILS ->
-                    ProductDetailsPreview(
-                        card = dashboardState
-                            .pageItems
-                            .firstOrNull()
-                    )
+                PersonalizationPreviewTarget.PRODUCT_DETAILS -> {
+                    val card =
+                        dashboardState.pageItems.firstOrNull()
+
+                    if (card == null) {
+                        EmptyAuthenticPreview(
+                            message =
+                                "Add a product to preview its real comparison window."
+                        )
+                    } else {
+                        QuickCompareScreen(
+                            viewModel = dashboardViewModel,
+                            advancedModeEnabled = true,
+                            reduceMotionEnabled = true,
+                            customization = customization,
+                            onNavigateHome = {},
+                            previewMode = true,
+                            focusCatalogPreview = false,
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        OriginalProfessionalProductDetailDialog(
+                            card = card,
+                            networkState =
+                                dashboardState.bloomState,
+                            advancedModeEnabled = true,
+                            reduceMotionEnabled = true,
+                            insightCustomization =
+                                customization
+                                    .insightCustomization,
+                            isHistoryLoading =
+                                card.item.id in
+                                    dashboardState
+                                        .historyLoadingProductIds,
+                            priceHistory =
+                                dashboardState
+                                    .priceHistoryByProduct[
+                                        card.item.id
+                                    ].orEmpty(),
+                            onRefresh = {},
+                            onDismiss = {},
+                            embeddedPreview = true
+                        )
+                    }
+                }
 
                 PersonalizationPreviewTarget.PRICE_MOVEMENT ->
-                    LivePriceMovementPreview(
+                    ShopPriceMovementDialog(
+                        snapshot =
+                            dashboardState.shopPriceMovement,
+                        isLoading =
+                            dashboardState
+                                .isShopPriceMovementLoading,
+                        errorMessage =
+                            dashboardState
+                                .shopPriceMovementError,
+                        reduceMotionEnabled = true,
                         customization = customization,
-                        dashboardState = dashboardState
+                        useInternalTransition = false,
+                        applySystemInsets = false,
+                        focusOverviewPreview = true,
+                        onRefresh = {},
+                        onDismiss = {}
                     )
 
                 PersonalizationPreviewTarget.ALERTS ->
@@ -554,6 +617,29 @@ private fun PersonalizationLivePreviewContent(
                     )
             )
         }
+    }
+}
+
+@Composable
+private fun EmptyAuthenticPreview(
+    message: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = message,
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .onSurfaceVariant,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -944,37 +1030,17 @@ private fun DashboardPreview(
     customization: AppCustomization
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "‹",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 25.sp
-            )
-
-            Spacer(modifier = Modifier.width(5.dp))
-
-            Text(
-                text = "SUPREME",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Black,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement =
                 Arrangement.SpaceBetween
         ) {
             Text(
-                text = "PRODUCTS",
+                text = "QUICK COMPARE",
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = 8.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.ExtraBold
             )
 
@@ -987,39 +1053,114 @@ private fun DashboardPreview(
                     MaterialTheme
                         .colorScheme
                         .onSurfaceVariant,
-                fontSize = 8.sp
+                fontSize = 10.sp
             )
         }
 
-        PreviewProductCard(
-            name = "Prestige Pressure Cooker",
-            price = "₹3,499",
-            positive = true
+        Text(
+            text =
+                "${customization.dashboardPageSize.displayName} products per page",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 10.sp
         )
 
-        PreviewProductCard(
-            name = "Hawkins Cookware Set",
-            price = "₹2,799",
-            positive = false
-        )
-
-        Surface(
-            modifier = Modifier
-                .align(Alignment.End)
-                .size(42.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            QuickComparePreviewCard(
+                name = "Prestige Triply Pressure Cooker",
+                price = "₹3,841",
+                positive = true,
+                modifier = Modifier.weight(1f)
+            )
+
+            QuickComparePreviewCard(
+                name = "Hawkins Stainless Cookware Set",
+                price = "₹2,799",
+                positive = false,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickComparePreviewCard(
+    name: String,
+    price: String,
+    positive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val statusColor =
+        if (positive) {
+            MaterialTheme.supremeColors.competitive
+        } else {
+            MaterialTheme.colorScheme.error
+        }
+
+    Surface(
+        modifier = modifier.heightIn(min = 220.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.supremeColors.panelMuted,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.supremeColors.border
+        )
+    ) {
+        Column {
             Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(98.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surface,
+                        RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 16.dp
+                        )
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "⌕",
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .onPrimary,
-                    fontSize = 21.sp
+                    text = "PRODUCT",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Column(
+                modifier = Modifier.padding(11.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = name,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 13.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = price,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Black
+                )
+
+                Text(
+                    text =
+                        if (positive) {
+                            "Competitive"
+                        } else {
+                            "Review"
+                        },
+                    color = statusColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

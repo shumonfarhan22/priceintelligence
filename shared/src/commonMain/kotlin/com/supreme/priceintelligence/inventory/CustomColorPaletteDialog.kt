@@ -67,6 +67,7 @@ import com.supreme.priceintelligence.ui.theme.supremeColors
 internal fun AppColorPaletteControl(
     customization: AppCustomization,
     onPaletteSelected: (AppColorPalette) -> Unit,
+    customEditorExpanded: Boolean,
     onEditCustomPalette: () -> Unit
 ) {
     Column(
@@ -162,7 +163,13 @@ internal fun AppColorPaletteControl(
 
                 Spacer(modifier = Modifier.width(7.dp))
 
-                Text("Edit custom colours")
+                Text(
+                    if (customEditorExpanded) {
+                        "Hide custom colour editor"
+                    } else {
+                        "Edit custom colours here"
+                    }
+                )
             }
         }
 
@@ -174,6 +181,187 @@ internal fun AppColorPaletteControl(
             fontSize = 10.sp,
             lineHeight = 14.sp
         )
+    }
+}
+
+@Composable
+internal fun InlineCustomAppColorPaletteEditor(
+    palette: CustomAppColorPalette,
+    onPaletteChanged: (CustomAppColorPalette) -> Unit
+) {
+    var selectedRole by remember {
+        mutableStateOf(CustomPaletteRole.PRIMARY)
+    }
+
+    var hexInput by remember(
+        selectedRole,
+        palette.hexFor(selectedRole)
+    ) {
+        mutableStateOf(palette.hexFor(selectedRole))
+    }
+
+    val normalizedHex = normalizePaletteHex(hexInput)
+
+    fun selectColor(hex: String) {
+        val normalized = normalizePaletteHex(hex) ?: return
+
+        hexInput = normalized
+
+        onPaletteChanged(
+            palette.withHex(
+                role = selectedRole,
+                value = normalized
+            )
+        )
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.supremeColors.panelMuted,
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.primary.copy(
+                alpha = 0.45f
+            )
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(13.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Palette,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Custom colours",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+
+                    Text(
+                        text = "Changes appear in the preview immediately.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 9.sp
+                    )
+                }
+            }
+
+            CustomPaletteRole.entries
+                .chunked(2)
+                .forEach { roleRow ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement =
+                            Arrangement.spacedBy(8.dp)
+                    ) {
+                        roleRow.forEach { role ->
+                            PaletteRoleButton(
+                                role = role,
+                                color = paletteColorFromHex(
+                                    palette.hexFor(role),
+                                    Color.Transparent
+                                ),
+                                selected = role == selectedRole,
+                                onClick = {
+                                    selectedRole = role
+                                    hexInput = palette.hexFor(role)
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        if (roleRow.size == 1) {
+                            Spacer(
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+            Text(
+                text = selectedRole.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp,
+                lineHeight = 14.sp
+            )
+
+            ColourSwatchMenu(
+                selectedHex = palette.hexFor(selectedRole),
+                onSelected = ::selectColor
+            )
+
+            OutlinedTextField(
+                value = hexInput,
+                onValueChange = { value ->
+                    if (value.length <= 7) {
+                        hexInput = value
+
+                        normalizePaletteHex(value)?.let {
+                                validHex ->
+
+                            onPaletteChanged(
+                                palette.withHex(
+                                    role = selectedRole,
+                                    value = validHex
+                                )
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text("Exact hex colour")
+                },
+                placeholder = {
+                    Text("#10B981")
+                },
+                leadingIcon = {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .background(
+                                color = paletteColorFromHex(
+                                    hexInput,
+                                    Color.Transparent
+                                ),
+                                shape = CircleShape
+                            )
+                    )
+                },
+                supportingText = {
+                    Text(
+                        if (normalizedHex == null) {
+                            "Enter six characters, for example #10B981"
+                        } else {
+                            "${selectedRole.displayName}: $normalizedHex"
+                        }
+                    )
+                },
+                isError = normalizedHex == null,
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Text(
+                text =
+                    "The app automatically adjusts surrounding text and controls when extra contrast is needed.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 9.sp,
+                lineHeight = 13.sp
+            )
+        }
     }
 }
 
