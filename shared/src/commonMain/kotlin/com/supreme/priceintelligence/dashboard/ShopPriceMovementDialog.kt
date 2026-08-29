@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -42,7 +43,6 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.TrendingDown
 import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -82,6 +82,8 @@ import com.supreme.priceintelligence.settings.MovementLayout
 import com.supreme.priceintelligence.settings.MovementProductGraphState
 import com.supreme.priceintelligence.settings.MovementProductSort
 import com.supreme.priceintelligence.settings.RetailerChartPalette
+import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
+import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.roundToInt
@@ -195,6 +197,18 @@ fun ShopPriceMovementDialog(
         )
     }
 
+    val movementListState = rememberLazyListState()
+    val movementHeaderVisible =
+        rememberScrollAwareHeaderVisible(
+            listState = movementListState,
+            forceVisible =
+                isLoading ||
+                    (
+                        errorMessage != null &&
+                            snapshot.generatedAt <= 0L
+                    )
+        )
+
     val motionProgress = remember(
         useInternalTransition
     ) {
@@ -292,18 +306,17 @@ fun ShopPriceMovementDialog(
                     )
             ) {
                 if (!focusOverviewPreview) {
-                    MovementHeader(
-                        isLoading = isLoading,
-                        onRefresh = onRefresh,
-                        onBack = requestDismiss
-                    )
-
-                    HorizontalDivider(
-                        color =
-                            MaterialTheme
-                                .supremeColors
-                                .border
-                    )
+                    ScrollAwareHeader(
+                        visible = movementHeaderVisible,
+                        reduceMotionEnabled =
+                            reduceMotionEnabled
+                    ) {
+                        MovementHeader(
+                            isLoading = isLoading,
+                            onRefresh = onRefresh,
+                            onBack = requestDismiss
+                        )
+                    }
                 }
 
                 when {
@@ -350,6 +363,8 @@ fun ShopPriceMovementDialog(
                                 selectedRetailerName =
                                     it.name
                             },
+                            listState =
+                                movementListState,
                             modifier =
                                 Modifier.weight(1f)
                         )
@@ -397,6 +412,21 @@ private fun MovementHeader(
                     "Close Price Movement"
             )
         }
+
+        Surface(
+            shape = RoundedCornerShape(13.dp),
+            color = MaterialTheme.colorScheme.primary
+                .copy(alpha = 0.12f)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.ShowChart,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(9.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
 
         Column(
             modifier = Modifier.weight(1f)
@@ -459,9 +489,9 @@ private fun MovementContent(
         (ShopMovementRange) -> Unit,
     onRetailerSelected:
         (ShopMovementRetailerFilter) -> Unit,
+    listState: LazyListState,
     modifier: Modifier = Modifier
 ) {
-    val listState = rememberLazyListState()
     val insight = customization.insightCustomization
     val focusedGraphItemIndex =
         when {

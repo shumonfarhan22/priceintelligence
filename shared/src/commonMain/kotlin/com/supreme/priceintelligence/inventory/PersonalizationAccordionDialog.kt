@@ -6,7 +6,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -55,8 +58,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
 import com.supreme.priceintelligence.settings.AdvancedInfoLevel
 import com.supreme.priceintelligence.settings.AppAccentColor
 import com.supreme.priceintelligence.settings.AppColorPalette
@@ -239,52 +246,178 @@ internal fun PersonalizationAccordionDialog(
             Column {
                 AccordionHeader(onDismiss)
 
-                AdaptivePersonalizationPreview(
-                    dashboardViewModel = dashboardViewModel,
-                    customization = customization,
-                    target = previewTarget,
-                    selectedSection = selectedSection,
-                    reduceMotionEnabled =
-                        reduceMotionEnabled,
-                    onSectionSelected = { section ->
-                        expandedSectionName =
-                            toggleSection(
-                                expandedSectionName,
-                                section
-                            )
-                    },
-                    onTargetSelected = { target ->
-                        previewTargetName = target.name
-                        expandedSectionName = null
-                    },
+                BoxWithConstraints(
                     modifier = Modifier
-                        .weight(
-                            if (expandedSectionName == null) {
-                                1f
-                            } else {
-                                1.25f
-                            }
-                        )
+                        .weight(1f)
                         .fillMaxWidth()
-                        .padding(
-                            start = 12.dp,
-                            end = 12.dp,
-                            bottom = 8.dp
-                        )
-                )
-
-                if (expandedSectionName != null) {
-                    LazyColumn(
-                    modifier = Modifier
-                        .weight(0.75f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(
-                        start = 14.dp,
-                        end = 14.dp,
-                        bottom = 16.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    val availableHeight = maxHeight
+                    val editorOpen =
+                        selectedSection != null
+
+                    val previewHeightFraction =
+                        if (editorOpen) 0.58f else 1f
+
+                    val previewLayerAlpha = remember {
+                        Animatable(1f)
+                    }
+
+                    var previewTransitionRunning by remember {
+                        mutableStateOf(false)
+                    }
+
+                    val previewTransitionScope =
+                        rememberCoroutineScope()
+
+                    val changeEditor: (String?) -> Unit =
+                        { targetSectionName ->
+                            if (
+                                !previewTransitionRunning &&
+                                expandedSectionName !=
+                                    targetSectionName
+                            ) {
+                                if (reduceMotionEnabled) {
+                                    expandedSectionName =
+                                        targetSectionName
+                                } else {
+                                    previewTransitionRunning =
+                                        true
+
+                                    previewTransitionScope.launch {
+                                        try {
+                                            previewLayerAlpha
+                                                .animateTo(
+                                                    targetValue =
+                                                        0f,
+                                                    animationSpec =
+                                                        tween(
+                                                            durationMillis =
+                                                                85,
+                                                            easing =
+                                                                FastOutLinearInEasing
+                                                        )
+                                                )
+
+                                            expandedSectionName =
+                                                targetSectionName
+
+                                            withFrameNanos { }
+
+                                            previewLayerAlpha
+                                                .animateTo(
+                                                    targetValue =
+                                                        1f,
+                                                    animationSpec =
+                                                        tween(
+                                                            durationMillis =
+                                                                155,
+                                                            easing =
+                                                                LinearOutSlowInEasing
+                                                        )
+                                                )
+                                        } finally {
+                                            previewLayerAlpha
+                                                .snapTo(1f)
+                                            previewTransitionRunning =
+                                                false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        AdaptivePersonalizationPreview(
+                            dashboardViewModel =
+                                dashboardViewModel,
+                            customization = customization,
+                            priceChangeNotificationsEnabled =
+                                priceChangeNotificationsEnabled,
+                            target = previewTarget,
+                            selectedSection =
+                                selectedSection,
+                            reduceMotionEnabled =
+                                reduceMotionEnabled,
+                            onSectionSelected = { section ->
+                                changeEditor(section.name)
+                            },
+                            onTargetSelected = { target ->
+                                previewTargetName = target.name
+                                expandedSectionName = null
+                            },
+                            modifier = Modifier
+                                .height(
+                                    availableHeight *
+                                        previewHeightFraction
+                                )
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    alpha =
+                                        previewLayerAlpha.value
+                                }
+                                .padding(
+                                    start = 12.dp,
+                                    end = 12.dp
+                                )
+                        )
+
+                        AnimatedVisibility(
+                            visible = editorOpen,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            enter = fadeIn(
+                                animationSpec = tween(
+                                    durationMillis =
+                                        if (
+                                            reduceMotionEnabled
+                                        ) {
+                                            0
+                                        } else {
+                                            190
+                                        },
+                                    delayMillis =
+                                        if (
+                                            reduceMotionEnabled
+                                        ) {
+                                            0
+                                        } else {
+                                            70
+                                        }
+                                )
+                            ),
+                            exit = fadeOut(
+                                animationSpec = tween(
+                                    durationMillis =
+                                        if (
+                                            reduceMotionEnabled
+                                        ) {
+                                            0
+                                        } else {
+                                            130
+                                        }
+                                )
+                            )
+                        ) {
+                            Box(
+                                modifier =
+                                    Modifier.fillMaxSize()
+                            ) {
+                                LazyColumn(
+                                    modifier =
+                                        Modifier.fillMaxSize(),
+                                    contentPadding =
+                                        PaddingValues(
+                                            start = 14.dp,
+                                            top = 8.dp,
+                                            end = 14.dp,
+                                            bottom = 16.dp
+                                    ),
+                                    verticalArrangement =
+                                        Arrangement.Top
+                                ) {
                     item {
                         AccordionSectionCard(
                             title = "Appearance",
@@ -292,10 +425,7 @@ internal fun PersonalizationAccordionDialog(
                             icon = Icons.Rounded.Palette,
                             expanded = expandedSectionName == PersonalizationSection.APPEARANCE.name,
                             onToggle = {
-                                expandedSectionName = toggleSection(
-                                    expandedSectionName,
-                                    PersonalizationSection.APPEARANCE
-                                )
+                                changeEditor(null)
                             }
                         ) {
                             ChoiceGroup(
@@ -415,10 +545,7 @@ internal fun PersonalizationAccordionDialog(
                             Icons.Rounded.Search,
                             expandedSectionName == PersonalizationSection.QUICK_COMPARE.name,
                             {
-                                expandedSectionName = toggleSection(
-                                    expandedSectionName,
-                                    PersonalizationSection.QUICK_COMPARE
-                                )
+                                changeEditor(null)
                             }
                         ) {
                             HelpText(
@@ -456,10 +583,7 @@ internal fun PersonalizationAccordionDialog(
                             Icons.Rounded.Storefront,
                             expandedSectionName == PersonalizationSection.SHOP_SUMMARY.name,
                             {
-                                expandedSectionName = toggleSection(
-                                    expandedSectionName,
-                                    PersonalizationSection.SHOP_SUMMARY
-                                )
+                                changeEditor(null)
                             }
                         ) {
                             HelpText(
@@ -517,10 +641,7 @@ internal fun PersonalizationAccordionDialog(
                             Icons.Rounded.Info,
                             expandedSectionName == PersonalizationSection.PRODUCT_DETAILS.name,
                             {
-                                expandedSectionName = toggleSection(
-                                    expandedSectionName,
-                                    PersonalizationSection.PRODUCT_DETAILS
-                                )
+                                changeEditor(null)
                             }
                         ) {
                             SettingSwitch(
@@ -590,10 +711,7 @@ internal fun PersonalizationAccordionDialog(
                             Icons.Rounded.ShowChart,
                             expandedSectionName == PersonalizationSection.PRICE_MOVEMENT.name,
                             {
-                                expandedSectionName = toggleSection(
-                                    expandedSectionName,
-                                    PersonalizationSection.PRICE_MOVEMENT
-                                )
+                                changeEditor(null)
                             }
                         ) {
                             ChoiceGroup(
@@ -656,10 +774,7 @@ internal fun PersonalizationAccordionDialog(
                             Icons.Rounded.Notifications,
                             expandedSectionName == PersonalizationSection.ALERTS_BEHAVIOUR.name,
                             {
-                                expandedSectionName = toggleSection(
-                                    expandedSectionName,
-                                    PersonalizationSection.ALERTS_BEHAVIOUR
-                                )
+                                changeEditor(null)
                             }
                         ) {
                             SettingSwitch(
@@ -712,12 +827,14 @@ internal fun PersonalizationAccordionDialog(
 
                     if (
                         selectedSection ==
-                            PersonalizationSection.APPEARANCE &&
-                        customization
-                            .savedPersonalizationPresets
-                            .isNotEmpty()
+                            PersonalizationSection.APPEARANCE
                     ) {
                         item {
+                            Spacer(
+                                modifier =
+                                    Modifier.height(10.dp)
+                            )
+
                             NamedPersonalizationSetupsSection(
                             presets =
                                 customization
@@ -882,10 +999,60 @@ internal fun PersonalizationAccordionDialog(
                                 )
                             }
                             )
+                            }
+                        }
+                                }
+
+                                Surface(
+                                    onClick = {
+                                        changeEditor(null)
+                                    },
+                                    modifier = Modifier
+                                        .align(
+                                            Alignment.TopEnd
+                                        )
+                                        .padding(
+                                            top = 8.dp,
+                                            end = 14.dp
+                                        )
+                                        .size(42.dp),
+                                    shape = CircleShape,
+                                    color =
+                                        MaterialTheme
+                                            .supremeColors
+                                            .panelMuted,
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color =
+                                            MaterialTheme
+                                                .supremeColors
+                                                .border
+                                    ),
+                                    shadowElevation = 4.dp
+                                ) {
+                                    Box(
+                                        modifier =
+                                            Modifier.fillMaxSize(),
+                                        contentAlignment =
+                                            Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector =
+                                                Icons.Rounded.Close,
+                                            contentDescription =
+                                                "Close ${selectedSection?.title() ?: "settings"} editor",
+                                            tint =
+                                                MaterialTheme
+                                                    .colorScheme
+                                                    .onSurface,
+                                            modifier =
+                                                Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
-
-                }
                 }
 
                 PersonalizationFooter(
@@ -1476,6 +1643,10 @@ private fun AccordionSectionCard(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(end = 42.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -1517,17 +1688,6 @@ private fun AccordionSectionCard(
                     )
                 }
 
-                IconButton(
-                    onClick = onToggle,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "Close $title editor",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
             }
 
             Column(
@@ -1796,9 +1956,6 @@ private fun SectionResetButton(onClick: () -> Unit) {
 private fun HelpText(text: String) {
     Text(text, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
-
-private fun toggleSection(current: String?, target: PersonalizationSection): String? =
-    if (current == target.name) null else target.name
 
 private fun AppThemeMode.displayLabel(): String = when (this) {
     AppThemeMode.SYSTEM -> "System"

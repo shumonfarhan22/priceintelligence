@@ -99,6 +99,8 @@ import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.settings.AppThemeMode
 import com.supreme.priceintelligence.settings.AppCustomization
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
+import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 
@@ -218,6 +220,14 @@ fun OriginalInventoryScreen(
                 }
     }
 
+    val inventoryHeaderVisible =
+        rememberScrollAwareHeaderVisible(
+            listState = inventoryListState,
+            forceVisible =
+                state.isSelectionMode ||
+                    visibleProducts.isEmpty()
+        )
+
     LaunchedEffect(
         state.highlightedItemId,
         visibleProducts.size,
@@ -245,17 +255,27 @@ fun OriginalInventoryScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            OriginalInventoryHeader(
-                totalProducts = visibleProducts.size,
-                isRefreshing = state.isRefreshing,
-                selectedCount = state.selectedItemIds.size,
-                isAllSelected = allVisibleSelected,
-                onNavigateHome = onNavigateHome,
-                onRefresh = viewModel::refreshInventory,
-                onSelectAll = viewModel::selectAllVisible,
-                onClearSelection = viewModel::clearSelection,
-                onDeleteSelected = viewModel::queueSelectedForDelete
-            )
+            ScrollAwareHeader(
+                visible = inventoryHeaderVisible,
+                reduceMotionEnabled = reduceMotionEnabled
+            ) {
+                OriginalInventoryHeader(
+                    totalProducts = visibleProducts.size,
+                    isRefreshing = state.isRefreshing,
+                    selectedCount =
+                        state.selectedItemIds.size,
+                    isAllSelected = allVisibleSelected,
+                    onNavigateHome = onNavigateHome,
+                    onRefresh =
+                        viewModel::refreshInventory,
+                    onSelectAll =
+                        viewModel::selectAllVisible,
+                    onClearSelection =
+                        viewModel::clearSelection,
+                    onDeleteSelected =
+                        viewModel::queueSelectedForDelete
+                )
+            }
 
             ProfessionalInventorySearchField(
                 value = state.directoryQuery,
@@ -567,7 +587,20 @@ private fun OriginalInventoryHeader(
             )
         }
 
-        Spacer(modifier = Modifier.width(4.dp))
+        Surface(
+            shape = RoundedCornerShape(13.dp),
+            color = MaterialTheme.colorScheme.secondary
+                .copy(alpha = 0.12f)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Inventory2,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.padding(9.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
 
         Column(
             modifier = Modifier.weight(1f)

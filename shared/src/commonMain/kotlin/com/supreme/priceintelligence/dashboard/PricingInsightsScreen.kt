@@ -22,16 +22,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.ShowChart
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +62,8 @@ import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.settings.InsightCustomization
+import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
+import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlin.math.absoluteValue
 import kotlin.time.Clock
@@ -228,45 +231,70 @@ internal fun PricingInsightsScreen(
         selectedGroupName = group.name
     }
 
-    LazyColumn(
+    val insightsListState = rememberLazyListState()
+    val insightsHeaderVisible =
+        rememberScrollAwareHeaderVisible(
+            listState = insightsListState
+        )
+
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            bottom = 28.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .background(
+                MaterialTheme.colorScheme.background
+            )
     ) {
-        item(key = "pricing-insights-header") {
-            PricingInsightsHeader(
-                onNavigateHome = onNavigateHome
-            )
+        ScrollAwareHeader(
+            visible = insightsHeaderVisible,
+            reduceMotionEnabled = reduceMotionEnabled
+        ) {
+            Box(
+                modifier = Modifier.padding(
+                    horizontal = 16.dp
+                )
+            ) {
+                PricingInsightsHeader(
+                    onNavigateHome = onNavigateHome
+                )
+            }
         }
 
-        item(key = "decision-matrix") {
-            DecisionMatrixCard(
-                snapshot = snapshot,
-                onOpenGroup = ::openGroup
-            )
-        }
+        LazyColumn(
+            state = insightsListState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 6.dp,
+                end = 16.dp,
+                bottom = 28.dp
+            ),
+            verticalArrangement =
+                Arrangement.spacedBy(12.dp)
+        ) {
+            item(key = "decision-matrix") {
+                DecisionMatrixCard(
+                    snapshot = snapshot,
+                    onOpenGroup = ::openGroup
+                )
+            }
 
-        item(key = "retailer-pressure") {
-            RetailerPressureCard(
-                snapshot = snapshot,
-                onAmazonClick = {
-                    openGroup(
-                        InsightGroup.AMAZON_PRESSURE
-                    )
-                },
-                onFlipkartClick = {
-                    openGroup(
-                        InsightGroup.FLIPKART_PRESSURE
-                    )
-                }
-            )
-        }
+            item(key = "retailer-pressure") {
+                RetailerPressureCard(
+                    snapshot = snapshot,
+                    onAmazonClick = {
+                        openGroup(
+                            InsightGroup.AMAZON_PRESSURE
+                        )
+                    },
+                    onFlipkartClick = {
+                        openGroup(
+                            InsightGroup.FLIPKART_PRESSURE
+                        )
+                    }
+                )
+            }
 
         item(key = "price-gap-distribution") {
             PriceGapDistributionCard(
@@ -325,6 +353,7 @@ internal fun PricingInsightsScreen(
                 }
             )
         }
+    }
     }
 
     if (selectedGroup != null || selectedBrand != null) {
@@ -402,7 +431,7 @@ private fun PricingInsightsHeader(
                 .copy(alpha = 0.12f)
         ) {
             Icon(
-                imageVector = Icons.Rounded.ShowChart,
+                imageVector = Icons.Rounded.Dashboard,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(9.dp)

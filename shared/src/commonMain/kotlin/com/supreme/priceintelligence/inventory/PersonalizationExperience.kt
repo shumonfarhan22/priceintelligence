@@ -112,6 +112,7 @@ internal enum class PersonalizationPreviewTarget(
 internal fun AdaptivePersonalizationPreview(
     dashboardViewModel: DashboardViewModel,
     customization: AppCustomization,
+    priceChangeNotificationsEnabled: Boolean,
     target: PersonalizationPreviewTarget,
     selectedSection: PersonalizationSection?,
     reduceMotionEnabled: Boolean,
@@ -226,6 +227,8 @@ internal fun AdaptivePersonalizationPreview(
                                     freshnessSummary,
                                 customization =
                                     customization,
+                                priceChangeNotificationsEnabled =
+                                    priceChangeNotificationsEnabled,
                                 target = target,
                                 reduceMotionEnabled =
                                     reduceMotionEnabled
@@ -475,6 +478,7 @@ private fun PersonalizationLivePreviewContent(
     freshnessSummary:
         com.supreme.priceintelligence.dashboard.PriceFreshnessSummary,
     customization: AppCustomization,
+    priceChangeNotificationsEnabled: Boolean,
     target: PersonalizationPreviewTarget,
     reduceMotionEnabled: Boolean
 ) {
@@ -602,7 +606,13 @@ private fun PersonalizationLivePreviewContent(
                     )
 
                 PersonalizationPreviewTarget.ALERTS ->
-                    AlertsPreview()
+                    AlertsPreview(
+                        automaticChecksEnabled =
+                            customization
+                                .automaticPriceChecksEnabled,
+                        alertsEnabled =
+                            priceChangeNotificationsEnabled
+                    )
             }
 
             Box(
@@ -1727,39 +1737,139 @@ private fun GraphLegend(
 }
 
 @Composable
-private fun AlertsPreview() {
+private fun AlertsPreview(
+    automaticChecksEnabled: Boolean = true,
+    alertsEnabled: Boolean = true
+) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = "PRICE ALERTS",
-            color = MaterialTheme.colorScheme.primary,
-            fontSize = 8.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = RoundedCornerShape(13.dp),
+                color =
+                    MaterialTheme
+                        .colorScheme
+                        .primary
+                        .copy(alpha = 0.14f)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector =
+                            Icons.Rounded.Notifications,
+                        contentDescription = null,
+                        tint =
+                            MaterialTheme
+                                .colorScheme
+                                .primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(11.dp))
+
+            Column {
+                Text(
+                    text = "PRICE ALERTS",
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .primary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.8.sp
+                )
+
+                Text(
+                    text = "Retailer changes worth checking",
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .onSurface,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.supremeColors.panel,
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.supremeColors.border
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                horizontalArrangement =
+                    Arrangement.SpaceBetween
+            ) {
+                AlertsPreviewStatus(
+                    label = "Daily checks",
+                    enabled = automaticChecksEnabled,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                AlertsPreviewStatus(
+                    label = "Notifications",
+                    enabled = alertsEnabled,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
 
         Text(
-            text = "Recent retailer changes",
+            text = "RECENT CHANGES",
             color =
                 MaterialTheme
                     .colorScheme
                     .onSurfaceVariant,
-            fontSize = 10.sp
+            fontSize = 9.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 0.7.sp
         )
 
         PreviewAlert(
-            productName = "Prestige Pressure Cooker",
+            productName =
+                "Prestige 5 Litre Triply Pressure Cooker",
             retailer = "Amazon",
-            change = "Price increased by ₹200",
+            change = "Higher by ₹200",
             color = MaterialTheme.supremeColors.competitive
         )
 
         PreviewAlert(
-            productName = "Hawkins Cookware Set",
+            productName =
+                "Hawkins Stainless Cookware Set",
             retailer = "Flipkart",
-            change = "Price decreased by ₹150",
+            change = "Lower by ₹150",
             color = MaterialTheme.colorScheme.error
         )
+
+        PreviewAlert(
+            productName =
+                "Prestige Omega Deluxe Fry Pan",
+            retailer = "Amazon",
+            change = "Matched shop price",
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -1768,7 +1878,7 @@ private fun AlertsPreview() {
         ) {
             Text(
                 text =
-                    "Tapping an alert opens and highlights its exact graph.",
+                    "Open an alert to see its exact product graph and saved price history.",
                 color =
                     MaterialTheme
                         .colorScheme
@@ -1778,6 +1888,45 @@ private fun AlertsPreview() {
                 modifier = Modifier.padding(11.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun AlertsPreviewStatus(
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(
+            text = label,
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .onSurfaceVariant,
+            fontSize = 8.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Text(
+            text = if (enabled) "ON" else "OFF",
+            color =
+                if (enabled) {
+                    MaterialTheme
+                        .colorScheme
+                        .primary
+                } else {
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant
+                },
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
     }
 }
 
@@ -1808,14 +1957,20 @@ private fun PreviewAlert(
                         .onSurface,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
+                lineHeight = 13.sp,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+
+            Spacer(modifier = Modifier.height(5.dp))
 
             Text(
                 text = "$retailer • $change",
                 color = color,
-                fontSize = 8.sp
+                fontSize = 8.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
