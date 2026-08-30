@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.ui.theme.supremeColors
 
 enum class OriginalBannerKind {
     SUCCESS,
@@ -83,6 +85,13 @@ fun OriginalStatusBanner(
             Color(0xFFF59E0B)
     }
 
+    val contentColor =
+        if (MaterialTheme.supremeColors.isDark) {
+            Color.White
+        } else {
+            Color(0xFF111827)
+        }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -107,7 +116,7 @@ fun OriginalStatusBanner(
                     Icons.Rounded.Info
                 },
                 contentDescription = null,
-                tint = Color.White,
+                tint = contentColor,
                 modifier = Modifier.size(22.dp)
             )
 
@@ -115,7 +124,7 @@ fun OriginalStatusBanner(
 
             Text(
                 text = message,
-                color = Color.White,
+                color = contentColor,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
@@ -135,15 +144,15 @@ fun OriginalStatusBanner(
                         progress.value
                     },
                     modifier = Modifier.fillMaxSize(),
-                    color = Color.White,
-                    trackColor = Color.White.copy(alpha = 0.30f),
+                    color = contentColor,
+                    trackColor = contentColor.copy(alpha = 0.30f),
                     strokeWidth = 2.dp
                 )
 
                 Icon(
                     imageVector = Icons.Rounded.Close,
                     contentDescription = "Dismiss message",
-                    tint = Color.White,
+                    tint = contentColor,
                     modifier = Modifier.size(16.dp)
                 )
             }

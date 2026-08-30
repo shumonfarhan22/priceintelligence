@@ -52,6 +52,7 @@ import com.supreme.priceintelligence.settings.HistoryGraphStyle
 import com.supreme.priceintelligence.settings.RetailerChartPalette
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import com.supreme.priceintelligence.settings.CustomRetailerChartColors
@@ -379,16 +380,22 @@ internal fun InteractiveProductMovementLineChart(
         CustomRetailerChartColors(),
     graphHeightDp: Int = 150
 ) {
+    val isDarkTheme =
+        MaterialTheme.supremeColors.isDark
+
     val series = remember(
         amazonHistory,
         flipkartHistory,
         retailerChartPalette,
-        customRetailerChartColors
+        customRetailerChartColors,
+        isDarkTheme
     ) {
         val retailerColors =
             retailerChartPalette
                 .retailerChartColors(
-                    customRetailerChartColors
+                    customColors =
+                        customRetailerChartColors,
+                    isDarkTheme = isDarkTheme
                 )
 
         buildList {
@@ -567,6 +574,20 @@ internal fun InteractiveProductMovementLineChart(
     val chartSurfaceColor =
         MaterialTheme.supremeColors.panelMuted
 
+    val chartAccentSurfaceColor =
+        if (MaterialTheme.supremeColors.isDark) {
+            MaterialTheme.colorScheme.primary.copy(
+                alpha = 0.07f
+            )
+        } else {
+            MaterialTheme.supremeColors.tintedSurface(
+                roleColor =
+                    MaterialTheme.colorScheme.primary,
+                strength = 0.07f,
+                lightBase = chartSurfaceColor
+            )
+        }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -574,9 +595,7 @@ internal fun InteractiveProductMovementLineChart(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(
-                            alpha = 0.07f
-                        ),
+                        chartAccentSurfaceColor,
                         chartSurfaceColor,
                         chartSurfaceColor
                     )

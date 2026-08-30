@@ -86,6 +86,7 @@ import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
 import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 import kotlin.math.roundToInt
 import com.supreme.priceintelligence.settings.CustomRetailerChartColors
 
@@ -394,6 +395,8 @@ private fun MovementHeader(
     onRefresh: () -> Unit,
     onBack: () -> Unit
 ) {
+    val supremeColors = MaterialTheme.supremeColors
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -415,8 +418,13 @@ private fun MovementHeader(
 
         Surface(
             shape = RoundedCornerShape(13.dp),
-            color = MaterialTheme.colorScheme.primary
-                .copy(alpha = 0.12f)
+            color = supremeColors.tintedSurface(
+                roleColor =
+                    MaterialTheme.colorScheme.primary,
+                strength = 0.12f,
+                lightBase =
+                    MaterialTheme.colorScheme.background
+            )
         ) {
             Icon(
                 imageVector = Icons.Rounded.ShowChart,
@@ -876,6 +884,8 @@ private fun MovementFilterButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val supremeColors = MaterialTheme.supremeColors
+
     Surface(
         modifier = modifier,
         onClick = onClick,
@@ -894,13 +904,25 @@ private fun MovementFilterButton(
             width = 1.dp,
             color =
                 if (selected) {
-                    MaterialTheme
-                        .colorScheme
-                        .primary
+                    if (supremeColors.isDark) {
+                        MaterialTheme
+                            .colorScheme
+                            .primary
+                    } else {
+                        supremeColors.tintedSurface(
+                            roleColor =
+                                MaterialTheme
+                                    .colorScheme
+                                    .primary,
+                            strength = 0.58f,
+                            lightBase =
+                                MaterialTheme
+                                    .colorScheme
+                                    .primaryContainer
+                        )
+                    }
                 } else {
-                    MaterialTheme
-                        .supremeColors
-                        .border
+                    supremeColors.border
                 }
         )
     ) {
@@ -936,6 +958,8 @@ private fun MovementOverviewCard(
     range: ShopMovementRange,
     generatedAt: Long
 ) {
+    val supremeColors = MaterialTheme.supremeColors
+
     // A lower online price is bad for the shop.
     val lowerColor =
         MaterialTheme
@@ -977,12 +1001,13 @@ private fun MovementOverviewCard(
                         .size(38.dp)
                         .background(
                             color =
-                                MaterialTheme
-                                    .colorScheme
-                                    .primary
-                                    .copy(
-                                        alpha = 0.14f
-                                    ),
+                                supremeColors.tintedSurface(
+                                    roleColor =
+                                        MaterialTheme
+                                            .colorScheme
+                                            .primary,
+                                    strength = 0.14f
+                                ),
                             shape = CircleShape
                         ),
                     contentAlignment =
@@ -1100,10 +1125,16 @@ private fun MovementMetric(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    val metricSurfaceColor =
+        MaterialTheme.supremeColors.tintedSurface(
+            roleColor = color,
+            strength = 0.10f
+        )
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = color.copy(alpha = 0.10f),
+        color = metricSurfaceColor,
         border = BorderStroke(
             width = 1.dp,
             color = color.copy(alpha = 0.28f)
@@ -1157,6 +1188,12 @@ private fun AggregateMovementChart(
     lowerColor: Color,
     higherColor: Color
 ) {
+    val gridColor =
+        MaterialTheme
+            .colorScheme
+            .onSurfaceVariant
+            .copy(alpha = 0.22f)
+
     val buckets = remember(
         changes,
         range,
@@ -1210,10 +1247,7 @@ private fun AggregateMovementChart(
                 size.height - 8.dp.toPx()
 
             drawLine(
-                color =
-                    Color.Gray.copy(
-                        alpha = 0.25f
-                    ),
+                color = gridColor,
                 start =
                     Offset(0f, baseline),
                 end =
@@ -1382,7 +1416,10 @@ private fun MovementProductCard(
 ) {
     val retailerColors =
         retailerChartPalette.retailerChartColors(
-            customRetailerChartColors
+            customColors =
+                customRetailerChartColors,
+            isDarkTheme =
+                MaterialTheme.supremeColors.isDark
         )
 
     val largeText =

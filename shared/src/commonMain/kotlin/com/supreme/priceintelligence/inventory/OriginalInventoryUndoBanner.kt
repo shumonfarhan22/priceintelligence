@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.ui.theme.supremeColors
 
 @Composable
 fun OriginalInventoryUndoBanner(
@@ -61,6 +63,13 @@ fun OriginalInventoryUndoBanner(
         )
     }
 
+    val contentColor =
+        if (MaterialTheme.supremeColors.isDark) {
+            Color.White
+        } else {
+            Color(0xFF111827)
+        }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -80,7 +89,7 @@ fun OriginalInventoryUndoBanner(
             Icon(
                 imageVector = Icons.Rounded.Delete,
                 contentDescription = null,
-                tint = Color.White,
+                tint = contentColor,
                 modifier = Modifier.size(23.dp)
             )
 
@@ -95,7 +104,7 @@ fun OriginalInventoryUndoBanner(
                     } else {
                         "${pendingItems.size} Products Deleted"
                     },
-                    color = Color.White,
+                    color = contentColor,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -106,7 +115,7 @@ fun OriginalInventoryUndoBanner(
                     } else {
                         "Tap undo to restore"
                     },
-                    color = Color.White.copy(alpha = 0.80f),
+                    color = contentColor,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -126,14 +135,14 @@ fun OriginalInventoryUndoBanner(
                         progress.value
                     },
                     modifier = Modifier.fillMaxSize(),
-                    color = Color.White,
-                    trackColor = Color.White.copy(alpha = 0.28f),
+                    color = contentColor,
+                    trackColor = contentColor.copy(alpha = 0.28f),
                     strokeWidth = 3.dp
                 )
 
                 Text(
                     text = "UNDO",
-                    color = Color.White,
+                    color = contentColor,
                     fontSize = 8.sp,
                     fontWeight = FontWeight.ExtraBold
                 )

@@ -65,6 +65,7 @@ import com.supreme.priceintelligence.settings.InsightCustomization
 import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
 import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 import kotlin.math.absoluteValue
 import kotlin.time.Clock
 
@@ -410,6 +411,8 @@ internal fun PricingInsightsScreen(
 private fun PricingInsightsHeader(
     onNavigateHome: () -> Unit
 ) {
+    val supremeColors = MaterialTheme.supremeColors
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -427,8 +430,13 @@ private fun PricingInsightsHeader(
 
         Surface(
             shape = RoundedCornerShape(13.dp),
-            color = MaterialTheme.colorScheme.primary
-                .copy(alpha = 0.12f)
+            color = supremeColors.tintedSurface(
+                roleColor =
+                    MaterialTheme.colorScheme.primary,
+                strength = 0.12f,
+                lightBase =
+                    MaterialTheme.colorScheme.background
+            )
         ) {
             Icon(
                 imageVector = Icons.Rounded.Dashboard,

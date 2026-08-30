@@ -63,6 +63,7 @@ import com.supreme.priceintelligence.resources.app_logo
 import com.supreme.priceintelligence.settings.InsightCustomization
 import com.supreme.priceintelligence.ui.theme.Accent
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
@@ -391,6 +392,64 @@ private fun LaunchDestinationTile(
     val tileScale =
         1f - (pressProgress * 0.035f)
 
+    val supremeColors =
+        MaterialTheme.supremeColors
+
+    val tileGradientStart =
+        supremeColors.tintedSurface(
+            roleColor = accent,
+            strength =
+                0.16f +
+                    (pressProgress * 0.08f)
+        )
+
+    val tileGradientMiddle =
+        supremeColors.tintedSurface(
+            roleColor = accent,
+            strength =
+                0.055f +
+                    (pressProgress * 0.035f)
+        )
+
+    val tileGradientEnd =
+        if (supremeColors.isDark) {
+            Color.Transparent
+        } else {
+            supremeColors.panel.copy(alpha = 1f)
+        }
+
+    val haloColor =
+        supremeColors.tintedSurface(
+            roleColor = accent,
+            strength =
+                0.07f +
+                    (pressProgress * 0.055f)
+        )
+
+    val iconContainerColor =
+        supremeColors.tintedSurface(
+            roleColor = accent,
+            strength =
+                0.13f +
+                    (pressProgress * 0.075f)
+        )
+
+    val accentBorderColor =
+        supremeColors.tintedSurface(
+            roleColor = accent,
+            strength =
+                0.30f +
+                    (pressProgress * 0.20f)
+        )
+
+    val iconBorderColor =
+        supremeColors.tintedSurface(
+            roleColor = accent,
+            strength =
+                0.28f +
+                    (pressProgress * 0.18f)
+        )
+
     Surface(
         onClick = onClick,
         interactionSource = interactionSource,
@@ -407,20 +466,16 @@ private fun LaunchDestinationTile(
                 role = Role.Button
             },
         shape = RoundedCornerShape(26.dp),
-        color = MaterialTheme.supremeColors.panel,
+        color = supremeColors.panel,
         border = BorderStroke(
             width = 1.dp,
-            color = accent.copy(
-                alpha =
-                    0.30f +
-                        (pressProgress * 0.20f)
-            )
+            color = accentBorderColor
         ),
         shadowElevation =
-            if (MaterialTheme.supremeColors.isDark) {
+            if (supremeColors.isDark) {
                 2.dp
             } else {
-                6.dp
+                3.dp
             }
     ) {
         Box(
@@ -430,23 +485,9 @@ private fun LaunchDestinationTile(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            accent.copy(
-                                alpha =
-                                    0.16f +
-                                        (
-                                            pressProgress *
-                                                0.08f
-                                        )
-                            ),
-                            accent.copy(
-                                alpha =
-                                    0.055f +
-                                        (
-                                            pressProgress *
-                                                0.035f
-                                        )
-                            ),
-                            Color.Transparent
+                            tileGradientStart,
+                            tileGradientMiddle,
+                            tileGradientEnd
                         )
                     )
                 )
@@ -463,14 +504,7 @@ private fun LaunchDestinationTile(
                     modifier = Modifier
                         .size(84.dp)
                         .background(
-                            color = accent.copy(
-                                alpha =
-                                    0.07f +
-                                        (
-                                            pressProgress *
-                                                0.055f
-                                        )
-                            ),
+                            color = haloColor,
                             shape =
                                 RoundedCornerShape(26.dp)
                         ),
@@ -479,34 +513,18 @@ private fun LaunchDestinationTile(
                     Surface(
                         modifier = Modifier.size(64.dp),
                         shape = RoundedCornerShape(20.dp),
-                        color = accent.copy(
-                            alpha =
-                                0.13f +
-                                    (
-                                        pressProgress *
-                                            0.075f
-                                    )
-                        ),
+                        color = iconContainerColor,
                         border = BorderStroke(
                             width = 1.dp,
-                            color = accent.copy(
-                                alpha =
-                                    0.28f +
-                                        (
-                                            pressProgress *
-                                                0.18f
-                                        )
-                            )
+                            color = iconBorderColor
                         ),
                         shadowElevation =
                             if (
-                                MaterialTheme
-                                    .supremeColors
-                                    .isDark
+                                supremeColors.isDark
                             ) {
                                 3.dp
                             } else {
-                                5.dp
+                                1.dp
                             }
                     ) {
                         Box(

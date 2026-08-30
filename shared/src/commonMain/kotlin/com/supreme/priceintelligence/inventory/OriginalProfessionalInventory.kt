@@ -76,6 +76,7 @@ import com.supreme.priceintelligence.dashboard.formatIndianPrice
 import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.ui.input.withPlatformTextInput
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -206,6 +207,9 @@ internal fun ProfessionalInventoryGroupHeader(
     reduceMotionEnabled: Boolean,
     onClick: () -> Unit
 ) {
+    val headerShape = RoundedCornerShape(8.dp)
+    val supremeColors = MaterialTheme.supremeColors
+
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = if (reduceMotionEnabled) {
@@ -220,15 +224,25 @@ internal fun ProfessionalInventoryGroupHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(headerShape)
             .background(
-                if (MaterialTheme.supremeColors.isDark) {
+                if (supremeColors.isDark) {
                     MaterialTheme.colorScheme.surfaceVariant.copy(
                         alpha = 0.55f
                     )
                 } else {
-                    MaterialTheme.supremeColors.panelMuted
+                    supremeColors.panelMuted
                 }
+            )
+            .border(
+                width = 1.dp,
+                color =
+                    if (supremeColors.isDark) {
+                        Color.Transparent
+                    } else {
+                        supremeColors.divider
+                    },
+                shape = headerShape
             )
             .clickable(onClick = onClick)
             .semantics {
@@ -328,7 +342,13 @@ internal fun ProfessionalInventoryProductRow(
 
     val animatedBackgroundColor by animateColorAsState(
         targetValue = if (highlighted || selected) {
-            ProfessionalInventoryEmerald.copy(alpha = 0.15f)
+            MaterialTheme.supremeColors.tintedSurface(
+                roleColor =
+                    ProfessionalInventoryEmerald,
+                strength = 0.15f,
+                lightBase =
+                    ProfessionalInventoryCard
+            )
         } else {
             ProfessionalInventoryCard
         },

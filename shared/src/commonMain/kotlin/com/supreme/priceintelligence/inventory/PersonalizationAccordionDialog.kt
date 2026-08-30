@@ -128,6 +128,7 @@ import com.supreme.priceintelligence.settings.personalizationForPreset
 import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 
 internal enum class PersonalizationSection {
     APPEARANCE,
@@ -1268,10 +1269,37 @@ private fun PersonalizationPreview(customization: AppCustomization) {
 }
 
 @Composable
-private fun PreviewMetric(value: String, label: String, color: Color, modifier: Modifier) {
-    Surface(modifier, shape = RoundedCornerShape(11.dp), color = color.copy(alpha = 0.10f), border = BorderStroke(1.dp, color.copy(alpha = 0.30f))) {
+private fun PreviewMetric(
+    value: String,
+    label: String,
+    color: Color,
+    modifier: Modifier
+) {
+    val supremeColors = MaterialTheme.supremeColors
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(11.dp),
+        color = supremeColors.tintedSurface(
+            roleColor = color,
+            strength = 0.10f,
+            lightBase = supremeColors.panelMuted
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = supremeColors.tintedSurface(
+                roleColor = color,
+                strength = 0.30f,
+                lightBase = supremeColors.panelMuted
+            )
+        )
+    ) {
         Column(Modifier.padding(8.dp)) {
-            Text(value, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = value,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Text(
                 text = label,
                 fontSize = 9.sp,

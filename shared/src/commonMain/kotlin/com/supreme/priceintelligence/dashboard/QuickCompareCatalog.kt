@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 
 private data class QuickCompareStatus(
     val label: String,
@@ -253,11 +254,21 @@ private fun QuickComparePlaceholderCard(
     reduceMotionEnabled: Boolean,
     shimmerProgress: Float
 ) {
+    val supremeColors = MaterialTheme.supremeColors
+
     val placeholderColor =
-        MaterialTheme
-            .supremeColors
-            .border
-            .copy(alpha = 0.48f)
+        if (supremeColors.isDark) {
+            supremeColors.border.copy(alpha = 0.48f)
+        } else {
+            supremeColors.tintedSurface(
+                roleColor =
+                    MaterialTheme
+                        .colorScheme
+                        .onSurfaceVariant,
+                strength = 0.20f,
+                lightBase = supremeColors.panelMuted
+            )
+        }
 
     val shimmerColor =
         MaterialTheme
@@ -502,6 +513,7 @@ private fun QuickCompareCatalogCard(
     onClick: () -> Unit
 ) {
     val item = card.item
+    val supremeColors = MaterialTheme.supremeColors
     val status =
         quickCompareStatus(card)
 
@@ -513,10 +525,10 @@ private fun QuickCompareCatalogCard(
         border = BorderStroke(
             width = 1.dp,
             color =
-                MaterialTheme
-                    .supremeColors
-                    .border
-                    .copy(alpha = 0.72f)
+                supremeColors.tintedSurface(
+                    roleColor = supremeColors.border,
+                    strength = 0.72f
+                )
         )
     ) {
         if (singleColumn) {
@@ -622,6 +634,12 @@ private fun QuickCompareProductInformation(
     singleColumn: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val statusContainerColor =
+        MaterialTheme.supremeColors.tintedSurface(
+            roleColor = status.color,
+            strength = 0.13f
+        )
+
     Column(
         modifier = modifier
     ) {
@@ -692,10 +710,7 @@ private fun QuickCompareProductInformation(
 
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color =
-                status.color.copy(
-                    alpha = 0.13f
-                )
+            color = statusContainerColor
         ) {
             Row(
                 modifier = Modifier.padding(

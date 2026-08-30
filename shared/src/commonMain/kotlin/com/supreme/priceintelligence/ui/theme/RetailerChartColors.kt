@@ -1,6 +1,8 @@
 package com.supreme.priceintelligence.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import com.supreme.priceintelligence.settings.CustomRetailerChartColors
 import com.supreme.priceintelligence.settings.RetailerChartPalette
 
@@ -11,9 +13,10 @@ internal data class RetailerChartColors(
 
 internal fun RetailerChartPalette.retailerChartColors(
     customColors: CustomRetailerChartColors =
-        CustomRetailerChartColors()
-): RetailerChartColors =
-    when (this) {
+        CustomRetailerChartColors(),
+    isDarkTheme: Boolean
+): RetailerChartColors {
+    val rawColors = when (this) {
         RetailerChartPalette.ORIGINAL ->
             RetailerChartColors(
                 amazon = Color(0xFFFF9900),
@@ -76,3 +79,62 @@ internal fun RetailerChartPalette.retailerChartColors(
                     )
             )
     }
+
+    if (isDarkTheme) {
+        return rawColors
+    }
+
+    val lightChartSurface = Color(0xFFEBE3D7)
+
+    return RetailerChartColors(
+        amazon = rawColors.amazon.ensureChartContrast(
+            background = lightChartSurface
+        ),
+        flipkart = rawColors.flipkart.ensureChartContrast(
+            background = lightChartSurface
+        )
+    )
+}
+
+private fun Color.ensureChartContrast(
+    background: Color
+): Color {
+    var adjustedColor = copy(alpha = 1f)
+
+    repeat(10) {
+        if (
+            chartContrastRatio(
+                adjustedColor,
+                background
+            ) >= 3.0f
+        ) {
+            return adjustedColor
+        }
+
+        adjustedColor = lerp(
+            start = adjustedColor,
+            stop = Color(0xFF111827),
+            fraction = 0.14f
+        )
+    }
+
+    return adjustedColor
+}
+
+private fun chartContrastRatio(
+    first: Color,
+    second: Color
+): Float {
+    val lighter = maxOf(
+        first.luminance(),
+        second.luminance()
+    )
+
+    val darker = minOf(
+        first.luminance(),
+        second.luminance()
+    )
+
+    return (lighter + 0.05f) /
+        (darker + 0.05f)
+}

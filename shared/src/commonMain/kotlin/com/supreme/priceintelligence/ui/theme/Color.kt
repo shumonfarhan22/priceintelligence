@@ -6,6 +6,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 
 // Supreme Dark base palette
 val Bg = Color(0xFF0B0F14)
@@ -80,6 +81,30 @@ internal val SupremeLightColors = SupremeColors(
 
 internal val LocalSupremeColors =
     staticCompositionLocalOf { SupremeDarkColors }
+
+/**
+ * Builds a role-coloured surface without stacking translucent layers in the
+ * light theme. Opaque blends stay crisp on iOS and keep the warm Supreme
+ * surface underneath predictable, while dark mode retains its established
+ * glass treatment.
+ */
+internal fun SupremeColors.tintedSurface(
+    roleColor: Color,
+    strength: Float,
+    lightBase: Color = panel
+): Color {
+    val safeStrength = strength.coerceIn(0f, 1f)
+
+    return if (isDark) {
+        roleColor.copy(alpha = safeStrength)
+    } else {
+        lerp(
+            start = lightBase.copy(alpha = 1f),
+            stop = roleColor.copy(alpha = 1f),
+            fraction = safeStrength
+        )
+    }
+}
 
 val MaterialTheme.supremeColors: SupremeColors
     @Composable

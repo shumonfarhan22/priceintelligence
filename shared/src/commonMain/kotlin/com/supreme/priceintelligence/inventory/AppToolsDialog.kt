@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 
 @Composable
 internal fun AppToolsDialog(
@@ -143,6 +144,22 @@ private fun AppToolAction(
             MaterialTheme.colorScheme.onSurfaceVariant
         }
 
+    val iconContainerColor =
+        MaterialTheme.supremeColors.tintedSurface(
+            roleColor = actionColor,
+            strength = 0.14f,
+            lightBase =
+                if (emphasized) {
+                    MaterialTheme
+                        .colorScheme
+                        .primaryContainer
+                } else {
+                    MaterialTheme
+                        .supremeColors
+                        .panelMuted
+                }
+        )
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -160,7 +177,17 @@ private fun AppToolAction(
             width = 1.dp,
             color =
                 if (emphasized) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.70f)
+                    MaterialTheme.supremeColors.tintedSurface(
+                        roleColor =
+                            MaterialTheme
+                                .colorScheme
+                                .primary,
+                        strength = 0.70f,
+                        lightBase =
+                            MaterialTheme
+                                .colorScheme
+                                .primaryContainer
+                    )
                 } else {
                     MaterialTheme.supremeColors.border
                 }
@@ -176,7 +203,7 @@ private fun AppToolAction(
             Surface(
                 modifier = Modifier.size(46.dp),
                 shape = RoundedCornerShape(14.dp),
-                color = actionColor.copy(alpha = 0.14f)
+                color = iconContainerColor
             ) {
                 Icon(
                     imageVector = icon,

@@ -100,6 +100,7 @@ import com.supreme.priceintelligence.data.InventoryItem
 import com.supreme.priceintelligence.settings.AppThemeMode
 import com.supreme.priceintelligence.settings.AppCustomization
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
 import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
@@ -565,6 +566,8 @@ private fun OriginalInventoryHeader(
     onClearSelection: () -> Unit,
     onDeleteSelected: () -> Unit
 ) {
+    val supremeColors = MaterialTheme.supremeColors
+
     val largeText =
         LocalDensity.current.fontScale >= 1.10f
 
@@ -635,8 +638,13 @@ private fun OriginalInventoryHeader(
 
         Surface(
             shape = RoundedCornerShape(13.dp),
-            color = MaterialTheme.colorScheme.secondary
-                .copy(alpha = 0.12f)
+            color = supremeColors.tintedSurface(
+                roleColor =
+                    MaterialTheme.colorScheme.secondary,
+                strength = 0.12f,
+                lightBase =
+                    MaterialTheme.colorScheme.background
+            )
         ) {
             Icon(
                 imageVector = Icons.Rounded.Inventory2,

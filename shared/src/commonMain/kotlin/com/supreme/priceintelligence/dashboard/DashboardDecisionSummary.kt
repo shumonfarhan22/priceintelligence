@@ -60,6 +60,7 @@ import com.supreme.priceintelligence.settings.PriorityRowStyle
 import com.supreme.priceintelligence.settings.PrioritySortMode
 import com.supreme.priceintelligence.settings.SectionStartState
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 
 data class PriorityProduct(
     val productName: String,
@@ -689,22 +690,23 @@ fun DashboardDecisionSummaryCard(
 private fun PriceMovementAction(
     onClick: () -> Unit
 ) {
+    val supremeColors = MaterialTheme.supremeColors
+    val actionColor = MaterialTheme.colorScheme.primary
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
         shape = RoundedCornerShape(13.dp),
-        color =
-            MaterialTheme
-                .colorScheme
-                .primary
-                .copy(alpha = 0.10f),
+        color = supremeColors.tintedSurface(
+            roleColor = actionColor,
+            strength = 0.10f
+        ),
         border = BorderStroke(
             width = 1.dp,
-            color =
-                MaterialTheme
-                    .colorScheme
-                    .primary
-                    .copy(alpha = 0.35f)
+            color = supremeColors.tintedSurface(
+                roleColor = actionColor,
+                strength = 0.35f
+            )
         )
     ) {
         Row(
@@ -722,10 +724,10 @@ private fun PriceMovementAction(
                     .size(34.dp)
                     .clip(CircleShape)
                     .background(
-                        MaterialTheme
-                            .colorScheme
-                            .primary
-                            .copy(alpha = 0.18f)
+                        supremeColors.tintedSurface(
+                            roleColor = actionColor,
+                            strength = 0.18f
+                        )
                     ),
                 contentAlignment =
                     Alignment.Center

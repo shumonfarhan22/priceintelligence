@@ -154,6 +154,13 @@ internal fun OriginalProfessionalProductDetailDialog(
     var networkIsError by remember {
         mutableStateOf(false)
     }
+
+    val networkBannerContentColor =
+        if (MaterialTheme.supremeColors.isDark) {
+            Color.White
+        } else {
+            Color(0xFF111827)
+        }
     var networkBannerRequest by remember {
         mutableStateOf(0)
     }
@@ -781,7 +788,7 @@ internal fun OriginalProfessionalProductDetailDialog(
                                 Icon(
                                     imageVector = Icons.Rounded.Info,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = networkBannerContentColor,
                                     modifier = Modifier.size(20.dp)
                                 )
 
@@ -789,7 +796,7 @@ internal fun OriginalProfessionalProductDetailDialog(
 
                                 Text(
                                     text = networkMessage,
-                                    color = Color.White,
+                                    color = networkBannerContentColor,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(1f)
@@ -805,7 +812,7 @@ internal fun OriginalProfessionalProductDetailDialog(
                                         imageVector = Icons.Rounded.Close,
                                         contentDescription =
                                             "Dismiss network message",
-                                        tint = Color.White,
+                                        tint = networkBannerContentColor,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }

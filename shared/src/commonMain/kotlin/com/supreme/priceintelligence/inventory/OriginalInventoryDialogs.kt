@@ -896,7 +896,9 @@ private fun EditorActionButtons(
                 border = BorderStroke(
                     width = 1.dp,
                     color =
-                        Color.White.copy(alpha = 0.20f)
+                        MaterialTheme
+                            .supremeColors
+                            .border
                 ),
                 colors =
                     ButtonDefaults

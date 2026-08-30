@@ -23,8 +23,10 @@ internal data class AppSemanticPalette(
     val onCompetitiveContainer: Color,
     val warning: Color,
     val warningContainer: Color,
+    val onWarningContainer: Color,
     val review: Color,
-    val reviewContainer: Color
+    val reviewContainer: Color,
+    val onReviewContainer: Color
 )
 
 private data class RawAppPalette(
@@ -81,76 +83,143 @@ internal fun AppCustomization.semanticPalette(
     val primary =
         ensureVisible(
             color = rawPalette.primary,
-            background = background
+            background = background,
+            minimumContrast =
+                if (isDarkTheme) 3.0f else 4.5f
         )
 
     val secondary =
         ensureVisible(
             color = rawPalette.secondary,
-            background = background
+            background = background,
+            minimumContrast =
+                if (isDarkTheme) 3.0f else 4.5f
         )
 
     val competitive =
         ensureVisible(
             color = rawPalette.competitive,
-            background = background
+            background = background,
+            minimumContrast =
+                if (isDarkTheme) 3.0f else 4.5f
         )
 
     val warning =
         ensureVisible(
             color = rawPalette.warning,
-            background = background
+            background = background,
+            minimumContrast =
+                if (isDarkTheme) 3.0f else 4.5f
         )
 
     val review =
         ensureVisible(
             color = rawPalette.review,
-            background = background
+            background = background,
+            minimumContrast =
+                if (isDarkTheme) 3.0f else 4.5f
+        )
+
+    val primaryContainer =
+        roleContainer(
+            roleColor = primary,
+            background = background,
+            isDarkTheme = isDarkTheme
+        )
+
+    val secondaryContainer =
+        roleContainer(
+            roleColor = secondary,
+            background = background,
+            isDarkTheme = isDarkTheme
+        )
+
+    val competitiveContainer =
+        roleContainer(
+            roleColor = competitive,
+            background = background,
+            isDarkTheme = isDarkTheme
+        )
+
+    val warningContainer =
+        roleContainer(
+            roleColor = warning,
+            background = background,
+            isDarkTheme = isDarkTheme
+        )
+
+    val reviewContainer =
+        roleContainer(
+            roleColor = review,
+            background = background,
+            isDarkTheme = isDarkTheme
         )
 
     return AppSemanticPalette(
         primary = primary,
         onPrimary = readableContentColor(primary),
-        primaryContainer =
-            roleContainer(
-                roleColor = primary,
-                background = background,
-                isDarkTheme = isDarkTheme
-            ),
-        onPrimaryContainer = primary,
+        primaryContainer = primaryContainer,
+        onPrimaryContainer =
+            if (isDarkTheme) {
+                primary
+            } else {
+                ensureVisible(
+                    color = primary,
+                    background = primaryContainer,
+                    minimumContrast = 4.5f
+                )
+            },
         secondary = secondary,
         onSecondary = readableContentColor(secondary),
-        secondaryContainer =
-            roleContainer(
-                roleColor = secondary,
-                background = background,
-                isDarkTheme = isDarkTheme
-            ),
-        onSecondaryContainer = secondary,
+        secondaryContainer = secondaryContainer,
+        onSecondaryContainer =
+            if (isDarkTheme) {
+                secondary
+            } else {
+                ensureVisible(
+                    color = secondary,
+                    background = secondaryContainer,
+                    minimumContrast = 4.5f
+                )
+            },
         competitive = competitive,
         onCompetitive =
             readableContentColor(competitive),
-        competitiveContainer =
-            roleContainer(
-                roleColor = competitive,
-                background = background,
-                isDarkTheme = isDarkTheme
-            ),
-        onCompetitiveContainer = competitive,
+        competitiveContainer = competitiveContainer,
+        onCompetitiveContainer =
+            if (isDarkTheme) {
+                competitive
+            } else {
+                ensureVisible(
+                    color = competitive,
+                    background = competitiveContainer,
+                    minimumContrast = 4.5f
+                )
+            },
         warning = warning,
-        warningContainer =
-            roleContainer(
-                roleColor = warning,
-                background = background,
-                isDarkTheme = isDarkTheme
-            ),
+        warningContainer = warningContainer,
+        onWarningContainer =
+            if (isDarkTheme) {
+                warning
+            } else {
+                ensureVisible(
+                    color = warning,
+                    background = warningContainer,
+                    minimumContrast = 4.5f
+                )
+            },
         review = review,
-        reviewContainer =
-            roleContainer(
-                roleColor = review,
-                background = background,
-                isDarkTheme = isDarkTheme
-            )
+        reviewContainer = reviewContainer,
+        onReviewContainer =
+            if (isDarkTheme) {
+                review
+            } else {
+                ensureVisible(
+                    color = review,
+                    background = reviewContainer,
+                    minimumContrast = 4.5f
+                )
+            }
     )
 }
 
@@ -232,7 +301,8 @@ private fun roleContainer(
 
 private fun ensureVisible(
     color: Color,
-    background: Color
+    background: Color,
+    minimumContrast: Float
 ): Color {
     var adjustedColor = color
 
@@ -248,7 +318,7 @@ private fun ensureVisible(
             contrastRatio(
                 adjustedColor,
                 background
-            ) >= 3.0f
+            ) >= minimumContrast
         ) {
             return adjustedColor
         }

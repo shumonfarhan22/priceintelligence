@@ -142,7 +142,8 @@ private fun supremeDarkColorScheme(
         ),
     errorContainer =
         palette.reviewContainer,
-    onErrorContainer = palette.review,
+    onErrorContainer =
+        palette.onReviewContainer,
     outline = SurfaceAlt
 )
 
@@ -172,6 +173,14 @@ private fun supremeLightColorScheme(
     onSurface = Color(0xFF1D1B17),
     surfaceVariant = Color(0xFFEBE3D7),
     onSurfaceVariant = Color(0xFF5C5852),
+    surfaceDim = Color(0xFFDDD4C7),
+    surfaceBright = Color(0xFFFFFDF8),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF7F2E9),
+    surfaceContainer = Color(0xFFF1EADF),
+    surfaceContainerHigh = Color(0xFFEBE3D7),
+    surfaceContainerHighest = Color(0xFFE3DACD),
+    surfaceTint = Color.Transparent,
     error = palette.review,
     onError =
         readableThemeContentColor(
@@ -179,8 +188,14 @@ private fun supremeLightColorScheme(
         ),
     errorContainer =
         palette.reviewContainer,
-    onErrorContainer = palette.review,
-    outline = Color(0xFFB8AA96)
+    onErrorContainer =
+        palette.onReviewContainer,
+    outline = Color(0xFF9E927F),
+    outlineVariant = Color(0xFFD7CCBD),
+    inverseSurface = Color(0xFF32302B),
+    inverseOnSurface = Color(0xFFF7F1E8),
+    inversePrimary = palette.primaryContainer,
+    scrim = Color.Black
 )
 
 private fun readableThemeContentColor(

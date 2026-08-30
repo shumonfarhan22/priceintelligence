@@ -387,7 +387,10 @@ private fun PriceHistoryLineGraph(
 
     val retailerColors =
         retailerChartPalette.retailerChartColors(
-            customRetailerChartColors
+            customColors =
+                customRetailerChartColors,
+            isDarkTheme =
+                MaterialTheme.supremeColors.isDark
         )
 
     val lineColor = when (retailer) {

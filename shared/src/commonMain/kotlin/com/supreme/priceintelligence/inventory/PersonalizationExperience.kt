@@ -1569,7 +1569,12 @@ private fun PriceMovementPreview(
         insight
             .retailerChartPalette
             .retailerChartColors(
-                insight.customRetailerChartColors
+                customColors =
+                    insight.customRetailerChartColors,
+                isDarkTheme =
+                    MaterialTheme
+                        .supremeColors
+                        .isDark
             )
 
     Column(

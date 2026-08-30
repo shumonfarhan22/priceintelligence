@@ -61,6 +61,7 @@ import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.settings.AppCustomization
 import com.supreme.priceintelligence.ui.theme.supremeColors
+import com.supreme.priceintelligence.ui.theme.tintedSurface
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 
@@ -516,6 +517,8 @@ internal fun QuickCompareScreen(
 private fun QuickCompareHeader(
     onNavigateHome: () -> Unit
 ) {
+    val supremeColors = MaterialTheme.supremeColors
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -538,11 +541,13 @@ private fun QuickCompareHeader(
 
         Surface(
             shape = RoundedCornerShape(13.dp),
-            color =
-                MaterialTheme
-                    .colorScheme
-                    .primary
-                    .copy(alpha = 0.12f)
+            color = supremeColors.tintedSurface(
+                roleColor =
+                    MaterialTheme.colorScheme.primary,
+                strength = 0.12f,
+                lightBase =
+                    MaterialTheme.colorScheme.background
+            )
         ) {
             Icon(
                 imageVector = Icons.Rounded.Speed,
@@ -646,14 +651,17 @@ private fun QuickCompareFeature(
     text: String,
     modifier: Modifier = Modifier
 ) {
+    val featureColor =
+        MaterialTheme.supremeColors.tintedSurface(
+            roleColor =
+                MaterialTheme.colorScheme.primary,
+            strength = 0.09f
+        )
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color =
-            MaterialTheme
-                .colorScheme
-                .primary
-                .copy(alpha = 0.09f)
+        color = featureColor
     ) {
         Text(
             text = text,
