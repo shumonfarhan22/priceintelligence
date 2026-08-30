@@ -127,7 +127,6 @@ import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.home.iconSet
 import com.supreme.priceintelligence.settings.matchingPersonalizationPreset
 import com.supreme.priceintelligence.settings.personalizationForPreset
-import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
@@ -174,7 +173,6 @@ internal fun PersonalizationAccordionDialog(
     val insight = customization.insightCustomization
     val defaults = AppCustomization()
     val insightDefaults = InsightCustomization()
-    val platformHaptics = rememberPlatformHaptics()
 
     val previewTarget =
         PersonalizationPreviewTarget.entries
@@ -498,11 +496,6 @@ internal fun PersonalizationAccordionDialog(
                                     customization
                                         .launchTileIconStyle,
                                 onSelected = { style ->
-                                    if (customization.hapticsEnabled) {
-                                        platformHaptics
-                                            .selectionChanged()
-                                    }
-
                                     onCustomizationChanged(
                                         customization.copy(
                                             launchTileIconStyle =
@@ -540,7 +533,7 @@ internal fun PersonalizationAccordionDialog(
                             ) { value -> updateInsight { it.copy(reduceTransparency = value) } }
                             SettingSwitch(
                                 "Haptic feedback",
-                                "Confirms important selections, saves, warnings and barcode scans.",
+                                "Feedback for successful barcode scans and bottom banner messages.",
                                 customization.hapticsEnabled
                             ) { enabled ->
                                 onCustomizationChanged(
@@ -548,10 +541,6 @@ internal fun PersonalizationAccordionDialog(
                                         hapticsEnabled = enabled
                                     )
                                 )
-
-                                if (enabled) {
-                                    platformHaptics.actionConfirmed()
-                                }
                             }
                             SectionResetButton {
                                 onThemeModeChanged(AppThemeMode.DARK)

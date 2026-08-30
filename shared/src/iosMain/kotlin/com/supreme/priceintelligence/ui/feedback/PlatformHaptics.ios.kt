@@ -16,10 +16,6 @@ internal actual fun rememberPlatformHaptics(): PlatformHaptics =
     }
 
 private class IosPlatformHaptics : PlatformHaptics {
-    override fun selectionChanged() {
-        vibrate()
-    }
-
     override fun actionConfirmed() {
         vibrate()
     }

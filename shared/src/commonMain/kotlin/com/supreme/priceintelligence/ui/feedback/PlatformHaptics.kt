@@ -7,8 +7,6 @@ import androidx.compose.runtime.Composable
  * haptic engine. Routine taps deliberately do not produce feedback.
  */
 internal interface PlatformHaptics {
-    fun selectionChanged()
-
     fun actionConfirmed()
 
     fun warning()

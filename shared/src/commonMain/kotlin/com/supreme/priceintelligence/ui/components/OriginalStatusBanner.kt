@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.theme.supremeColors
 
 enum class OriginalBannerKind {
@@ -51,13 +52,31 @@ fun OriginalStatusBanner(
     message: String?,
     kind: OriginalBannerKind,
     onDismiss: () -> Unit,
+    hapticFeedbackEnabled: Boolean,
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = 16.dp
 ) {
     if (message.isNullOrBlank()) return
 
+    val platformHaptics = rememberPlatformHaptics()
     val progress = remember(message) {
         Animatable(1f)
+    }
+
+    LaunchedEffect(message, kind) {
+        if (hapticFeedbackEnabled) {
+            when (kind) {
+                OriginalBannerKind.SUCCESS,
+                OriginalBannerKind.INFO ->
+                    platformHaptics.actionConfirmed()
+
+                OriginalBannerKind.WARNING ->
+                    platformHaptics.warning()
+
+                OriginalBannerKind.ERROR ->
+                    platformHaptics.error()
+            }
+        }
     }
 
     LaunchedEffect(message) {

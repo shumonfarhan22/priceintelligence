@@ -984,6 +984,8 @@ fun OriginalDashboardScreen(
                 onDismiss = {
                     showNetworkBanner = false
                 },
+                hapticFeedbackEnabled =
+                    customization.hapticsEnabled,
                 modifier = Modifier.onSizeChanged { size ->
                     measuredNetworkBannerHeight =
                         with(density) {

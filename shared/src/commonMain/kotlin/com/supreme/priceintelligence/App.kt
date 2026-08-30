@@ -78,7 +78,6 @@ import com.supreme.priceintelligence.ui.components.OriginalBannerKind
 import com.supreme.priceintelligence.ui.components.OriginalDashboardHeader
 import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
 import com.supreme.priceintelligence.ui.accessibility.rememberPlatformAccessibility
-import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.permissions.PermissionRecoveryDialog
 import com.supreme.priceintelligence.settings.AppPreferences
 import com.supreme.priceintelligence.settings.AppCustomization
@@ -159,7 +158,6 @@ fun App(
             }
             val inventoryState by inventoryViewModel.uiState.collectAsState()
             val dashboardState by dashboardViewModel.uiState.collectAsState()
-            val platformHaptics = rememberPlatformHaptics()
             val platformAccessibility =
                 rememberPlatformAccessibility()
 
@@ -305,9 +303,6 @@ fun App(
                                         false
                                     saveNotificationPreference(true)
 
-                                    if (customization.hapticsEnabled) {
-                                        platformHaptics.actionConfirmed()
-                                    }
                                 }
 
                                 !granted &&
@@ -678,10 +673,6 @@ fun App(
                                                 customization
                                                     .launchTileIconStyle,
                                             onDashboardClick = {
-                                                if (customization.hapticsEnabled) {
-                                                    platformHaptics
-                                                        .selectionChanged()
-                                                }
                                                 destinationName =
                                                     MainDestination
                                                         .Dashboard
@@ -691,10 +682,6 @@ fun App(
                                                     .refreshSilently()
                                             },
                                             onInventoryClick = {
-                                                if (customization.hapticsEnabled) {
-                                                    platformHaptics
-                                                        .selectionChanged()
-                                                }
                                                 destinationName =
                                                     MainDestination
                                                         .Inventory
@@ -702,10 +689,6 @@ fun App(
                                                 hubVisible = false
                                             },
                                             onPriceMovementClick = {
-                                                if (customization.hapticsEnabled) {
-                                                    platformHaptics
-                                                        .selectionChanged()
-                                                }
                                                 destinationName =
                                                     MainDestination
                                                         .PriceMovement
@@ -713,10 +696,6 @@ fun App(
                                                 hubVisible = false
                                             },
                                             onQuickCompareClick = {
-                                                if (customization.hapticsEnabled) {
-                                                    platformHaptics
-                                                        .selectionChanged()
-                                                }
                                                 destinationName =
                                                     MainDestination
                                                         .QuickCompare
@@ -724,18 +703,10 @@ fun App(
                                                 hubVisible = false
                                             },
                                             onSettingsClick = {
-                                                if (customization.hapticsEnabled) {
-                                                    platformHaptics
-                                                        .selectionChanged()
-                                                }
                                                 appToolsOpen = true
                                             },
                                             onFilterSelected = {
                                                     filter ->
-                                                if (customization.hapticsEnabled) {
-                                                    platformHaptics
-                                                        .selectionChanged()
-                                                }
                                                 dashboardViewModel
                                                     .setPriceFilter(
                                                         filter
@@ -863,7 +834,9 @@ fun App(
                                     with(density) {
                                         size.height.toDp()
                                     }
-                            },
+                        },
+                        hapticFeedbackEnabled =
+                            customization.hapticsEnabled,
                         horizontalPadding =
                             if (
                                 customization.displayDensity ==
@@ -886,7 +859,9 @@ fun App(
                                     with(density) {
                                         size.height.toDp()
                                     }
-                            },
+                        },
+                        hapticFeedbackEnabled =
+                            customization.hapticsEnabled,
                         horizontalPadding =
                             if (
                                 customization.displayDensity ==
@@ -959,21 +934,12 @@ fun App(
                                         notificationEnablePendingAfterSettings =
                                             false
                                         saveNotificationPreference(true)
-
-                                        if (customization.hapticsEnabled) {
-                                            platformHaptics
-                                                .actionConfirmed()
-                                        }
                                     } else {
                                         saveNotificationPreference(false)
                                         notificationEnablePendingAfterSettings =
                                             true
                                         notificationPermissionRecoveryVisible =
                                             true
-
-                                        if (customization.hapticsEnabled) {
-                                            platformHaptics.error()
-                                        }
                                     }
                                 }
                         } else {

@@ -107,7 +107,6 @@ import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisi
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.home.iconSet
-import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.input.dismissKeyboardOnUnhandledTap
 import com.supreme.priceintelligence.ui.input.rememberKeyboardDismissAction
 import com.supreme.priceintelligence.ui.permissions.PermissionRecoveryDialog
@@ -135,7 +134,6 @@ fun OriginalInventoryScreen(
         rememberTextFieldState(state.directoryQuery)
     val editorTextState = rememberInventoryEditorTextState()
     val dismissKeyboard = rememberKeyboardDismissAction()
-    val platformHaptics = rememberPlatformHaptics()
 
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var scannerOpen by rememberSaveable { mutableStateOf(false) }
@@ -170,10 +168,6 @@ fun OriginalInventoryScreen(
                 dismissKeyboard()
                 scannerOpen = true
             } else {
-                if (customization.hapticsEnabled) {
-                    platformHaptics.error()
-                }
-
                 cameraPermissionRecoveryVisible = true
                 viewModel.reportError(
                     "Camera permission is needed to scan a barcode"
@@ -201,9 +195,6 @@ fun OriginalInventoryScreen(
             },
             onError = { message ->
                 scannerOpen = false
-                if (customization.hapticsEnabled) {
-                    platformHaptics.error()
-                }
                 viewModel.reportError(message)
             },
             onCanceled = {
@@ -338,23 +329,14 @@ fun OriginalInventoryScreen(
                         viewModel::refreshInventory,
                     onSelectAll =
                         {
-                            if (customization.hapticsEnabled) {
-                                platformHaptics.selectionChanged()
-                            }
                             viewModel.selectAllVisible()
                         },
                     onClearSelection =
                         {
-                            if (customization.hapticsEnabled) {
-                                platformHaptics.selectionChanged()
-                            }
                             viewModel.clearSelection()
                         },
                     onDeleteSelected =
                         {
-                            if (customization.hapticsEnabled) {
-                                platformHaptics.warning()
-                            }
                             viewModel.queueSelectedForDelete()
                         }
                 )
@@ -494,21 +476,14 @@ fun OriginalInventoryScreen(
                                             item.id == state.highlightedItemId,
                                         selectionMode = state.isSelectionMode,
                                         onToggleSelection = {
-                                            if (customization.hapticsEnabled) {
-                                                platformHaptics
-                                                    .selectionChanged()
-                                            }
                                             viewModel.toggleSelection(item.id)
                                         },
                                         onEdit = {
                                             editorTextState.load(item)
                                             viewModel.startEditing(item)
                                             editorOpen = true
-                                        },
-                                        onDelete = {
-                                            if (customization.hapticsEnabled) {
-                                                platformHaptics.warning()
-                                            }
+                                       },
+                                       onDelete = {
                                             viewModel.queueDelete(setOf(item))
                                         }
                                     )
@@ -586,9 +561,6 @@ fun OriginalInventoryScreen(
                 viewModel.saveProduct(
                     form = editedForm,
                     onSuccess = {
-                        if (customization.hapticsEnabled) {
-                            platformHaptics.actionConfirmed()
-                        }
                         onSaved()
                     }
                 )

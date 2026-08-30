@@ -37,22 +37,29 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.theme.supremeColors
 
 @Composable
 fun OriginalInventoryUndoBanner(
     pendingItems: Set<InventoryItem>,
     onUndo: () -> Unit,
+    hapticFeedbackEnabled: Boolean,
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = 16.dp
 ) {
     if (pendingItems.isEmpty()) return
 
+    val platformHaptics = rememberPlatformHaptics()
     val progress = remember(pendingItems) {
         Animatable(1f)
     }
 
     LaunchedEffect(pendingItems) {
+        if (hapticFeedbackEnabled) {
+            platformHaptics.warning()
+        }
+
         progress.snapTo(1f)
         progress.animateTo(
             targetValue = 0f,

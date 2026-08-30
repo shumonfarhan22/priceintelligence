@@ -33,6 +33,12 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
+        // Activity-result launchers must be registered before this Activity
+        // reaches STARTED. Creating the notifier inside Compose can be too
+        // late on Android and crashes the app during its first composition.
+        val priceChangeNotifier =
+            AndroidPriceChangeNotifier(this)
+
         setContent {
             val databaseBuilder = remember {
                 getDatabaseBuilder(applicationContext)
@@ -44,10 +50,6 @@ class MainActivity : ComponentActivity() {
 
             val appPreferences = remember {
                 AndroidAppPreferences(applicationContext)
-            }
-
-            val priceChangeNotifier = remember {
-                AndroidPriceChangeNotifier(this)
             }
 
             DisposableEffect(networkMonitor) {

@@ -57,18 +57,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.ui.clipboard.rememberPlatformClipboard
 import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.input.BarcodeInputTransformation
 import com.supreme.priceintelligence.ui.input.DecimalNumberInputTransformation
@@ -996,8 +997,7 @@ private fun OriginalEditorField(
             }
         )
 
-    @Suppress("DEPRECATION")
-    val clipboardManager = LocalClipboardManager.current
+    val platformClipboard = rememberPlatformClipboard()
     var isFocused by remember {
         mutableStateOf(false)
     }
@@ -1049,13 +1049,15 @@ private fun OriginalEditorField(
                     {
                         TextButton(
                             onClick = {
-                                clipboardManager
-                                    .getText()
-                                    ?.text
+                                platformClipboard
+                                    .readText()
                                     ?.takeIf { it.isNotBlank() }
                                     ?.let(
                                         state::setTextAndPlaceCursorAtEnd
                                     )
+                            },
+                            modifier = Modifier.focusProperties {
+                                canFocus = false
                             },
                             contentPadding = PaddingValues(
                                 horizontal = 9.dp,

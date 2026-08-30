@@ -232,7 +232,7 @@ internal fun PersonalizationSettingsDialog(
                         SettingsSwitchRow(
                             title = "Haptic feedback",
                             description =
-                                "Confirms important selections, saves, warnings and barcode scans.",
+                                "Feedback for successful barcode scans and bottom banner messages.",
                             checked =
                                 customization.hapticsEnabled,
                             onCheckedChange = { enabled ->

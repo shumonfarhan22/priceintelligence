@@ -32,10 +32,6 @@ private class AndroidPlatformHaptics(
                 as? Vibrator
         }
 
-    override fun selectionChanged() {
-        vibrate(durationMillis = 14L)
-    }
-
     override fun actionConfirmed() {
         vibrate(durationMillis = 32L)
     }

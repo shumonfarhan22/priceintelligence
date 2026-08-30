@@ -66,7 +66,6 @@ import com.supreme.priceintelligence.home.iconSet
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.settings.AppCustomization
-import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.permissions.PermissionRecoveryDialog
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.ui.theme.tintedSurface
@@ -90,7 +89,6 @@ internal fun QuickCompareScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController =
         LocalSoftwareKeyboardController.current
-    val platformHaptics = rememberPlatformHaptics()
 
     LaunchedEffect(state.searchDraft) {
         if (
@@ -195,10 +193,6 @@ internal fun QuickCompareScreen(
                 focusManager.clearFocus()
                 scannerOpen = true
             } else {
-                if (customization.hapticsEnabled) {
-                    platformHaptics.error()
-                }
-
                 cameraPermissionRecoveryVisible = true
             }
         }
@@ -348,9 +342,6 @@ internal fun QuickCompareScreen(
             },
             onError = {
                 scannerOpen = false
-                if (customization.hapticsEnabled) {
-                    platformHaptics.error()
-                }
             },
             onCanceled = {
                 scannerOpen = false
@@ -375,9 +366,6 @@ internal fun QuickCompareScreen(
                     state.isConnected &&
                     !state.isRefreshingPage
                 ) {
-                    if (customization.hapticsEnabled) {
-                        platformHaptics.actionConfirmed()
-                    }
                     viewModel.refreshVisiblePrices()
                 }
             },
