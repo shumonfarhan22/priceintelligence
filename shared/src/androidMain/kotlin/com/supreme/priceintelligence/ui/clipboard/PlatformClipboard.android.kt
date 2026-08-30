@@ -23,18 +23,21 @@ private class AndroidPlatformClipboard(
             Context.CLIPBOARD_SERVICE
         ) as? ClipboardManager
 
-    override fun readText(): String? {
+    override fun requestPaste(
+        onTextRead: (String) -> Unit
+    ) {
         val clip = clipboardManager
             ?.primaryClip
-            ?: return null
+            ?: return
 
         if (clip.itemCount <= 0) {
-            return null
+            return
         }
 
-        return clip
+        clip
             .getItemAt(0)
             .coerceToText(context)
             ?.toString()
+            ?.let(onTextRead)
     }
 }

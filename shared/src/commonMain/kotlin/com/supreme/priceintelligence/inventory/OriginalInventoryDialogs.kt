@@ -1050,11 +1050,13 @@ private fun OriginalEditorField(
                         TextButton(
                             onClick = {
                                 platformClipboard
-                                    .readText()
-                                    ?.takeIf { it.isNotBlank() }
-                                    ?.let(
-                                        state::setTextAndPlaceCursorAtEnd
-                                    )
+                                    .requestPaste { pastedText ->
+                                        pastedText
+                                            .takeIf { it.isNotBlank() }
+                                            ?.let(
+                                                state::setTextAndPlaceCursorAtEnd
+                                            )
+                                    }
                             },
                             modifier = Modifier.focusProperties {
                                 canFocus = false
