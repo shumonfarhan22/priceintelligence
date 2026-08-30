@@ -244,6 +244,52 @@ class DashboardViewModelTest {
     }
 
     @Test
+    fun pullRefreshResetsSearchAndPageWithoutFetchingPrices() =
+        runTest(dispatcher) {
+            val dao = FakeInventoryDao()
+            val repository = InventoryRepository(dao)
+
+            repeat(12) { index ->
+                repository.addProduct(
+                    name = "Phone ${index + 1}",
+                    shopPrice = 10_000.0 + index,
+                    amazonUrl =
+                        "https://amazon.in/phone-${index + 1}"
+                )
+            }
+
+            val fetcher = FakePriceFetcher(emptyMap())
+            val viewModel = DashboardViewModel(
+                repository = repository,
+                scraper = fetcher,
+                networkMonitor =
+                    FakeNetworkMonitor(isConnected = true)
+            )
+
+            advanceUntilIdle()
+            viewModel.onSearchSubmitted("Phone")
+            advanceUntilIdle()
+            viewModel.goToPage(2)
+            advanceUntilIdle()
+
+            assertEquals(2, viewModel.uiState.value.currentPage)
+            assertEquals("Phone", viewModel.uiState.value.searchQuery)
+
+            viewModel.refresh()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("", state.searchDraft)
+            assertEquals("", state.searchQuery)
+            assertEquals(1, state.currentPage)
+            assertEquals(12, state.totalMatchCount)
+            assertEquals(10, state.pageItems.size)
+            assertTrue(fetcher.requestedUrls.isEmpty())
+
+            viewModel.viewModelScope.cancel()
+        }
+
+    @Test
     fun needsCheckFilterShowsOnlyStaleOrMissingLinkedPrices() =
         runTest(dispatcher) {
             val nowMillis =

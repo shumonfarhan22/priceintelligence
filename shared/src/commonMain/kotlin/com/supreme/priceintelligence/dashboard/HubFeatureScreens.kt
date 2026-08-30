@@ -47,6 +47,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -71,6 +72,7 @@ import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.ui.theme.tintedSurface
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun QuickCompareScreen(
@@ -132,6 +134,7 @@ internal fun QuickCompareScreen(
 
     val quickCompareGridState =
         rememberLazyGridState()
+    val quickCompareScope = rememberCoroutineScope()
 
     var quickCompareSearchVisible by rememberSaveable {
         mutableStateOf(true)
@@ -359,14 +362,26 @@ internal fun QuickCompareScreen(
             )
     ) {
         PullToRefreshBox(
-            isRefreshing = state.isRefreshingPage,
+            isRefreshing = state.isLoading,
             onRefresh = {
                 if (
                     !previewMode &&
-                    state.isConnected &&
-                    !state.isRefreshingPage
+                    !state.isLoading
                 ) {
-                    viewModel.refreshVisiblePrices()
+                    searchSubmitted = false
+                    pendingExactQuery = null
+                    catalogRevealed = true
+                    quickCompareSearchVisible = true
+                    quickCompareSearchFocused = false
+                    quickCompareSearchState
+                        .setTextAndPlaceCursorAtEnd("")
+                    keyboardController?.hide()
+                    focusManager.clearFocus(force = true)
+
+                    viewModel.refresh()
+                    quickCompareScope.launch {
+                        quickCompareGridState.scrollToItem(0)
+                    }
                 }
             },
             modifier = Modifier.fillMaxSize()
