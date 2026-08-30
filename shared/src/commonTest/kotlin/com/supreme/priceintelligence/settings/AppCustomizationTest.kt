@@ -27,8 +27,17 @@ class AppCustomizationTest {
             textSize = AppTextSize.LARGE,
             displayDensity = AppDisplayDensity.COMPACT,
             motionPreference = AppMotionPreference.REDUCED,
-            launchTileIconStyle =
-                LaunchTileIconStyle.DATA,
+            launchTileIconPreferences =
+                LaunchTileIconPreferences(
+                    insights =
+                        LaunchTileIconStyle.DATA,
+                    inventory =
+                        LaunchTileIconStyle.CLASSIC,
+                    priceMovement =
+                        LaunchTileIconStyle.PRODUCT,
+                    quickCompare =
+                        LaunchTileIconStyle.BUSINESS
+                ),
             hapticsEnabled = false,
             automaticPriceChecksEnabled = false,
             dashboardCardStyle = DashboardCardStyle.COMPACT,
@@ -44,6 +53,42 @@ class AppCustomizationTest {
             readAppCustomization(
                 writeAppCustomization(original)
             )
+        )
+    }
+
+    @Test
+    fun legacyTileIconTemplateMigratesToFourChoices() {
+        val currentProfile =
+            writeAppCustomization(
+                AppCustomization(
+                    launchTileIconPreferences =
+                        LaunchTileIconPreferences(
+                            insights =
+                                LaunchTileIconStyle.DATA,
+                            inventory =
+                                LaunchTileIconStyle.DATA,
+                            priceMovement =
+                                LaunchTileIconStyle.DATA,
+                            quickCompare =
+                                LaunchTileIconStyle.DATA
+                        )
+                )
+            )
+
+        val legacyProfile = currentProfile
+            .split('|')
+            .dropLast(1)
+            .joinToString("|")
+
+        assertEquals(
+            LaunchTileIconPreferences(
+                insights = LaunchTileIconStyle.DATA,
+                inventory = LaunchTileIconStyle.DATA,
+                priceMovement = LaunchTileIconStyle.DATA,
+                quickCompare = LaunchTileIconStyle.DATA
+            ),
+            readAppCustomization(legacyProfile)
+                .launchTileIconPreferences
         )
     }
 

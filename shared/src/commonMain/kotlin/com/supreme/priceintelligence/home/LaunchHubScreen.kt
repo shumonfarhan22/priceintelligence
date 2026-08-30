@@ -57,7 +57,7 @@ import com.supreme.priceintelligence.dashboard.PricePositionFilter
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
 import com.supreme.priceintelligence.settings.InsightCustomization
-import com.supreme.priceintelligence.settings.LaunchTileIconStyle
+import com.supreme.priceintelligence.settings.LaunchTileIconPreferences
 import com.supreme.priceintelligence.ui.theme.Accent
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.ui.theme.tintedSurface
@@ -72,7 +72,7 @@ internal fun LaunchHubScreen(
     refreshTick: Int,
     reduceMotionEnabled: Boolean,
     insightCustomization: InsightCustomization,
-    tileIconStyle: LaunchTileIconStyle,
+    tileIconPreferences: LaunchTileIconPreferences,
     onDashboardClick: () -> Unit,
     onInventoryClick: () -> Unit,
     onPriceMovementClick: () -> Unit,
@@ -81,7 +81,7 @@ internal fun LaunchHubScreen(
     onFilterSelected: (PricePositionFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tileIcons = tileIconStyle.iconSet()
+    val tileIcons = tileIconPreferences.iconSet()
 
     LazyColumn(
         modifier = modifier,

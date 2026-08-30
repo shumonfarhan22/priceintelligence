@@ -189,6 +189,17 @@ enum class LaunchTileIconStyle(
     DATA("Data")
 }
 
+data class LaunchTileIconPreferences(
+    val insights: LaunchTileIconStyle =
+        LaunchTileIconStyle.CLEAN,
+    val inventory: LaunchTileIconStyle =
+        LaunchTileIconStyle.CLEAN,
+    val priceMovement: LaunchTileIconStyle =
+        LaunchTileIconStyle.CLEAN,
+    val quickCompare: LaunchTileIconStyle =
+        LaunchTileIconStyle.CLEAN
+)
+
 enum class DashboardCardStyle(
     val displayName: String
 ) {
@@ -271,8 +282,9 @@ data class AppCustomization(
         AppDisplayDensity.COMFORTABLE,
     val motionPreference: AppMotionPreference =
         AppMotionPreference.SYSTEM,
-    val launchTileIconStyle: LaunchTileIconStyle =
-        LaunchTileIconStyle.CLEAN,
+    val launchTileIconPreferences:
+        LaunchTileIconPreferences =
+        LaunchTileIconPreferences(),
     val hapticsEnabled: Boolean = true,
     val automaticPriceChecksEnabled: Boolean = true,
     val dashboardCardStyle: DashboardCardStyle =
@@ -308,6 +320,12 @@ fun readAppCustomization(
     if (parts.firstOrNull() != PROFILE_VERSION) {
         return AppCustomization()
     }
+
+    val legacyLaunchTileIconStyle =
+        enumValueOrDefault(
+            value = parts.getOrNull(20),
+            defaultValue = LaunchTileIconStyle.CLEAN
+        )
 
     return AppCustomization(
         accentColor =
@@ -417,11 +435,11 @@ fun readAppCustomization(
             parts.getOrNull(19)
                 ?.toBooleanStrictOrNull()
                 ?: true,
-        launchTileIconStyle =
-            enumValueOrDefault(
-                value = parts.getOrNull(20),
-                defaultValue =
-                    LaunchTileIconStyle.CLEAN
+        launchTileIconPreferences =
+            readLaunchTileIconPreferences(
+                storedValue = parts.getOrNull(21),
+                legacyStyle =
+                    legacyLaunchTileIconStyle
             )
     )
 }
@@ -461,8 +479,62 @@ fun writeAppCustomization(
         ),
         customization.automaticPriceChecksEnabled
             .toString(),
-        customization.launchTileIconStyle.name
+        customization
+            .launchTileIconPreferences
+            .insights
+            .name,
+        writeLaunchTileIconPreferences(
+            customization.launchTileIconPreferences
+        )
     ).joinToString("|")
+
+private fun readLaunchTileIconPreferences(
+    storedValue: String?,
+    legacyStyle: LaunchTileIconStyle
+): LaunchTileIconPreferences {
+    val parts = storedValue
+        ?.split(';')
+        .orEmpty()
+
+    if (parts.firstOrNull() != "i1") {
+        return LaunchTileIconPreferences(
+            insights = legacyStyle,
+            inventory = legacyStyle,
+            priceMovement = legacyStyle,
+            quickCompare = legacyStyle
+        )
+    }
+
+    return LaunchTileIconPreferences(
+        insights = enumValueOrDefault(
+            value = parts.getOrNull(1),
+            defaultValue = legacyStyle
+        ),
+        inventory = enumValueOrDefault(
+            value = parts.getOrNull(2),
+            defaultValue = legacyStyle
+        ),
+        priceMovement = enumValueOrDefault(
+            value = parts.getOrNull(3),
+            defaultValue = legacyStyle
+        ),
+        quickCompare = enumValueOrDefault(
+            value = parts.getOrNull(4),
+            defaultValue = legacyStyle
+        )
+    )
+}
+
+private fun writeLaunchTileIconPreferences(
+    preferences: LaunchTileIconPreferences
+): String =
+    listOf(
+        "i1",
+        preferences.insights.name,
+        preferences.inventory.name,
+        preferences.priceMovement.name,
+        preferences.quickCompare.name
+    ).joinToString(";")
 
 private fun readCustomColorPalette(
     storedValue: String?

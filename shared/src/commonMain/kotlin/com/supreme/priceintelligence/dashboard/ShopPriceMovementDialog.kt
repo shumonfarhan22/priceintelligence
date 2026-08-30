@@ -317,7 +317,8 @@ fun ShopPriceMovementDialog(
                         MovementHeader(
                             icon =
                                 customization
-                                    .launchTileIconStyle
+                                    .launchTileIconPreferences
+                                    .priceMovement
                                     .iconSet()
                                     .priceMovement,
                             isLoading = isLoading,

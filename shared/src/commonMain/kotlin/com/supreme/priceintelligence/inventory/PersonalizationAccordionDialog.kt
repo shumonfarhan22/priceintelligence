@@ -107,6 +107,7 @@ import com.supreme.priceintelligence.settings.MovementDirectionFilter
 import com.supreme.priceintelligence.settings.MovementLayout
 import com.supreme.priceintelligence.settings.MovementProductGraphState
 import com.supreme.priceintelligence.settings.MovementProductSort
+import com.supreme.priceintelligence.settings.LaunchTileIconPreferences
 import com.supreme.priceintelligence.settings.LaunchTileIconStyle
 import com.supreme.priceintelligence.settings.PersonalizationPreset
 import com.supreme.priceintelligence.settings.PriceAlertDirection
@@ -491,15 +492,16 @@ internal fun PersonalizationAccordionDialog(
                                 )
                             }
 
-                            TileIconStyleGroup(
-                                selected =
+                            TileIconCustomizationGroup(
+                                preferences =
                                     customization
-                                        .launchTileIconStyle,
-                                onSelected = { style ->
+                                        .launchTileIconPreferences,
+                                onPreferencesChanged = {
+                                        preferences ->
                                     onCustomizationChanged(
                                         customization.copy(
-                                            launchTileIconStyle =
-                                                style
+                                            launchTileIconPreferences =
+                                                preferences
                                         )
                                     )
                                 }
@@ -554,8 +556,9 @@ internal fun PersonalizationAccordionDialog(
                                         fontStyle = defaults.fontStyle,
                                         textSize = defaults.textSize,
                                         displayDensity = defaults.displayDensity,
-                                        launchTileIconStyle =
-                                            defaults.launchTileIconStyle,
+                                        launchTileIconPreferences =
+                                            defaults
+                                                .launchTileIconPreferences,
                                         insightCustomization = insight.copy(
                                             contrastMode = insightDefaults.contrastMode,
                                             surfaceStyle = insightDefaults.surfaceStyle,
@@ -1757,15 +1760,16 @@ private fun AccordionSectionCard(
 }
 
 @Composable
-private fun TileIconStyleGroup(
-    selected: LaunchTileIconStyle,
-    onSelected: (LaunchTileIconStyle) -> Unit
+private fun TileIconCustomizationGroup(
+    preferences: LaunchTileIconPreferences,
+    onPreferencesChanged:
+        (LaunchTileIconPreferences) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(7.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "Tile icon style",
+            text = "Launch tile icons",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color =
@@ -1774,21 +1778,137 @@ private fun TileIconStyleGroup(
 
         Text(
             text =
-                "Choose one coordinated set for the four launch tiles and their page headers.",
+                "Choose every icon independently. The matching page header changes with it.",
             fontSize = 10.sp,
             color =
                 MaterialTheme.colorScheme.onSurfaceVariant
         )
 
+        TileIconChoiceGroup(
+            title = "Insights",
+            selected = preferences.insights,
+            iconForStyle = { style ->
+                style.iconSet().insights
+            },
+            labelForStyle = { style ->
+                when (style) {
+                    LaunchTileIconStyle.CLEAN -> "Analytics"
+                    LaunchTileIconStyle.CLASSIC -> "Grid"
+                    LaunchTileIconStyle.BUSINESS -> "Report"
+                    LaunchTileIconStyle.PRODUCT -> "Idea"
+                    LaunchTileIconStyle.DATA -> "Signals"
+                }
+            },
+            onSelected = { style ->
+                onPreferencesChanged(
+                    preferences.copy(insights = style)
+                )
+            }
+        )
+
+        TileIconChoiceGroup(
+            title = "Inventory",
+            selected = preferences.inventory,
+            iconForStyle = { style ->
+                style.iconSet().inventory
+            },
+            labelForStyle = { style ->
+                when (style) {
+                    LaunchTileIconStyle.CLEAN -> "Archive"
+                    LaunchTileIconStyle.CLASSIC -> "Stock"
+                    LaunchTileIconStyle.BUSINESS -> "Warehouse"
+                    LaunchTileIconStyle.PRODUCT -> "Categories"
+                    LaunchTileIconStyle.DATA -> "Inbox"
+                }
+            },
+            onSelected = { style ->
+                onPreferencesChanged(
+                    preferences.copy(inventory = style)
+                )
+            }
+        )
+
+        TileIconChoiceGroup(
+            title = "Price Movement",
+            selected = preferences.priceMovement,
+            iconForStyle = { style ->
+                style.iconSet().priceMovement
+            },
+            labelForStyle = { style ->
+                when (style) {
+                    LaunchTileIconStyle.CLEAN -> "Analysis"
+                    LaunchTileIconStyle.CLASSIC -> "Chart"
+                    LaunchTileIconStyle.BUSINESS -> "Timeline"
+                    LaunchTileIconStyle.PRODUCT -> "Trend"
+                    LaunchTileIconStyle.DATA -> "Lines"
+                }
+            },
+            onSelected = { style ->
+                onPreferencesChanged(
+                    preferences.copy(
+                        priceMovement = style
+                    )
+                )
+            }
+        )
+
+        TileIconChoiceGroup(
+            title = "Quick Compare",
+            selected = preferences.quickCompare,
+            iconForStyle = { style ->
+                style.iconSet().quickCompare
+            },
+            labelForStyle = { style ->
+                when (style) {
+                    LaunchTileIconStyle.CLEAN -> "Smart"
+                    LaunchTileIconStyle.CLASSIC -> "Search"
+                    LaunchTileIconStyle.BUSINESS -> "Compare"
+                    LaunchTileIconStyle.PRODUCT -> "Explore"
+                    LaunchTileIconStyle.DATA -> "Price"
+                }
+            },
+            onSelected = { style ->
+                onPreferencesChanged(
+                    preferences.copy(
+                        quickCompare = style
+                    )
+                )
+            }
+        )
+    }
+}
+
+@Composable
+private fun TileIconChoiceGroup(
+    title: String,
+    selected: LaunchTileIconStyle,
+    iconForStyle: (LaunchTileIconStyle) ->
+        ImageVector,
+    labelForStyle: (LaunchTileIconStyle) -> String,
+    onSelected: (LaunchTileIconStyle) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
         BoxWithConstraints(
             modifier = Modifier.fillMaxWidth()
         ) {
-            val columnCount =
-                if (maxWidth >= 248.dp) 2 else 1
+            val columnCount = when {
+                maxWidth >= 260.dp -> 5
+                maxWidth >= 190.dp -> 3
+                else -> 2
+            }
 
             Column(
                 verticalArrangement =
-                    Arrangement.spacedBy(7.dp)
+                    Arrangement.spacedBy(6.dp)
             ) {
                 LaunchTileIconStyle.entries
                     .chunked(columnCount)
@@ -1798,12 +1918,15 @@ private fun TileIconStyleGroup(
                                 .fillMaxWidth()
                                 .height(IntrinsicSize.Min),
                             horizontalArrangement =
-                                Arrangement.spacedBy(7.dp)
+                                Arrangement.spacedBy(6.dp)
                         ) {
                             rowStyles.forEach { style ->
-                                TileIconStyleChoice(
-                                    style = style,
-                                    selected = style == selected,
+                                TileIconChoice(
+                                    tileName = title,
+                                    label = labelForStyle(style),
+                                    icon = iconForStyle(style),
+                                    selected =
+                                        style == selected,
                                     onClick = {
                                         onSelected(style)
                                     },
@@ -1813,12 +1936,13 @@ private fun TileIconStyleGroup(
                                 )
                             }
 
-                            if (
-                                columnCount > 1 &&
-                                rowStyles.size == 1
+                            repeat(
+                                columnCount -
+                                    rowStyles.size
                             ) {
                                 Spacer(
-                                    modifier = Modifier.weight(1f)
+                                    modifier =
+                                        Modifier.weight(1f)
                                 )
                             }
                         }
@@ -1829,24 +1953,24 @@ private fun TileIconStyleGroup(
 }
 
 @Composable
-private fun TileIconStyleChoice(
-    style: LaunchTileIconStyle,
+private fun TileIconChoice(
+    tileName: String,
+    label: String,
+    icon: ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val icons = style.iconSet().asList()
-
     Surface(
         modifier = modifier
-            .heightIn(min = 72.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .heightIn(min = 58.dp)
+            .clip(RoundedCornerShape(11.dp))
             .clickable(onClick = onClick)
             .semantics {
                 role = Role.RadioButton
                 this.selected = selected
             },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(11.dp),
         color =
             if (selected) {
                 MaterialTheme.colorScheme.primaryContainer
@@ -1865,38 +1989,30 @@ private fun TileIconStyleChoice(
     ) {
         Column(
             modifier = Modifier.padding(
-                horizontal = 9.dp,
-                vertical = 9.dp
+                horizontal = 5.dp,
+                vertical = 7.dp
             ),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                icons.forEach { icon ->
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint =
-                            if (selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme
-                                    .colorScheme
-                                    .onSurfaceVariant
-                            },
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription =
+                    "$tileName $label icon",
+                tint =
+                    if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                    },
+                modifier = Modifier.size(23.dp)
+            )
 
             Text(
-                text = style.displayName,
-                fontSize = 10.sp,
+                text = label,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
                 color =
                     if (selected) {
@@ -2193,7 +2309,7 @@ private fun appearanceSummary(
         "${customization.appColorPalette.displayName} • " +
         "${customization.fontStyle.displayName} • " +
         "${customization.textSize.displayName} • " +
-        "${customization.launchTileIconStyle.displayName} icons"
+        "Individual tile icons"
 
 private fun AppAccentColor.previewColor(): Color = when (this) {
     AppAccentColor.SUPREME -> Color(0xFF10B981)

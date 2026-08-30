@@ -414,7 +414,8 @@ internal fun QuickCompareScreen(
                     QuickCompareHeader(
                         icon =
                             customization
-                                .launchTileIconStyle
+                                .launchTileIconPreferences
+                                .quickCompare
                                 .iconSet()
                                 .quickCompare,
                         onNavigateHome = onNavigateHome

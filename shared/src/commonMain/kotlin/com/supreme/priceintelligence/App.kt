@@ -669,9 +669,9 @@ fun App(
                                             insightCustomization =
                                                 customization
                                                     .insightCustomization,
-                                            tileIconStyle =
+                                            tileIconPreferences =
                                                 customization
-                                                    .launchTileIconStyle,
+                                                    .launchTileIconPreferences,
                                             onDashboardClick = {
                                                 destinationName =
                                                     MainDestination
@@ -729,7 +729,8 @@ fun App(
                                                     .insightCustomization,
                                             tileIconStyle =
                                                 customization
-                                                    .launchTileIconStyle,
+                                                    .launchTileIconPreferences
+                                                    .insights,
                                             reduceMotionEnabled =
                                                 reduceMotionEnabled,
                                             modifier = Modifier.fillMaxSize(),

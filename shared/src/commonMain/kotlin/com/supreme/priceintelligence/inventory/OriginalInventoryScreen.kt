@@ -316,7 +316,8 @@ fun OriginalInventoryScreen(
                 OriginalInventoryHeader(
                     icon =
                         customization
-                            .launchTileIconStyle
+                            .launchTileIconPreferences
+                            .inventory
                             .iconSet()
                             .inventory,
                     totalProducts = visibleProducts.size,

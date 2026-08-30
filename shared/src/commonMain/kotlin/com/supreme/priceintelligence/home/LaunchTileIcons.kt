@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Timeline
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material.icons.rounded.Warehouse
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.supreme.priceintelligence.settings.LaunchTileIconPreferences
 import com.supreme.priceintelligence.settings.LaunchTileIconStyle
 
 internal data class LaunchTileIconSet(
@@ -29,14 +30,7 @@ internal data class LaunchTileIconSet(
     val inventory: ImageVector,
     val priceMovement: ImageVector,
     val quickCompare: ImageVector
-) {
-    fun asList(): List<ImageVector> = listOf(
-        insights,
-        inventory,
-        priceMovement,
-        quickCompare
-    )
-}
+)
 
 internal fun LaunchTileIconStyle.iconSet(): LaunchTileIconSet =
     when (this) {
@@ -85,3 +79,14 @@ internal fun LaunchTileIconStyle.iconSet(): LaunchTileIconSet =
                 quickCompare = Icons.Rounded.PriceCheck
             )
     }
+
+internal fun LaunchTileIconPreferences.iconSet():
+    LaunchTileIconSet =
+    LaunchTileIconSet(
+        insights = insights.iconSet().insights,
+        inventory = inventory.iconSet().inventory,
+        priceMovement =
+            priceMovement.iconSet().priceMovement,
+        quickCompare =
+            quickCompare.iconSet().quickCompare
+    )
