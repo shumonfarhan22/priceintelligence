@@ -29,7 +29,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Schedule
@@ -61,7 +60,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.data.InventoryItem
+import com.supreme.priceintelligence.home.iconSet
 import com.supreme.priceintelligence.settings.InsightCustomization
+import com.supreme.priceintelligence.settings.LaunchTileIconStyle
 import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
 import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.ui.theme.supremeColors
@@ -143,6 +144,7 @@ private data class PricingInsightsSnapshot(
 internal fun PricingInsightsScreen(
     viewModel: DashboardViewModel,
     insightCustomization: InsightCustomization,
+    tileIconStyle: LaunchTileIconStyle,
     reduceMotionEnabled: Boolean,
     onNavigateHome: () -> Unit,
     modifier: Modifier = Modifier
@@ -255,6 +257,7 @@ internal fun PricingInsightsScreen(
                 )
             ) {
                 PricingInsightsHeader(
+                    icon = tileIconStyle.iconSet().insights,
                     onNavigateHome = onNavigateHome
                 )
             }
@@ -409,6 +412,7 @@ internal fun PricingInsightsScreen(
 
 @Composable
 private fun PricingInsightsHeader(
+    icon: ImageVector,
     onNavigateHome: () -> Unit
 ) {
     val supremeColors = MaterialTheme.supremeColors
@@ -439,7 +443,7 @@ private fun PricingInsightsHeader(
             )
         ) {
             Icon(
-                imageVector = Icons.Rounded.Dashboard,
+                imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(9.dp)

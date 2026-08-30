@@ -529,6 +529,9 @@ private fun PersonalizationLivePreviewContent(
                         insightCustomization =
                             customization
                                 .insightCustomization,
+                        tileIconStyle =
+                            customization
+                                .launchTileIconStyle,
                         onDashboardClick = {},
                         onInventoryClick = {},
                         onPriceMovementClick = {},

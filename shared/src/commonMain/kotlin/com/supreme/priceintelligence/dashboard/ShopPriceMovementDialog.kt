@@ -60,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -75,6 +76,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.supreme.priceintelligence.data.PriceRetailer
 import com.supreme.priceintelligence.settings.AppCustomization
+import com.supreme.priceintelligence.home.iconSet
 import com.supreme.priceintelligence.settings.GraphPointMode
 import com.supreme.priceintelligence.settings.HistoryGraphStyle
 import com.supreme.priceintelligence.settings.MovementDirectionFilter
@@ -313,6 +315,11 @@ fun ShopPriceMovementDialog(
                             reduceMotionEnabled
                     ) {
                         MovementHeader(
+                            icon =
+                                customization
+                                    .launchTileIconStyle
+                                    .iconSet()
+                                    .priceMovement,
                             isLoading = isLoading,
                             onRefresh = onRefresh,
                             onBack = requestDismiss
@@ -391,6 +398,7 @@ fun ShopPriceMovementDialog(
 
 @Composable
 private fun MovementHeader(
+    icon: ImageVector,
     isLoading: Boolean,
     onRefresh: () -> Unit,
     onBack: () -> Unit
@@ -427,7 +435,7 @@ private fun MovementHeader(
             )
         ) {
             Icon(
-                imageVector = Icons.Rounded.ShowChart,
+                imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(9.dp)

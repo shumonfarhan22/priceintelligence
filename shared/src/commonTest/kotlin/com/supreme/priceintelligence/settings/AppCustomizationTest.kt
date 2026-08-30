@@ -27,6 +27,8 @@ class AppCustomizationTest {
             textSize = AppTextSize.LARGE,
             displayDensity = AppDisplayDensity.COMPACT,
             motionPreference = AppMotionPreference.REDUCED,
+            launchTileIconStyle =
+                LaunchTileIconStyle.DATA,
             hapticsEnabled = false,
             automaticPriceChecksEnabled = false,
             dashboardCardStyle = DashboardCardStyle.COMPACT,

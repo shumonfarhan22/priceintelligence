@@ -25,11 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Dashboard
-import androidx.compose.material.icons.rounded.Inventory2
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.ShowChart
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.Icon
@@ -61,6 +57,7 @@ import com.supreme.priceintelligence.dashboard.PricePositionFilter
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
 import com.supreme.priceintelligence.settings.InsightCustomization
+import com.supreme.priceintelligence.settings.LaunchTileIconStyle
 import com.supreme.priceintelligence.ui.theme.Accent
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.ui.theme.tintedSurface
@@ -75,6 +72,7 @@ internal fun LaunchHubScreen(
     refreshTick: Int,
     reduceMotionEnabled: Boolean,
     insightCustomization: InsightCustomization,
+    tileIconStyle: LaunchTileIconStyle,
     onDashboardClick: () -> Unit,
     onInventoryClick: () -> Unit,
     onPriceMovementClick: () -> Unit,
@@ -83,6 +81,8 @@ internal fun LaunchHubScreen(
     onFilterSelected: (PricePositionFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tileIcons = tileIconStyle.iconSet()
+
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(
@@ -161,7 +161,7 @@ internal fun LaunchHubScreen(
             ) {
                 LaunchDestinationTile(
                     title = "Insights",
-                    icon = Icons.Rounded.Dashboard,
+                    icon = tileIcons.insights,
                     accent =
                         MaterialTheme
                             .colorScheme
@@ -174,7 +174,7 @@ internal fun LaunchHubScreen(
 
                 LaunchDestinationTile(
                     title = "Inventory",
-                    icon = Icons.Rounded.Inventory2,
+                    icon = tileIcons.inventory,
                     accent =
                         MaterialTheme
                             .colorScheme
@@ -195,7 +195,7 @@ internal fun LaunchHubScreen(
             ) {
                 LaunchDestinationTile(
                     title = "Price Movement",
-                    icon = Icons.Rounded.ShowChart,
+                    icon = tileIcons.priceMovement,
                     accent = Accent,
                     onClick = onPriceMovementClick,
                     reduceMotionEnabled =
@@ -205,7 +205,7 @@ internal fun LaunchHubScreen(
 
                 LaunchDestinationTile(
                     title = "Quick Compare",
-                    icon = Icons.Rounded.Search,
+                    icon = tileIcons.quickCompare,
                     accent =
                         MaterialTheme
                             .supremeColors
@@ -418,36 +418,12 @@ private fun LaunchDestinationTile(
             supremeColors.panel.copy(alpha = 1f)
         }
 
-    val haloColor =
-        supremeColors.tintedSurface(
-            roleColor = accent,
-            strength =
-                0.07f +
-                    (pressProgress * 0.055f)
-        )
-
-    val iconContainerColor =
-        supremeColors.tintedSurface(
-            roleColor = accent,
-            strength =
-                0.13f +
-                    (pressProgress * 0.075f)
-        )
-
     val accentBorderColor =
         supremeColors.tintedSurface(
             roleColor = accent,
             strength =
                 0.30f +
                     (pressProgress * 0.20f)
-        )
-
-    val iconBorderColor =
-        supremeColors.tintedSurface(
-            roleColor = accent,
-            strength =
-                0.28f +
-                    (pressProgress * 0.18f)
         )
 
     Surface(
@@ -500,47 +476,19 @@ private fun LaunchDestinationTile(
                 verticalArrangement =
                     Arrangement.Center
             ) {
-                Box(
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accent,
                     modifier = Modifier
-                        .size(84.dp)
-                        .background(
-                            color = haloColor,
-                            shape =
-                                RoundedCornerShape(26.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        modifier = Modifier.size(64.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        color = iconContainerColor,
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = iconBorderColor
-                        ),
-                        shadowElevation =
-                            if (
-                                supremeColors.isDark
-                            ) {
-                                3.dp
-                            } else {
-                                1.dp
-                            }
-                    ) {
-                        Box(
-                            contentAlignment =
-                                Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = accent,
-                                modifier =
-                                    Modifier.size(32.dp)
-                            )
+                        .size(46.dp)
+                        .graphicsLayer {
+                            scaleX =
+                                1f +
+                                    (pressProgress * 0.06f)
+                            scaleY = scaleX
                         }
-                    }
-                }
+                )
 
                 Spacer(
                     modifier = Modifier.heightIn(

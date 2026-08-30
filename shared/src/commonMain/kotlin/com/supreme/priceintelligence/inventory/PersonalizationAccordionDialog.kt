@@ -107,6 +107,7 @@ import com.supreme.priceintelligence.settings.MovementDirectionFilter
 import com.supreme.priceintelligence.settings.MovementLayout
 import com.supreme.priceintelligence.settings.MovementProductGraphState
 import com.supreme.priceintelligence.settings.MovementProductSort
+import com.supreme.priceintelligence.settings.LaunchTileIconStyle
 import com.supreme.priceintelligence.settings.PersonalizationPreset
 import com.supreme.priceintelligence.settings.PriceAlertDirection
 import com.supreme.priceintelligence.settings.PriceAlertThreshold
@@ -123,6 +124,7 @@ import com.supreme.priceintelligence.settings.SectionStartState
 import com.supreme.priceintelligence.settings.readAppCustomization
 import com.supreme.priceintelligence.settings.writeAppCustomization
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
+import com.supreme.priceintelligence.home.iconSet
 import com.supreme.priceintelligence.settings.matchingPersonalizationPreset
 import com.supreme.priceintelligence.settings.personalizationForPreset
 import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
@@ -491,6 +493,25 @@ internal fun PersonalizationAccordionDialog(
                                 )
                             }
 
+                            TileIconStyleGroup(
+                                selected =
+                                    customization
+                                        .launchTileIconStyle,
+                                onSelected = { style ->
+                                    if (customization.hapticsEnabled) {
+                                        platformHaptics
+                                            .selectionChanged()
+                                    }
+
+                                    onCustomizationChanged(
+                                        customization.copy(
+                                            launchTileIconStyle =
+                                                style
+                                        )
+                                    )
+                                }
+                            )
+
                             ChoiceGroup(
                                 "Font style",
                                 AppFontStyle.entries,
@@ -544,6 +565,8 @@ internal fun PersonalizationAccordionDialog(
                                         fontStyle = defaults.fontStyle,
                                         textSize = defaults.textSize,
                                         displayDensity = defaults.displayDensity,
+                                        launchTileIconStyle =
+                                            defaults.launchTileIconStyle,
                                         insightCustomization = insight.copy(
                                             contrastMode = insightDefaults.contrastMode,
                                             surfaceStyle = insightDefaults.surfaceStyle,
@@ -1745,6 +1768,165 @@ private fun AccordionSectionCard(
 }
 
 @Composable
+private fun TileIconStyleGroup(
+    selected: LaunchTileIconStyle,
+    onSelected: (LaunchTileIconStyle) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Text(
+            text = "Tile icon style",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color =
+                MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Text(
+            text =
+                "Choose one coordinated set for the four launch tiles and their page headers.",
+            fontSize = 10.sp,
+            color =
+                MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val columnCount =
+                if (maxWidth >= 248.dp) 2 else 1
+
+            Column(
+                verticalArrangement =
+                    Arrangement.spacedBy(7.dp)
+            ) {
+                LaunchTileIconStyle.entries
+                    .chunked(columnCount)
+                    .forEach { rowStyles ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min),
+                            horizontalArrangement =
+                                Arrangement.spacedBy(7.dp)
+                        ) {
+                            rowStyles.forEach { style ->
+                                TileIconStyleChoice(
+                                    style = style,
+                                    selected = style == selected,
+                                    onClick = {
+                                        onSelected(style)
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                )
+                            }
+
+                            if (
+                                columnCount > 1 &&
+                                rowStyles.size == 1
+                            ) {
+                                Spacer(
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TileIconStyleChoice(
+    style: LaunchTileIconStyle,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val icons = style.iconSet().asList()
+
+    Surface(
+        modifier = modifier
+            .heightIn(min = 72.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+            },
+        shape = RoundedCornerShape(12.dp),
+        color =
+            if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.supremeColors.panelMuted
+            },
+        border = BorderStroke(
+            width = 1.dp,
+            color =
+                if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.supremeColors.border
+                }
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = 9.dp,
+                vertical = 9.dp
+            ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                icons.forEach { icon ->
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint =
+                            if (selected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme
+                                    .colorScheme
+                                    .onSurfaceVariant
+                            },
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = style.displayName,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color =
+                    if (selected) {
+                        MaterialTheme
+                            .colorScheme
+                            .onPrimaryContainer
+                    } else {
+                        MaterialTheme
+                            .colorScheme
+                            .onSurfaceVariant
+                    },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
 private fun <T> ChoiceGroup(
     title: String,
     options: List<T>,
@@ -2021,7 +2203,8 @@ private fun appearanceSummary(
     "${themeMode.displayLabel()} • " +
         "${customization.appColorPalette.displayName} • " +
         "${customization.fontStyle.displayName} • " +
-        customization.textSize.displayName
+        "${customization.textSize.displayName} • " +
+        "${customization.launchTileIconStyle.displayName} icons"
 
 private fun AppAccentColor.previewColor(): Color = when (this) {
     AppAccentColor.SUPREME -> Color(0xFF10B981)

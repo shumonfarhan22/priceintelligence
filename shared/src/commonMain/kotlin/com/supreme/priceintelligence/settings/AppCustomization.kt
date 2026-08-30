@@ -179,6 +179,16 @@ enum class AppMotionPreference(
     REDUCED("Reduced")
 }
 
+enum class LaunchTileIconStyle(
+    val displayName: String
+) {
+    CLEAN("Clean"),
+    CLASSIC("Classic"),
+    BUSINESS("Business"),
+    PRODUCT("Product"),
+    DATA("Data")
+}
+
 enum class DashboardCardStyle(
     val displayName: String
 ) {
@@ -261,6 +271,8 @@ data class AppCustomization(
         AppDisplayDensity.COMFORTABLE,
     val motionPreference: AppMotionPreference =
         AppMotionPreference.SYSTEM,
+    val launchTileIconStyle: LaunchTileIconStyle =
+        LaunchTileIconStyle.CLEAN,
     val hapticsEnabled: Boolean = true,
     val automaticPriceChecksEnabled: Boolean = true,
     val dashboardCardStyle: DashboardCardStyle =
@@ -404,7 +416,13 @@ fun readAppCustomization(
         automaticPriceChecksEnabled =
             parts.getOrNull(19)
                 ?.toBooleanStrictOrNull()
-                ?: true
+                ?: true,
+        launchTileIconStyle =
+            enumValueOrDefault(
+                value = parts.getOrNull(20),
+                defaultValue =
+                    LaunchTileIconStyle.CLEAN
+            )
     )
 }
 
@@ -442,7 +460,8 @@ fun writeAppCustomization(
             customization.savedPersonalizationPresets
         ),
         customization.automaticPriceChecksEnabled
-            .toString()
+            .toString(),
+        customization.launchTileIconStyle.name
     ).joinToString("|")
 
 private fun readCustomColorPalette(

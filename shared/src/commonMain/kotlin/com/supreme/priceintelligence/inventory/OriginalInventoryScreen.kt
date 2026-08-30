@@ -75,6 +75,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -105,6 +106,7 @@ import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
 import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
+import com.supreme.priceintelligence.home.iconSet
 import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.input.dismissKeyboardOnUnhandledTap
 import com.supreme.priceintelligence.ui.input.rememberKeyboardDismissAction
@@ -321,6 +323,11 @@ fun OriginalInventoryScreen(
                 reduceMotionEnabled = reduceMotionEnabled
             ) {
                 OriginalInventoryHeader(
+                    icon =
+                        customization
+                            .launchTileIconStyle
+                            .iconSet()
+                            .inventory,
                     totalProducts = visibleProducts.size,
                     isRefreshing = state.isRefreshing,
                     selectedCount =
@@ -611,6 +618,7 @@ fun OriginalInventoryScreen(
 
 @Composable
 private fun OriginalInventoryHeader(
+    icon: ImageVector,
     totalProducts: Int,
     isRefreshing: Boolean,
     selectedCount: Int,
@@ -702,7 +710,7 @@ private fun OriginalInventoryHeader(
             )
         ) {
             Icon(
-                imageVector = Icons.Rounded.Inventory2,
+                imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.padding(9.dp)

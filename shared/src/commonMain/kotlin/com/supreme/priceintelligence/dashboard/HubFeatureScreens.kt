@@ -35,7 +35,6 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -62,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.supreme.priceintelligence.home.iconSet
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.settings.AppCustomization
@@ -423,6 +424,11 @@ internal fun QuickCompareScreen(
                         }
                 ) {
                     QuickCompareHeader(
+                        icon =
+                            customization
+                                .launchTileIconStyle
+                                .iconSet()
+                                .quickCompare,
                         onNavigateHome = onNavigateHome
                     )
                 }
@@ -566,6 +572,7 @@ internal fun QuickCompareScreen(
 
 @Composable
 private fun QuickCompareHeader(
+    icon: ImageVector,
     onNavigateHome: () -> Unit
 ) {
     val supremeColors = MaterialTheme.supremeColors
@@ -601,7 +608,7 @@ private fun QuickCompareHeader(
             )
         ) {
             Icon(
-                imageVector = Icons.Rounded.Speed,
+                imageVector = icon,
                 contentDescription = null,
                 tint =
                     MaterialTheme.colorScheme.primary,

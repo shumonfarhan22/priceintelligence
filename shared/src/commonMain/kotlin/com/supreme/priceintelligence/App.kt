@@ -674,6 +674,9 @@ fun App(
                                             insightCustomization =
                                                 customization
                                                     .insightCustomization,
+                                            tileIconStyle =
+                                                customization
+                                                    .launchTileIconStyle,
                                             onDashboardClick = {
                                                 if (customization.hapticsEnabled) {
                                                     platformHaptics
@@ -753,6 +756,9 @@ fun App(
                                             insightCustomization =
                                                 customization
                                                     .insightCustomization,
+                                            tileIconStyle =
+                                                customization
+                                                    .launchTileIconStyle,
                                             reduceMotionEnabled =
                                                 reduceMotionEnabled,
                                             modifier = Modifier.fillMaxSize(),
