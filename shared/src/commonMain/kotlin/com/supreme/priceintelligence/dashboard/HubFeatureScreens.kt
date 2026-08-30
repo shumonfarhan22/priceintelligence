@@ -60,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
 import com.supreme.priceintelligence.settings.AppCustomization
+import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
+import com.supreme.priceintelligence.ui.permissions.PermissionRecoveryDialog
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import com.supreme.priceintelligence.ui.theme.tintedSurface
 import kotlinx.coroutines.delay
@@ -82,6 +84,7 @@ internal fun QuickCompareScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController =
         LocalSoftwareKeyboardController.current
+    val platformHaptics = rememberPlatformHaptics()
 
     LaunchedEffect(state.searchDraft) {
         if (
@@ -102,6 +105,10 @@ internal fun QuickCompareScreen(
     var scannerOpen by rememberSaveable {
         mutableStateOf(false)
     }
+    var cameraPermissionRecoveryVisible by
+        rememberSaveable {
+            mutableStateOf(false)
+        }
 
     var selectedProductId by rememberSaveable {
         mutableStateOf<Long?>(null)
@@ -181,6 +188,12 @@ internal fun QuickCompareScreen(
                 keyboardController?.hide()
                 focusManager.clearFocus()
                 scannerOpen = true
+            } else {
+                if (customization.hapticsEnabled) {
+                    platformHaptics.error()
+                }
+
+                cameraPermissionRecoveryVisible = true
             }
         }
 
@@ -329,6 +342,9 @@ internal fun QuickCompareScreen(
             },
             onError = {
                 scannerOpen = false
+                if (customization.hapticsEnabled) {
+                    platformHaptics.error()
+                }
             },
             onCanceled = {
                 scannerOpen = false
@@ -508,6 +524,19 @@ internal fun QuickCompareScreen(
             onDismiss = {
                 selectedProductId = null
                 pendingExactQuery = null
+            }
+        )
+    }
+
+    if (cameraPermissionRecoveryVisible) {
+        PermissionRecoveryDialog(
+            title = "Camera access is off",
+            explanation =
+                "Allow camera access in Settings to scan a product barcode. You can still search by typing a name or barcode.",
+            onOpenSettings =
+                permissionRequester::openAppSettings,
+            onDismiss = {
+                cameraPermissionRecoveryVisible = false
             }
         )
     }

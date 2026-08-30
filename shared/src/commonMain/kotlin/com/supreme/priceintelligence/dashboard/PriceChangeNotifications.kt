@@ -155,7 +155,15 @@ data class PriceChangeNotificationText(
 )
 
 interface PriceChangeNotifier {
-    fun requestPermission()
+    fun requestPermission(
+        onResult: (Boolean) -> Unit = {}
+    )
+
+    fun readPermission(
+        onResult: (Boolean) -> Unit
+    )
+
+    fun openAppSettings()
 
     fun publishPriceChanges(
         changes: List<DetectedPriceChange>
@@ -163,7 +171,19 @@ interface PriceChangeNotifier {
 }
 
 object NoOpPriceChangeNotifier : PriceChangeNotifier {
-    override fun requestPermission() = Unit
+    override fun requestPermission(
+        onResult: (Boolean) -> Unit
+    ) {
+        onResult(true)
+    }
+
+    override fun readPermission(
+        onResult: (Boolean) -> Unit
+    ) {
+        onResult(true)
+    }
+
+    override fun openAppSettings() = Unit
 
     override fun publishPriceChanges(
         changes: List<DetectedPriceChange>

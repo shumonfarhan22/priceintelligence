@@ -777,7 +777,8 @@ private fun SettingsSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 62.dp),
+            .heightIn(min = 62.dp)
+            .semantics(mergeDescendants = true) { },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {

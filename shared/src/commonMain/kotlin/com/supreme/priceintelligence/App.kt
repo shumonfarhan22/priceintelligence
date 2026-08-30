@@ -45,7 +45,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room3.RoomDatabase
 import com.supreme.priceintelligence.dashboard.PricingInsightsScreen
@@ -72,6 +77,9 @@ import com.supreme.priceintelligence.ui.components.OriginalAppBackground
 import com.supreme.priceintelligence.ui.components.OriginalBannerKind
 import com.supreme.priceintelligence.ui.components.OriginalDashboardHeader
 import com.supreme.priceintelligence.ui.components.OriginalStatusBanner
+import com.supreme.priceintelligence.ui.accessibility.rememberPlatformAccessibility
+import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
+import com.supreme.priceintelligence.ui.permissions.PermissionRecoveryDialog
 import com.supreme.priceintelligence.settings.AppPreferences
 import com.supreme.priceintelligence.settings.AppCustomization
 import com.supreme.priceintelligence.settings.AppDisplayDensity
@@ -151,6 +159,9 @@ fun App(
             }
             val inventoryState by inventoryViewModel.uiState.collectAsState()
             val dashboardState by dashboardViewModel.uiState.collectAsState()
+            val platformHaptics = rememberPlatformHaptics()
+            val platformAccessibility =
+                rememberPlatformAccessibility()
 
             val hubFreshnessSummary = remember(
                 dashboardState.allMatchingItems
@@ -253,12 +264,103 @@ fun App(
                         .priceChangeNotificationsEnabled
                 )
             }
+            var notificationPermissionRecoveryVisible by
+                rememberSaveable {
+                    mutableStateOf(false)
+                }
+            var notificationEnablePendingAfterSettings by
+                rememberSaveable {
+                    mutableStateOf(false)
+                }
             val destination =
                 MainDestination.entries
                     .firstOrNull { item ->
                         item.name == destinationName
                     }
                     ?: MainDestination.Dashboard
+
+            fun saveNotificationPreference(
+                enabled: Boolean
+            ) {
+                priceChangeNotificationsEnabled = enabled
+                appPreferences
+                    .priceChangeNotificationsEnabled = enabled
+            }
+
+            val lifecycleOwner = LocalLifecycleOwner.current
+
+            DisposableEffect(
+                lifecycleOwner,
+                priceChangeNotifier
+            ) {
+                val observer = LifecycleEventObserver {
+                        _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        priceChangeNotifier.readPermission {
+                                granted ->
+                            when {
+                                granted &&
+                                    notificationEnablePendingAfterSettings -> {
+                                    notificationEnablePendingAfterSettings =
+                                        false
+                                    saveNotificationPreference(true)
+
+                                    if (customization.hapticsEnabled) {
+                                        platformHaptics.actionConfirmed()
+                                    }
+                                }
+
+                                !granted &&
+                                    priceChangeNotificationsEnabled ->
+                                    saveNotificationPreference(false)
+                            }
+                        }
+                    }
+                }
+
+                lifecycleOwner.lifecycle.addObserver(observer)
+
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            val currentScreenTitle =
+                if (hubVisible) {
+                    "Supreme Price Intelligence"
+                } else {
+                    when (destination) {
+                        MainDestination.Dashboard ->
+                            "Pricing insights"
+
+                        MainDestination.Inventory ->
+                            "Inventory"
+
+                        MainDestination.PriceMovement ->
+                            "Price movement"
+
+                        MainDestination.QuickCompare ->
+                            "Quick compare"
+                    }
+                }
+
+            var lastAccessibilityScreenTitle by remember {
+                mutableStateOf(currentScreenTitle)
+            }
+
+            LaunchedEffect(currentScreenTitle) {
+                if (
+                    lastAccessibilityScreenTitle !=
+                    currentScreenTitle
+                ) {
+                    delay(120.milliseconds)
+                    platformAccessibility.screenChanged(
+                        currentScreenTitle
+                    )
+                    lastAccessibilityScreenTitle =
+                        currentScreenTitle
+                }
+            }
 
             LaunchedEffect(
                 priceMovementNotificationTarget
@@ -404,7 +506,11 @@ fun App(
                         .navigationBarsPadding()
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .semantics {
+                                paneTitle = currentScreenTitle
+                            }
                     ) {
                         Box(
                             modifier = Modifier
@@ -569,6 +675,10 @@ fun App(
                                                 customization
                                                     .insightCustomization,
                                             onDashboardClick = {
+                                                if (customization.hapticsEnabled) {
+                                                    platformHaptics
+                                                        .selectionChanged()
+                                                }
                                                 destinationName =
                                                     MainDestination
                                                         .Dashboard
@@ -578,6 +688,10 @@ fun App(
                                                     .refreshSilently()
                                             },
                                             onInventoryClick = {
+                                                if (customization.hapticsEnabled) {
+                                                    platformHaptics
+                                                        .selectionChanged()
+                                                }
                                                 destinationName =
                                                     MainDestination
                                                         .Inventory
@@ -585,6 +699,10 @@ fun App(
                                                 hubVisible = false
                                             },
                                             onPriceMovementClick = {
+                                                if (customization.hapticsEnabled) {
+                                                    platformHaptics
+                                                        .selectionChanged()
+                                                }
                                                 destinationName =
                                                     MainDestination
                                                         .PriceMovement
@@ -592,6 +710,10 @@ fun App(
                                                 hubVisible = false
                                             },
                                             onQuickCompareClick = {
+                                                if (customization.hapticsEnabled) {
+                                                    platformHaptics
+                                                        .selectionChanged()
+                                                }
                                                 destinationName =
                                                     MainDestination
                                                         .QuickCompare
@@ -599,10 +721,18 @@ fun App(
                                                 hubVisible = false
                                             },
                                             onSettingsClick = {
+                                                if (customization.hapticsEnabled) {
+                                                    platformHaptics
+                                                        .selectionChanged()
+                                                }
                                                 appToolsOpen = true
                                             },
                                             onFilterSelected = {
                                                     filter ->
+                                                if (customization.hapticsEnabled) {
+                                                    platformHaptics
+                                                        .selectionChanged()
+                                                }
                                                 dashboardViewModel
                                                     .setPriceFilter(
                                                         filter
@@ -815,15 +945,35 @@ fun App(
                     },
                     onPriceChangeNotificationsChanged = {
                             enabled ->
-                        priceChangeNotificationsEnabled =
-                            enabled
-                        appPreferences
-                            .priceChangeNotificationsEnabled =
-                            enabled
-
                         if (enabled) {
                             priceChangeNotifier
-                                .requestPermission()
+                                .requestPermission {
+                                        granted ->
+                                    if (granted) {
+                                        notificationEnablePendingAfterSettings =
+                                            false
+                                        saveNotificationPreference(true)
+
+                                        if (customization.hapticsEnabled) {
+                                            platformHaptics
+                                                .actionConfirmed()
+                                        }
+                                    } else {
+                                        saveNotificationPreference(false)
+                                        notificationEnablePendingAfterSettings =
+                                            true
+                                        notificationPermissionRecoveryVisible =
+                                            true
+
+                                        if (customization.hapticsEnabled) {
+                                            platformHaptics.error()
+                                        }
+                                    }
+                                }
+                        } else {
+                            notificationEnablePendingAfterSettings =
+                                false
+                            saveNotificationPreference(false)
                         }
                     },
                     onResetPersonalization = {
@@ -852,6 +1002,20 @@ fun App(
                     },
                     onDismiss = {
                         personalizationOpen = false
+                    }
+                )
+            }
+
+            if (notificationPermissionRecoveryVisible) {
+                PermissionRecoveryDialog(
+                    title = "Notifications are off",
+                    explanation =
+                        "Allow notifications in Settings so Price Intelligence can tell you when an automatic price check finds a change.",
+                    onOpenSettings =
+                        priceChangeNotifier::openAppSettings,
+                    onDismiss = {
+                        notificationPermissionRecoveryVisible =
+                            false
                     }
                 )
             }

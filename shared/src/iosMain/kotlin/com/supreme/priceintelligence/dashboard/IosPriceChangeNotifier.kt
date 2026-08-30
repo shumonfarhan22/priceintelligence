@@ -2,12 +2,20 @@
 
 package com.supreme.priceintelligence.dashboard
 
+import platform.Foundation.NSURL
+import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationOpenSettingsURLString
+import platform.UserNotifications.UNAuthorizationStatusAuthorized
+import platform.UserNotifications.UNAuthorizationStatusEphemeral
+import platform.UserNotifications.UNAuthorizationStatusProvisional
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionSound
 import platform.UserNotifications.UNMutableNotificationContent
 import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNNotificationSound
 import platform.UserNotifications.UNUserNotificationCenter
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 class IosPriceChangeNotifier : PriceChangeNotifier {
 
@@ -15,14 +23,58 @@ class IosPriceChangeNotifier : PriceChangeNotifier {
         UNUserNotificationCenter
             .currentNotificationCenter()
 
-    override fun requestPermission() {
+    override fun requestPermission(
+        onResult: (Boolean) -> Unit
+    ) {
         notificationCenter
             .requestAuthorizationWithOptions(
                 options =
                     UNAuthorizationOptionAlert or
                             UNAuthorizationOptionSound,
-                completionHandler = { _, _ -> }
+                completionHandler = { granted, _ ->
+                    dispatch_async(
+                        dispatch_get_main_queue()
+                    ) {
+                        onResult(granted)
+                    }
+                }
             )
+    }
+
+    override fun readPermission(
+        onResult: (Boolean) -> Unit
+    ) {
+        notificationCenter
+            .getNotificationSettingsWithCompletionHandler {
+                    settings ->
+                val authorizationStatus =
+                    settings?.authorizationStatus
+                val granted =
+                    authorizationStatus ==
+                        UNAuthorizationStatusAuthorized ||
+                        authorizationStatus ==
+                        UNAuthorizationStatusProvisional ||
+                        authorizationStatus ==
+                        UNAuthorizationStatusEphemeral
+
+                dispatch_async(
+                    dispatch_get_main_queue()
+                ) {
+                    onResult(granted)
+                }
+            }
+    }
+
+    override fun openAppSettings() {
+        val settingsUrl = NSURL.URLWithString(
+            UIApplicationOpenSettingsURLString
+        ) ?: return
+
+        UIApplication.sharedApplication.openURL(
+            url = settingsUrl,
+            options = emptyMap<Any?, Any>(),
+            completionHandler = null
+        )
     }
 
     override fun publishPriceChanges(

@@ -8,9 +8,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.ComponentActivity
-import androidx.core.app.ActivityCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -29,27 +31,63 @@ class AndroidPriceChangeNotifier(
     private val appContext =
         context.applicationContext
 
-    override fun requestPermission() {
+    private var pendingPermissionResult:
+        ((Boolean) -> Unit)? = null
+
+    private val permissionLauncher =
+        permissionActivity?.registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            val effectiveResult =
+                granted && canPostNotifications()
+
+            pendingPermissionResult
+                ?.invoke(effectiveResult)
+
+            pendingPermissionResult = null
+        }
+
+    override fun requestPermission(
+        onResult: (Boolean) -> Unit
+    ) {
         createNotificationChannel()
+
+        if (canPostNotifications()) {
+            onResult(true)
+            return
+        }
 
         if (
             Build.VERSION.SDK_INT >=
             Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
+            permissionLauncher != null
         ) {
-            permissionActivity?.let { activity ->
-                ActivityCompat.requestPermissions(
-                    activity,
-                    arrayOf(
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ),
-                    NOTIFICATION_PERMISSION_REQUEST_CODE
-                )
-            }
+            pendingPermissionResult = onResult
+            permissionLauncher.launch(
+                Manifest.permission.POST_NOTIFICATIONS
+            )
+        } else {
+            onResult(false)
         }
+    }
+
+    override fun readPermission(
+        onResult: (Boolean) -> Unit
+    ) {
+        onResult(canPostNotifications())
+    }
+
+    override fun openAppSettings() {
+        appContext.startActivity(
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts(
+                    "package",
+                    appContext.packageName,
+                    null
+                )
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 
     @SuppressLint("MissingPermission")
@@ -243,8 +281,6 @@ class AndroidPriceChangeNotifier(
         const val PRICE_CHANGE_NOTIFICATION_GROUP =
             "online-price-changes"
 
-        const val NOTIFICATION_PERMISSION_REQUEST_CODE =
-            2402
     }
 }
 

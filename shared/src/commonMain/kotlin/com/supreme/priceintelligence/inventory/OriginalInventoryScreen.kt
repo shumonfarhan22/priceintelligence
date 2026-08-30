@@ -105,8 +105,10 @@ import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
 import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
+import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.input.dismissKeyboardOnUnhandledTap
 import com.supreme.priceintelligence.ui.input.rememberKeyboardDismissAction
+import com.supreme.priceintelligence.ui.permissions.PermissionRecoveryDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -131,12 +133,17 @@ fun OriginalInventoryScreen(
         rememberTextFieldState(state.directoryQuery)
     val editorTextState = rememberInventoryEditorTextState()
     val dismissKeyboard = rememberKeyboardDismissAction()
+    val platformHaptics = rememberPlatformHaptics()
 
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var scannerOpen by rememberSaveable { mutableStateOf(false) }
     var scannerTarget by rememberSaveable {
         mutableStateOf(InventoryScannerTarget.EDITOR_BARCODE)
     }
+    var cameraPermissionRecoveryVisible by
+        rememberSaveable {
+            mutableStateOf(false)
+        }
 
     LaunchedEffect(directorySearchState) {
         snapshotFlow {
@@ -161,6 +168,11 @@ fun OriginalInventoryScreen(
                 dismissKeyboard()
                 scannerOpen = true
             } else {
+                if (customization.hapticsEnabled) {
+                    platformHaptics.error()
+                }
+
+                cameraPermissionRecoveryVisible = true
                 viewModel.reportError(
                     "Camera permission is needed to scan a barcode"
                 )
@@ -187,6 +199,9 @@ fun OriginalInventoryScreen(
             },
             onError = { message ->
                 scannerOpen = false
+                if (customization.hapticsEnabled) {
+                    platformHaptics.error()
+                }
                 viewModel.reportError(message)
             },
             onCanceled = {
@@ -315,11 +330,26 @@ fun OriginalInventoryScreen(
                     onRefresh =
                         viewModel::refreshInventory,
                     onSelectAll =
-                        viewModel::selectAllVisible,
+                        {
+                            if (customization.hapticsEnabled) {
+                                platformHaptics.selectionChanged()
+                            }
+                            viewModel.selectAllVisible()
+                        },
                     onClearSelection =
-                        viewModel::clearSelection,
+                        {
+                            if (customization.hapticsEnabled) {
+                                platformHaptics.selectionChanged()
+                            }
+                            viewModel.clearSelection()
+                        },
                     onDeleteSelected =
-                        viewModel::queueSelectedForDelete
+                        {
+                            if (customization.hapticsEnabled) {
+                                platformHaptics.warning()
+                            }
+                            viewModel.queueSelectedForDelete()
+                        }
                 )
             }
 
@@ -457,6 +487,10 @@ fun OriginalInventoryScreen(
                                             item.id == state.highlightedItemId,
                                         selectionMode = state.isSelectionMode,
                                         onToggleSelection = {
+                                            if (customization.hapticsEnabled) {
+                                                platformHaptics
+                                                    .selectionChanged()
+                                            }
                                             viewModel.toggleSelection(item.id)
                                         },
                                         onEdit = {
@@ -465,6 +499,9 @@ fun OriginalInventoryScreen(
                                             editorOpen = true
                                         },
                                         onDelete = {
+                                            if (customization.hapticsEnabled) {
+                                                platformHaptics.warning()
+                                            }
                                             viewModel.queueDelete(setOf(item))
                                         }
                                     )
@@ -541,13 +578,31 @@ fun OriginalInventoryScreen(
             onSave = { editedForm, onSaved ->
                 viewModel.saveProduct(
                     form = editedForm,
-                    onSuccess = onSaved
+                    onSuccess = {
+                        if (customization.hapticsEnabled) {
+                            platformHaptics.actionConfirmed()
+                        }
+                        onSaved()
+                    }
                 )
             },
             reduceMotionEnabled = reduceMotionEnabled,
             onDismiss = {
                 viewModel.clearForm()
                 editorOpen = false
+            }
+        )
+    }
+
+    if (cameraPermissionRecoveryVisible) {
+        PermissionRecoveryDialog(
+            title = "Camera access is off",
+            explanation =
+                "Allow camera access in Settings to scan product barcodes. Manual barcode entry remains available.",
+            onOpenSettings =
+                cameraPermissionRequester::openAppSettings,
+            onDismiss = {
+                cameraPermissionRecoveryVisible = false
             }
         )
     }

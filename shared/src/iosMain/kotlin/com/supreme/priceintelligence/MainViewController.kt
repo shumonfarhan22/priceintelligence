@@ -69,6 +69,7 @@ fun MainViewController(): UIViewController {
     }
 
     controllerReference = controller
+    IosNativeBackGestureHost.controller = controller
     controller.overrideUserInterfaceStyle =
         appPreferences.themeMode.toIosInterfaceStyle()
 

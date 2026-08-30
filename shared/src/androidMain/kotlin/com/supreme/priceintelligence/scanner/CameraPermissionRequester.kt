@@ -1,7 +1,10 @@
 package com.supreme.priceintelligence.scanner
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -35,6 +38,19 @@ actual fun rememberCameraPermissionRequester(
                 } else {
                     launcher.launch(Manifest.permission.CAMERA)
                 }
+            }
+
+            override fun openAppSettings() {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts(
+                            "package",
+                            context.packageName,
+                            null
+                        )
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
             }
         }
     }

@@ -1,103 +1,119 @@
+@file:OptIn(
+    kotlinx.cinterop.BetaInteropApi::class,
+    kotlinx.cinterop.ExperimentalForeignApi::class
+)
+
 package com.supreme.priceintelligence
 
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
-import kotlin.math.abs
+import kotlinx.cinterop.ObjCAction
+import kotlinx.cinterop.useContents
+import platform.Foundation.NSSelectorFromString
+import platform.UIKit.UIGestureRecognizerStateEnded
+import platform.UIKit.UIRectEdgeLeft
+import platform.UIKit.UIScreenEdgePanGestureRecognizer
+import platform.UIKit.UIViewController
+import platform.darwin.NSObject
+
+/**
+ * The Compose controller is registered after creation so iOS navigation can
+ * use UIKit's edge-pan recognizer instead of competing with scrollable Compose
+ * content through a pointer-input approximation.
+ */
+internal object IosNativeBackGestureHost {
+    var controller: UIViewController? by mutableStateOf(null)
+}
 
 @Composable
 actual fun PlatformBackHandler(
     enabled: Boolean,
     onBack: () -> Unit
 ) {
-    // iPhone back navigation is handled by platformBackSwipe.
+    val currentOnBack = rememberUpdatedState(onBack)
+    val controller = IosNativeBackGestureHost.controller
+
+    DisposableEffect(enabled, controller) {
+        val rootView = controller?.view
+
+        if (!enabled || rootView == null) {
+            onDispose { }
+        } else {
+            val target = NativeBackGestureTarget {
+                currentOnBack.value.invoke()
+            }
+
+            val recognizer =
+                UIScreenEdgePanGestureRecognizer(
+                    target = target,
+                    action = NSSelectorFromString(
+                        "handleEdgePan:"
+                    )
+                ).apply {
+                    edges = UIRectEdgeLeft
+                    cancelsTouchesInView = false
+                }
+
+            rootView.addGestureRecognizer(recognizer)
+
+            onDispose {
+                rootView.removeGestureRecognizer(recognizer)
+                target.dispose()
+            }
+        }
+    }
 }
 
 @Composable
 actual fun Modifier.platformBackSwipe(
     enabled: Boolean,
     onBack: () -> Unit
-): Modifier {
-    val currentOnBack =
-        rememberUpdatedState(onBack)
+): Modifier = this
 
-    val density = LocalDensity.current
+private class NativeBackGestureTarget(
+    onBack: () -> Unit
+) : NSObject() {
+    private var onBack: (() -> Unit)? = onBack
 
-    val edgeWidthPx =
-        with(density) {
-            28.dp.toPx()
-        }
-
-    val requiredDistancePx =
-        with(density) {
-            72.dp.toPx()
-        }
-
-    if (!enabled) {
-        return this
+    fun dispose() {
+        onBack = null
     }
 
-    return this.pointerInput(
-        enabled,
-        edgeWidthPx,
-        requiredDistancePx
+    @ObjCAction
+    fun handleEdgePan(
+        recognizer: UIScreenEdgePanGestureRecognizer
     ) {
-        var startedAtLeftEdge = false
-        var horizontalDistance = 0f
-        var verticalDistance = 0f
+        if (
+            recognizer.state !=
+            UIGestureRecognizerStateEnded
+        ) {
+            return
+        }
 
-        detectDragGestures(
-            onDragStart = { startPosition ->
-                startedAtLeftEdge =
-                    startPosition.x <= edgeWidthPx
+        val view = recognizer.view ?: return
+        val translation =
+            recognizer.translationInView(view)
+                .useContents { x }
+        val velocity =
+            recognizer.velocityInView(view)
+                .useContents { x }
+        val viewWidth = view.bounds.useContents {
+            size.width
+        }
+        val requiredDistance =
+            (viewWidth * 0.22)
+                .coerceIn(64.0, 104.0)
 
-                horizontalDistance = 0f
-                verticalDistance = 0f
-            },
-            onDragCancel = {
-                startedAtLeftEdge = false
-                horizontalDistance = 0f
-                verticalDistance = 0f
-            },
-            onDragEnd = {
-                val isRightwardBackSwipe =
-                    startedAtLeftEdge &&
-                        horizontalDistance >=
-                            requiredDistancePx &&
-                        horizontalDistance >
-                            verticalDistance * 1.35f
-
-                if (isRightwardBackSwipe) {
-                    currentOnBack.value.invoke()
-                }
-
-                startedAtLeftEdge = false
-                horizontalDistance = 0f
-                verticalDistance = 0f
-            },
-            onDrag = { change, dragAmount ->
-                if (startedAtLeftEdge) {
-                    horizontalDistance =
-                        (
-                            horizontalDistance +
-                                dragAmount.x
-                            ).coerceAtLeast(0f)
-
-                    verticalDistance +=
-                        abs(dragAmount.y)
-
-                    if (
-                        horizontalDistance >
-                        verticalDistance
-                    ) {
-                        change.consume()
-                    }
-                }
-            }
-        )
+        if (
+            translation >= requiredDistance ||
+            velocity >= 720.0
+        ) {
+            onBack?.invoke()
+        }
     }
 }

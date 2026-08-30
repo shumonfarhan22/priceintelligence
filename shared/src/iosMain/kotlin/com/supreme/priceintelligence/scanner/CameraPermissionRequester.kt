@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.cinterop.ExperimentalForeignApi
+import platform.Foundation.NSURL
 import platform.AVFoundation.AVAuthorizationStatusAuthorized
 import platform.AVFoundation.AVAuthorizationStatusDenied
 import platform.AVFoundation.AVAuthorizationStatusNotDetermined
@@ -12,6 +13,8 @@ import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.authorizationStatusForMediaType
 import platform.AVFoundation.requestAccessForMediaType
+import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationOpenSettingsURLString
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 
@@ -38,6 +41,18 @@ actual fun rememberCameraPermissionRequester(
                     }
                     else -> currentOnResult.value(false)
                 }
+            }
+
+            override fun openAppSettings() {
+                val settingsUrl = NSURL.URLWithString(
+                    UIApplicationOpenSettingsURLString
+                ) ?: return
+
+                UIApplication.sharedApplication.openURL(
+                    url = settingsUrl,
+                    options = emptyMap<Any?, Any>(),
+                    completionHandler = null
+                )
             }
         }
     }
