@@ -125,6 +125,7 @@ import com.supreme.priceintelligence.settings.writeAppCustomization
 import com.supreme.priceintelligence.dashboard.DashboardViewModel
 import com.supreme.priceintelligence.settings.matchingPersonalizationPreset
 import com.supreme.priceintelligence.settings.personalizationForPreset
+import com.supreme.priceintelligence.ui.feedback.rememberPlatformHaptics
 import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.theme.retailerChartColors
 import com.supreme.priceintelligence.ui.theme.supremeColors
@@ -171,6 +172,7 @@ internal fun PersonalizationAccordionDialog(
     val insight = customization.insightCustomization
     val defaults = AppCustomization()
     val insightDefaults = InsightCustomization()
+    val platformHaptics = rememberPlatformHaptics()
 
     val previewTarget =
         PersonalizationPreviewTarget.entries
@@ -515,6 +517,21 @@ internal fun PersonalizationAccordionDialog(
                                 "Uses solid surfaces for clearer text and cards.",
                                 insight.reduceTransparency
                             ) { value -> updateInsight { it.copy(reduceTransparency = value) } }
+                            SettingSwitch(
+                                "Haptic feedback",
+                                "Confirms important selections, saves, warnings and barcode scans.",
+                                customization.hapticsEnabled
+                            ) { enabled ->
+                                onCustomizationChanged(
+                                    customization.copy(
+                                        hapticsEnabled = enabled
+                                    )
+                                )
+
+                                if (enabled) {
+                                    platformHaptics.actionConfirmed()
+                                }
+                            }
                             SectionResetButton {
                                 onThemeModeChanged(AppThemeMode.DARK)
                                 onCustomizationChanged(

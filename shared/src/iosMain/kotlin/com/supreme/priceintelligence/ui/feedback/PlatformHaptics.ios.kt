@@ -4,11 +4,10 @@ package com.supreme.priceintelligence.ui.feedback
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import platform.UIKit.UIImpactFeedbackGenerator
-import platform.UIKit.UIImpactFeedbackStyle
-import platform.UIKit.UINotificationFeedbackGenerator
-import platform.UIKit.UINotificationFeedbackType
-import platform.UIKit.UISelectionFeedbackGenerator
+import platform.AudioToolbox.AudioServicesPlayAlertSound
+import platform.AudioToolbox.kSystemSoundID_Vibrate
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 @Composable
 internal actual fun rememberPlatformHaptics(): PlatformHaptics =
@@ -17,42 +16,31 @@ internal actual fun rememberPlatformHaptics(): PlatformHaptics =
     }
 
 private class IosPlatformHaptics : PlatformHaptics {
-    private val selectionGenerator =
-        UISelectionFeedbackGenerator()
-
-    private val impactGenerator =
-        UIImpactFeedbackGenerator(
-            style =
-                UIImpactFeedbackStyle
-                    .UIImpactFeedbackStyleLight
-        )
-
-    private val notificationGenerator =
-        UINotificationFeedbackGenerator()
-
     override fun selectionChanged() {
-        selectionGenerator.prepare()
-        selectionGenerator.selectionChanged()
+        vibrate()
     }
 
     override fun actionConfirmed() {
-        impactGenerator.prepare()
-        impactGenerator.impactOccurred()
+        vibrate()
     }
 
     override fun warning() {
-        notificationGenerator.prepare()
-        notificationGenerator.notificationOccurred(
-            UINotificationFeedbackType
-                .UINotificationFeedbackTypeWarning
-        )
+        vibrate()
     }
 
     override fun error() {
-        notificationGenerator.prepare()
-        notificationGenerator.notificationOccurred(
-            UINotificationFeedbackType
-                .UINotificationFeedbackTypeError
-        )
+        vibrate()
+    }
+
+    private fun vibrate() {
+        // Audio Services is used deliberately here instead of retaining a
+        // UIKit feedback generator across Compose recompositions. It gives
+        // iPhone a dependable, system-owned vibration and is dispatched to
+        // the main queue as required by the native UI lifecycle.
+        dispatch_async(dispatch_get_main_queue()) {
+            AudioServicesPlayAlertSound(
+                kSystemSoundID_Vibrate
+            )
+        }
     }
 }

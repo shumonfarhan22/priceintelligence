@@ -1,3 +1,7 @@
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class
+)
+
 package com.supreme.priceintelligence.dashboard
 
 import androidx.compose.animation.AnimatedVisibility
@@ -35,6 +39,7 @@ import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -361,71 +366,88 @@ internal fun QuickCompareScreen(
                 MaterialTheme.colorScheme.background
             )
     ) {
-        Column(
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshingPage,
+            onRefresh = {
+                if (
+                    !previewMode &&
+                    state.isConnected &&
+                    !state.isRefreshingPage
+                ) {
+                    if (customization.hapticsEnabled) {
+                        platformHaptics.actionConfirmed()
+                    }
+                    viewModel.refreshVisiblePrices()
+                }
+            },
             modifier = Modifier.fillMaxSize()
         ) {
-            AnimatedVisibility(
-                visible =
-                    quickCompareSearchVisible &&
-                        !focusCatalogPreview,
-                enter =
-                    if (reduceMotionEnabled) {
-                        fadeIn(
-                            animationSpec =
-                                tween(durationMillis = 0)
-                        )
-                    } else {
-                        expandVertically(
-                            animationSpec =
-                                tween(durationMillis = 180),
-                            expandFrom = Alignment.Top
-                        ) + fadeIn(
-                            animationSpec =
-                                tween(durationMillis = 140)
-                        )
-                    },
-                exit =
-                    if (reduceMotionEnabled) {
-                        fadeOut(
-                            animationSpec =
-                                tween(durationMillis = 0)
-                        )
-                    } else {
-                        shrinkVertically(
-                            animationSpec =
-                                tween(durationMillis = 160),
-                            shrinkTowards = Alignment.Top
-                        ) + fadeOut(
-                            animationSpec =
-                                tween(durationMillis = 110)
-                        )
-                    }
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                QuickCompareHeader(
-                    onNavigateHome = onNavigateHome
+                AnimatedVisibility(
+                    visible =
+                        quickCompareSearchVisible &&
+                            !focusCatalogPreview,
+                    enter =
+                        if (reduceMotionEnabled) {
+                            fadeIn(
+                                animationSpec =
+                                    tween(durationMillis = 0)
+                            )
+                        } else {
+                            expandVertically(
+                                animationSpec =
+                                    tween(durationMillis = 180),
+                                expandFrom = Alignment.Top
+                            ) + fadeIn(
+                                animationSpec =
+                                    tween(durationMillis = 140)
+                            )
+                        },
+                    exit =
+                        if (reduceMotionEnabled) {
+                            fadeOut(
+                                animationSpec =
+                                    tween(durationMillis = 0)
+                            )
+                        } else {
+                            shrinkVertically(
+                                animationSpec =
+                                    tween(durationMillis = 160),
+                                shrinkTowards = Alignment.Top
+                            ) + fadeOut(
+                                animationSpec =
+                                    tween(durationMillis = 110)
+                            )
+                        }
+                ) {
+                    QuickCompareHeader(
+                        onNavigateHome = onNavigateHome
+                    )
+                }
+
+                QuickCompareCatalogGrid(
+                    cards = state.pageItems,
+                    query = state.searchQuery,
+                    gridState = quickCompareGridState,
+                    showResults = catalogRevealed,
+                    reduceMotionEnabled =
+                        reduceMotionEnabled,
+                    isLoading = state.isLoading,
+                    currentPage = state.currentPage,
+                    totalPages = state.totalPages,
+                    onPageSelected = { page ->
+                        viewModel.goToPage(page)
+                    },
+                    onProductClick = { card ->
+                        openProduct(card)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 )
             }
-
-        QuickCompareCatalogGrid(
-            cards = state.pageItems,
-            query = state.searchQuery,
-            gridState = quickCompareGridState,
-            showResults = catalogRevealed,
-            reduceMotionEnabled =
-                reduceMotionEnabled,
-            isLoading = state.isLoading,
-            currentPage = state.currentPage,
-            totalPages = state.totalPages,
-            onPageSelected = { page ->
-                viewModel.goToPage(page)
-            },
-            onProductClick = { card ->
-                openProduct(card)
-            },
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        )
         }
 
         ProfessionalDashboardSearchOverlay(

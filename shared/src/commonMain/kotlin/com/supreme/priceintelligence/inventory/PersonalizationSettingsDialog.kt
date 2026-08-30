@@ -230,9 +230,9 @@ internal fun PersonalizationSettingsDialog(
 
                     item {
                         SettingsSwitchRow(
-                            title = "Scan vibration",
+                            title = "Haptic feedback",
                             description =
-                                "Vibrate after a barcode is read successfully.",
+                                "Confirms important selections, saves, warnings and barcode scans.",
                             checked =
                                 customization.hapticsEnabled,
                             onCheckedChange = { enabled ->

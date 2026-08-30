@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +47,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,10 +58,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -329,6 +333,7 @@ internal fun OriginalProductEditorDialog(
                             label = "Product Name",
                             placeholder = "e.g., Hawkins 3.5L Cooker",
                             state = textState.productName,
+                            showPasteAction = true,
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Next
                             ),
@@ -979,7 +984,8 @@ private fun OriginalEditorField(
     keyboardAccessoryAction: KeyboardAccessoryAction =
         KeyboardAccessoryAction.NONE,
     onImeAction: (() -> Unit)? = null,
-    trailingIcon: @Composable (() -> Unit)? = null
+    trailingIcon: @Composable (() -> Unit)? = null,
+    showPasteAction: Boolean = false
 ) {
     val platformKeyboardOptions =
         rememberPlatformTextInputOptions(
@@ -989,6 +995,12 @@ private fun OriginalEditorField(
                 onImeAction?.invoke()
             }
         )
+
+    @Suppress("DEPRECATION")
+    val clipboardManager = LocalClipboardManager.current
+    var isFocused by remember {
+        mutableStateOf(false)
+    }
 
     Column(
         modifier = modifier
@@ -1021,6 +1033,9 @@ private fun OriginalEditorField(
             state = state,
             modifier = Modifier
                 .fillMaxWidth()
+                .onFocusChanged { focusState ->
+                    isFocused = focusState.isFocused
+                }
                 .heightIn(min = 56.dp),
             placeholder = {
                 Text(
@@ -1028,7 +1043,35 @@ private fun OriginalEditorField(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
-            trailingIcon = trailingIcon,
+            trailingIcon = when {
+                trailingIcon != null -> trailingIcon
+                showPasteAction && isFocused -> {
+                    {
+                        TextButton(
+                            onClick = {
+                                clipboardManager
+                                    .getText()
+                                    ?.text
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?.let(
+                                        state::setTextAndPlaceCursorAtEnd
+                                    )
+                            },
+                            contentPadding = PaddingValues(
+                                horizontal = 9.dp,
+                                vertical = 0.dp
+                            )
+                        ) {
+                            Text(
+                                text = "PASTE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                else -> null
+            },
             shape = RoundedCornerShape(12.dp),
             inputTransformation = inputTransformation,
             keyboardOptions = platformKeyboardOptions,

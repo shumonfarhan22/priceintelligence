@@ -4,22 +4,21 @@ package com.supreme.priceintelligence.scanner
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import platform.UIKit.UINotificationFeedbackGenerator
-import platform.UIKit.UINotificationFeedbackType
+import platform.AudioToolbox.AudioServicesPlayAlertSound
+import platform.AudioToolbox.kSystemSoundID_Vibrate
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 @Composable
 actual fun rememberScanHapticFeedback(): ScanHapticFeedback {
     return remember {
-        val feedbackGenerator =
-            UINotificationFeedbackGenerator()
-
         object : ScanHapticFeedback {
             override fun scanSucceeded() {
-                feedbackGenerator.prepare()
-                feedbackGenerator.notificationOccurred(
-                    UINotificationFeedbackType
-                        .UINotificationFeedbackTypeSuccess
-                )
+                dispatch_async(dispatch_get_main_queue()) {
+                    AudioServicesPlayAlertSound(
+                        kSystemSoundID_Vibrate
+                    )
+                }
             }
         }
     }
