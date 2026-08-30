@@ -172,9 +172,6 @@ internal fun QuickCompareScreen(
         pendingExactQuery = cleanQuery
         viewModel.onSearchSubmitted(cleanQuery)
         viewModel.onSearchFocusChanged(false)
-        quickCompareSearchFocused = false
-        keyboardController?.hide()
-        focusManager.clearFocus()
     }
 
     val permissionRequester =
@@ -325,6 +322,9 @@ internal fun QuickCompareScreen(
                 quickCompareSearchState
                     .setTextAndPlaceCursorAtEnd(barcode)
                 submitQuery(barcode)
+                quickCompareSearchFocused = false
+                keyboardController?.hide()
+                focusManager.clearFocus(force = true)
             },
             onError = {
                 scannerOpen = false

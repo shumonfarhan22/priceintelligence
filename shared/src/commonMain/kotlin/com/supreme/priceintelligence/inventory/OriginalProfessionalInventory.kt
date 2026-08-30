@@ -18,8 +18,10 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -41,9 +43,9 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -112,72 +114,88 @@ internal fun ProfessionalInventorySearchField(
     onScan: () -> Unit,
     onDone: () -> Unit
 ) {
-    OutlinedTextField(
-        state = state,
+    val searchShape = RoundedCornerShape(12.dp)
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        placeholder = {
-            Text(
-                text = "Search inventory...",
-                color = ProfessionalInventoryMuted
-            )
-        },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Rounded.Search,
-                contentDescription = null,
-                tint = ProfessionalInventoryMuted
-            )
-        },
-        trailingIcon = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (state.text.isNotBlank()) {
-                    IconButton(onClick = onClear) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Clear inventory search",
-                            tint = ProfessionalInventoryMuted,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+            .padding(vertical = 12.dp)
+            .height(56.dp)
+            .clip(searchShape)
+            .background(ProfessionalInventoryCard)
+            .border(
+                width = 1.dp,
+                color = ProfessionalInventoryBorder,
+                shape = searchShape
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Search,
+            contentDescription = null,
+            tint = ProfessionalInventoryMuted,
+            modifier = Modifier
+                .padding(start = 14.dp)
+                .size(21.dp)
+        )
 
-                IconButton(onClick = onScan) {
+        TextField(
+            state = state,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            placeholder = {
+                Text(
+                    text = "Search inventory...",
+                    color = ProfessionalInventoryMuted
+                )
+            },
+            shape = searchShape,
+            keyboardOptions = KeyboardOptions(
+                imeAction = ImeAction.Done
+            ).withPlatformTextInput(),
+            onKeyboardAction = { onDone() },
+            lineLimits = TextFieldLineLimits.SingleLine,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+                focusedTextColor = ProfessionalInventoryText,
+                unfocusedTextColor = ProfessionalInventoryText,
+                disabledTextColor = ProfessionalInventoryMuted,
+                cursorColor = ProfessionalInventoryEmerald
+            )
+        )
+
+        Box(
+            modifier = Modifier.size(48.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (state.text.isNotBlank()) {
+                IconButton(onClick = onClear) {
                     Icon(
-                        imageVector = Icons.Rounded.CameraAlt,
-                        contentDescription = "Scan barcode to search inventory",
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Clear inventory search",
                         tint = ProfessionalInventoryMuted,
-                        modifier = Modifier.size(21.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
-        },
-        shape = RoundedCornerShape(12.dp),
-        keyboardOptions = KeyboardOptions(
-            imeAction = ImeAction.Done
-        ).withPlatformTextInput(),
-        onKeyboardAction = { onDone() },
-        lineLimits = TextFieldLineLimits.SingleLine,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = ProfessionalInventoryCard,
-            unfocusedContainerColor = ProfessionalInventoryCard,
-            disabledContainerColor = ProfessionalInventoryCard,
-            focusedBorderColor = ProfessionalInventoryBorder,
-            unfocusedBorderColor = ProfessionalInventoryBorder,
-            disabledBorderColor = ProfessionalInventoryBorder,
-            focusedTextColor = ProfessionalInventoryText,
-            unfocusedTextColor = ProfessionalInventoryText,
-            disabledTextColor = ProfessionalInventoryMuted,
-            cursorColor = ProfessionalInventoryEmerald,
-            focusedLeadingIconColor = ProfessionalInventoryMuted,
-            unfocusedLeadingIconColor = ProfessionalInventoryMuted,
-            focusedTrailingIconColor = ProfessionalInventoryMuted,
-            unfocusedTrailingIconColor = ProfessionalInventoryMuted
-        )
-    )
+        }
+
+        IconButton(onClick = onScan) {
+            Icon(
+                imageVector = Icons.Rounded.CameraAlt,
+                contentDescription =
+                    "Scan barcode to search inventory",
+                tint = ProfessionalInventoryMuted,
+                modifier = Modifier.size(21.dp)
+            )
+        }
+    }
 }
 
 @Composable

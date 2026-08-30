@@ -5,6 +5,8 @@ import androidx.compose.runtime.Composable
 
 internal actual fun KeyboardOptions.withPlatformTextInput(): KeyboardOptions = this
 
+internal actual fun dismissPlatformKeyboard() = Unit
+
 @Composable
 internal actual fun rememberPlatformTextInputOptions(
     keyboardOptions: KeyboardOptions,

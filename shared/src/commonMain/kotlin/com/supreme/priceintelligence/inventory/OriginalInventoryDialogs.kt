@@ -60,7 +60,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -70,6 +69,8 @@ import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.input.BarcodeInputTransformation
 import com.supreme.priceintelligence.ui.input.DecimalNumberInputTransformation
 import com.supreme.priceintelligence.ui.input.KeyboardAccessoryAction
+import com.supreme.priceintelligence.ui.input.dismissKeyboardOnUnhandledTap
+import com.supreme.priceintelligence.ui.input.rememberKeyboardDismissAction
 import com.supreme.priceintelligence.ui.input.rememberPlatformTextInputOptions
 import com.supreme.priceintelligence.ui.theme.supremeColors
 
@@ -87,7 +88,7 @@ internal fun OriginalProductEditorDialog(
     reduceMotionEnabled: Boolean,
     onDismiss: () -> Unit
 ) {
-    val focusManager = LocalFocusManager.current
+    val dismissKeyboard = rememberKeyboardDismissAction()
     val currentFontScale =
         LocalDensity.current.fontScale
 
@@ -199,6 +200,7 @@ internal fun OriginalProductEditorDialog(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
+                .dismissKeyboardOnUnhandledTap(dismissKeyboard)
                 .background(
                     MaterialTheme.supremeColors.scrim.copy(
                         alpha =
@@ -357,7 +359,7 @@ internal fun OriginalProductEditorDialog(
 
                                 GlassCalculatorButton(
                                     onClick = {
-                                        focusManager.clearFocus()
+                                        dismissKeyboard()
                                         calculatorTarget =
                                             PriceEditorField.SELLING_PRICE
                                     }
@@ -523,7 +525,7 @@ internal fun OriginalProductEditorDialog(
                             keyboardAccessoryAction =
                                 KeyboardAccessoryAction.DONE,
                             onImeAction = {
-                                focusManager.clearFocus()
+                                dismissKeyboard()
                             },
                             trailingIcon = {
                                 IconButton(
@@ -562,8 +564,7 @@ internal fun OriginalProductEditorDialog(
                                     RetailerBrowserButton(
                                         label = "Amazon",
                                         onClick = {
-                                            focusManager
-                                                .clearFocus()
+                                            dismissKeyboard()
                                             browserSite =
                                                 RetailerBrowserSite
                                                     .AMAZON
@@ -575,8 +576,7 @@ internal fun OriginalProductEditorDialog(
                                     RetailerBrowserButton(
                                         label = "Flipkart",
                                         onClick = {
-                                            focusManager
-                                                .clearFocus()
+                                            dismissKeyboard()
                                             browserSite =
                                                 RetailerBrowserSite
                                                     .FLIPKART
@@ -597,8 +597,7 @@ internal fun OriginalProductEditorDialog(
                                     RetailerBrowserButton(
                                         label = "Amazon",
                                         onClick = {
-                                            focusManager
-                                                .clearFocus()
+                                            dismissKeyboard()
                                             browserSite =
                                                 RetailerBrowserSite
                                                     .AMAZON
@@ -610,8 +609,7 @@ internal fun OriginalProductEditorDialog(
                                     RetailerBrowserButton(
                                         label = "Flipkart",
                                         onClick = {
-                                            focusManager
-                                                .clearFocus()
+                                            dismissKeyboard()
                                             browserSite =
                                                 RetailerBrowserSite
                                                     .FLIPKART
@@ -626,7 +624,7 @@ internal fun OriginalProductEditorDialog(
                                 RetailerBrowserButton(
                                     label = "Amazon",
                                     onClick = {
-                                        focusManager.clearFocus()
+                                        dismissKeyboard()
                                         browserSite =
                                             RetailerBrowserSite.AMAZON
                                     },
@@ -662,13 +660,13 @@ internal fun OriginalProductEditorDialog(
                                             flipkartFocusRequester
                                                 .requestFocus()
                                         } else {
-                                            focusManager.clearFocus()
+                                            dismissKeyboard()
                                         }
                                     },
                                     trailingIcon = {
                                         IconButton(
                                             onClick = {
-                                                focusManager.clearFocus()
+                                                dismissKeyboard()
                                                 browserSite =
                                                     RetailerBrowserSite.AMAZON
                                             }
@@ -690,7 +688,7 @@ internal fun OriginalProductEditorDialog(
                                 RetailerBrowserButton(
                                     label = "Flipkart",
                                     onClick = {
-                                        focusManager.clearFocus()
+                                        dismissKeyboard()
                                         browserSite =
                                             RetailerBrowserSite.FLIPKART
                                     },
@@ -714,14 +712,14 @@ internal fun OriginalProductEditorDialog(
                                                 KeyboardType.Uri,
                                             imeAction =
                                                 ImeAction.Done
-                                        ),
+                                    ),
                                     onImeAction = {
-                                        focusManager.clearFocus()
+                                        dismissKeyboard()
                                     },
                                     trailingIcon = {
                                         IconButton(
                                             onClick = {
-                                                focusManager.clearFocus()
+                                                dismissKeyboard()
                                                 browserSite =
                                                     RetailerBrowserSite.FLIPKART
                                             }

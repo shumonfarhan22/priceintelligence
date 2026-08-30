@@ -78,7 +78,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -105,6 +104,8 @@ import com.supreme.priceintelligence.ui.components.ScrollAwareHeader
 import com.supreme.priceintelligence.ui.components.rememberScrollAwareHeaderVisible
 import com.supreme.priceintelligence.scanner.ProductBarcodeScanner
 import com.supreme.priceintelligence.scanner.rememberCameraPermissionRequester
+import com.supreme.priceintelligence.ui.input.dismissKeyboardOnUnhandledTap
+import com.supreme.priceintelligence.ui.input.rememberKeyboardDismissAction
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -124,11 +125,11 @@ fun OriginalInventoryScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
-    val focusManager = LocalFocusManager.current
     val inventoryListState = rememberLazyListState()
     val directorySearchState =
         rememberTextFieldState(state.directoryQuery)
     val editorTextState = rememberInventoryEditorTextState()
+    val dismissKeyboard = rememberKeyboardDismissAction()
 
     var editorOpen by rememberSaveable { mutableStateOf(false) }
     var scannerOpen by rememberSaveable { mutableStateOf(false) }
@@ -156,7 +157,7 @@ fun OriginalInventoryScreen(
     val cameraPermissionRequester =
         rememberCameraPermissionRequester { granted ->
             if (granted) {
-                focusManager.clearFocus()
+                dismissKeyboard()
                 scannerOpen = true
             } else {
                 viewModel.reportError(
@@ -292,7 +293,9 @@ fun OriginalInventoryScreen(
     }
 
     Box(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .dismissKeyboardOnUnhandledTap(dismissKeyboard)
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -323,7 +326,11 @@ fun OriginalInventoryScreen(
                 state = directorySearchState,
                 onClear = {
                     directorySearchState.clearText()
-                    focusManager.clearFocus()
+                    viewModel.onDirectoryQueryChanged(
+                        query = "",
+                        debounceMillis = 0L
+                    )
+                    dismissKeyboard()
                 },
                 onScan = {
                     scannerTarget =
@@ -335,7 +342,7 @@ fun OriginalInventoryScreen(
                         query = directorySearchState.text.toString(),
                         debounceMillis = 0L
                     )
-                    focusManager.clearFocus()
+                    dismissKeyboard()
                 }
             )
 

@@ -128,7 +128,6 @@ internal fun ProductPriceCalculatorDialog(
 
     fun selectField(field: PriceEditorField) {
         selectedFieldName = field.name
-        expression = valueFor(field).ifBlank { "0" }
         errorMessage = null
     }
 

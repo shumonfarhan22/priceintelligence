@@ -18,6 +18,7 @@ import platform.darwin.NSObject
 import platform.UIKit.UIBarButtonItem
 import platform.UIKit.UIBarButtonItemStyle
 import platform.UIKit.UIBarButtonSystemItem
+import platform.UIKit.UIApplication
 import platform.UIKit.UIToolbar
 
 internal actual fun KeyboardOptions.withPlatformTextInput(): KeyboardOptions =
@@ -26,6 +27,15 @@ internal actual fun KeyboardOptions.withPlatformTextInput(): KeyboardOptions =
             usingNativeTextInput(true)
         }
     )
+
+internal actual fun dismissPlatformKeyboard() {
+    UIApplication.sharedApplication.sendAction(
+        action = NSSelectorFromString("resignFirstResponder"),
+        to = null,
+        from = null,
+        forEvent = null
+    )
+}
 
 @Composable
 internal actual fun rememberPlatformTextInputOptions(

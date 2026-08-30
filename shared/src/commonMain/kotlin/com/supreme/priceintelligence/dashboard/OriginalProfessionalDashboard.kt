@@ -105,6 +105,7 @@ import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import coil3.compose.AsyncImage
 import com.supreme.priceintelligence.resources.Res
 import com.supreme.priceintelligence.resources.app_logo
+import com.supreme.priceintelligence.ui.input.dismissPlatformKeyboard
 import com.supreme.priceintelligence.ui.theme.supremeColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -954,6 +955,26 @@ internal fun ProfessionalDashboardSearchOverlay(
         }
     }
 
+    val submitSearch: (String) -> Unit = { submittedQuery ->
+        if (morphSearchButton) {
+            keyboardDismissRequested = true
+        }
+
+        onSubmit(submittedQuery)
+
+        if (morphSearchButton) {
+            keyboardController?.hide()
+            focusManager.clearFocus(force = true)
+            dismissPlatformKeyboard()
+
+            if (!keyboardVisible) {
+                keyboardDismissRequested = false
+                keyboardWasVisible = false
+                onDismissFocus()
+            }
+        }
+    }
+
     Box(
         modifier = modifier.fillMaxSize()
     ) {
@@ -1167,7 +1188,7 @@ internal fun ProfessionalDashboardSearchOverlay(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        onSubmit(suggestion)
+                                        submitSearch(suggestion)
                                     }
                                     .padding(
                                         horizontal = 16.dp,
@@ -1223,7 +1244,7 @@ internal fun ProfessionalDashboardSearchOverlay(
                         reduceMotionEnabled,
                     searchFocusRequester =
                         searchFocusRequester,
-                    onSubmit = onSubmit,
+                    onSubmit = submitSearch,
                     onScanClick = onScanClick,
                     onOpen = {
                         onFocusChange(true)
@@ -1313,22 +1334,6 @@ internal fun ProfessionalDashboardSearchOverlay(
                                 onFocusChange(true)
                             }
                         },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(
-                                onClick = {
-                                    searchState.clearText()
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = "Clear search",
-                                    tint = TextMuted,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                            }
-                        }
-                    },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -1345,11 +1350,29 @@ internal fun ProfessionalDashboardSearchOverlay(
                     ).withPlatformTextInput(),
                     onKeyboardAction = {
                         if (query.isNotBlank()) {
-                            onSubmit(query)
+                            submitSearch(query)
                         }
                     },
                     lineLimits = TextFieldLineLimits.SingleLine
                 )
+
+                Box(
+                    modifier = Modifier.size(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (query.isNotEmpty()) {
+                        IconButton(
+                            onClick = searchState::clearText
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Clear search",
+                                tint = TextMuted,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+                }
 
                 Box(
                     modifier = Modifier
@@ -1607,28 +1630,6 @@ private fun MorphingQuickCompareSearchBar(
                                         onOpen()
                                     }
                                 },
-                            trailingIcon = {
-                                if (query.isNotEmpty()) {
-                                    IconButton(
-                                        onClick = {
-                                            searchState.clearText()
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector =
-                                                Icons.Rounded
-                                                    .Close,
-                                            contentDescription =
-                                                "Clear search",
-                                            tint = TextMuted,
-                                            modifier =
-                                                Modifier.size(
-                                                    19.dp
-                                                )
-                                        )
-                                    }
-                                }
-                            },
                             colors =
                                 TextFieldDefaults.colors(
                                     focusedContainerColor =
@@ -1664,6 +1665,27 @@ private fun MorphingQuickCompareSearchBar(
                             lineLimits =
                                 TextFieldLineLimits.SingleLine
                         )
+
+                        Box(
+                            modifier = Modifier.size(48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (query.isNotEmpty()) {
+                                IconButton(
+                                    onClick = searchState::clearText
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                            Icons.Rounded.Close,
+                                        contentDescription =
+                                            "Clear search",
+                                        tint = TextMuted,
+                                        modifier =
+                                            Modifier.size(19.dp)
+                                    )
+                                }
+                            }
+                        }
 
                         Box(
                             modifier = Modifier
