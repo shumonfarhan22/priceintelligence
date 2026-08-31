@@ -69,6 +69,7 @@ import com.supreme.priceintelligence.ui.layout.adaptiveLayoutPolicy
 import com.supreme.priceintelligence.ui.input.BarcodeInputTransformation
 import com.supreme.priceintelligence.ui.input.DecimalNumberInputTransformation
 import com.supreme.priceintelligence.ui.input.KeyboardAccessoryAction
+import com.supreme.priceintelligence.ui.input.PlatformProductNameTextField
 import com.supreme.priceintelligence.ui.input.dismissKeyboardOnUnhandledTap
 import com.supreme.priceintelligence.ui.input.rememberKeyboardDismissAction
 import com.supreme.priceintelligence.ui.input.rememberPlatformTextInputOptions
@@ -329,11 +330,7 @@ internal fun OriginalProductEditorDialog(
                             label = "Product Name",
                             placeholder = "e.g., Hawkins 3.5L Cooker",
                             state = textState.productName,
-                            keyboardOptions = KeyboardOptions(
-                                imeAction = ImeAction.Next
-                            ),
-                            keyboardAccessoryAction =
-                                KeyboardAccessoryAction.PASTE_NEXT,
+                            usePlatformProductNameField = true,
                             onImeAction = {
                                 purchaseCostFocusRequester.requestFocus()
                             }
@@ -978,25 +975,12 @@ private fun OriginalEditorField(
     modifier: Modifier = Modifier,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     inputTransformation: InputTransformation? = null,
+    usePlatformProductNameField: Boolean = false,
     keyboardAccessoryAction: KeyboardAccessoryAction =
         KeyboardAccessoryAction.NONE,
     onImeAction: (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
-    val platformKeyboardOptions =
-        rememberPlatformTextInputOptions(
-            keyboardOptions = keyboardOptions,
-            accessoryAction = keyboardAccessoryAction,
-            onAccessoryAction = {
-                onImeAction?.invoke()
-            },
-            onPaste = { pastedText ->
-                if (pastedText.isNotBlank()) {
-                    state.setTextAndPlaceCursorAtEnd(pastedText)
-                }
-            }
-        )
-
     Column(
         modifier = modifier
     ) {
@@ -1024,44 +1008,64 @@ private fun OriginalEditorField(
             }
         }
 
-        OutlinedTextField(
-            state = state,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp),
-            placeholder = {
-                Text(
-                    text = placeholder,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            },
-            trailingIcon = trailingIcon,
-            shape = RoundedCornerShape(12.dp),
-            inputTransformation = inputTransformation,
-            keyboardOptions = platformKeyboardOptions,
-            onKeyboardAction = if (onImeAction == null) {
-                null
-            } else {
-                { onImeAction() }
-            },
-            lineLimits = TextFieldLineLimits.SingleLine,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor =
-                    MaterialTheme.supremeColors.panelMuted,
-                unfocusedContainerColor =
-                    MaterialTheme.supremeColors.panel,
-                focusedBorderColor =
-                    MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor =
-                    MaterialTheme.supremeColors.border,
-                focusedTextColor =
-                    MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor =
-                    MaterialTheme.colorScheme.onSurface,
-                cursorColor =
-                    MaterialTheme.colorScheme.primary
+        if (usePlatformProductNameField) {
+            PlatformProductNameTextField(
+                state = state,
+                placeholder = placeholder,
+                onNext = { onImeAction?.invoke() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
             )
-        )
+        } else {
+            val platformKeyboardOptions =
+                rememberPlatformTextInputOptions(
+                    keyboardOptions = keyboardOptions,
+                    accessoryAction = keyboardAccessoryAction,
+                    onAccessoryAction = {
+                        onImeAction?.invoke()
+                    }
+                )
+
+            OutlinedTextField(
+                state = state,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp),
+                placeholder = {
+                    Text(
+                        text = placeholder,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                trailingIcon = trailingIcon,
+                shape = RoundedCornerShape(12.dp),
+                inputTransformation = inputTransformation,
+                keyboardOptions = platformKeyboardOptions,
+                onKeyboardAction = if (onImeAction == null) {
+                    null
+                } else {
+                    { onImeAction() }
+                },
+                lineLimits = TextFieldLineLimits.SingleLine,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor =
+                        MaterialTheme.supremeColors.panelMuted,
+                    unfocusedContainerColor =
+                        MaterialTheme.supremeColors.panel,
+                    focusedBorderColor =
+                        MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor =
+                        MaterialTheme.supremeColors.border,
+                    focusedTextColor =
+                        MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor =
+                        MaterialTheme.colorScheme.onSurface,
+                    cursorColor =
+                        MaterialTheme.colorScheme.primary
+                )
+            )
+        }
     }
 }
 

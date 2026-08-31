@@ -11,6 +11,5 @@ internal actual fun dismissPlatformKeyboard() = Unit
 internal actual fun rememberPlatformTextInputOptions(
     keyboardOptions: KeyboardOptions,
     accessoryAction: KeyboardAccessoryAction,
-    onAccessoryAction: () -> Unit,
-    onPaste: (String) -> Unit
+    onAccessoryAction: () -> Unit
 ): KeyboardOptions = keyboardOptions

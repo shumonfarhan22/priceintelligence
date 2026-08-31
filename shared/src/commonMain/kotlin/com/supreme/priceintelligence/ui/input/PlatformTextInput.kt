@@ -4,6 +4,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.maxLength
 import androidx.compose.foundation.text.input.then
 import androidx.compose.runtime.Composable
@@ -85,7 +86,6 @@ internal fun Modifier.dismissKeyboardOnUnhandledTap(
 
 internal enum class KeyboardAccessoryAction {
     NONE,
-    PASTE_NEXT,
     NEXT,
     DONE
 }
@@ -94,9 +94,21 @@ internal enum class KeyboardAccessoryAction {
 internal expect fun rememberPlatformTextInputOptions(
     keyboardOptions: KeyboardOptions,
     accessoryAction: KeyboardAccessoryAction,
-    onAccessoryAction: () -> Unit,
-    onPaste: (String) -> Unit = {}
+    onAccessoryAction: () -> Unit
 ): KeyboardOptions
+
+/**
+ * Uses a visible native editor on iPhone so selection, paste, AutoFill and the
+ * edit menu are positioned and handled by UIKit. Android keeps the existing
+ * Material field through its platform implementation.
+ */
+@Composable
+internal expect fun PlatformProductNameTextField(
+    state: TextFieldState,
+    placeholder: String,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier
+)
 
 internal fun isValidDecimalInput(candidate: CharSequence): Boolean =
     candidate.count { character -> character == '.' } <= 1 &&
