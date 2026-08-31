@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useEffect } from 'react';
 import {
   AccessibilityInfo,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -24,9 +25,11 @@ export interface BannerNotice {
 export function BottomBanner({
   notice,
   onDismiss,
+  bottomOffset = 0,
 }: {
   notice: BannerNotice | null;
   onDismiss: () => void;
+  bottomOffset?: number;
 }) {
   const insets = useSafeAreaInsets();
 
@@ -51,7 +54,7 @@ export function BottomBanner({
   return (
     <View
       accessibilityLiveRegion="assertive"
-      style={[styles.wrapper, { bottom: Math.max(insets.bottom, spacing.md) }]}
+      style={[styles.wrapper, { bottom: Math.max(insets.bottom, spacing.md) + bottomOffset }]}
     >
       <View style={[styles.banner, { borderColor: accent }]}>
         <View style={[styles.dot, { backgroundColor: accent }]} />
@@ -98,11 +101,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 10,
+    ...Platform.select({
+      web: { boxShadow: '0 5px 12px rgba(0, 0, 0, 0.35)' },
+      default: {
+        shadowColor: '#000',
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 5 },
+        elevation: 10,
+      },
+    }),
   },
   dot: { width: 9, height: 9, borderRadius: 5, marginRight: spacing.md },
   message: { flex: 1, color: colors.text, fontFamily: type.semibold, fontSize: 14, lineHeight: 19 },

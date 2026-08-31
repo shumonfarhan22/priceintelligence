@@ -44,4 +44,12 @@ pnpm exec expo export --platform android --output-dir dist/android-check
 pnpm exec expo export --platform ios --output-dir dist/ios-check
 ```
 
+The responsive UI can also be inspected against an isolated browser database:
+
+```powershell
+pnpm exec expo start --web --localhost
+```
+
+The browser preview does not read or modify inventory stored by the Android or iPhone app.
+
 Passing these checks does not replace physical Android and iPhone testing.

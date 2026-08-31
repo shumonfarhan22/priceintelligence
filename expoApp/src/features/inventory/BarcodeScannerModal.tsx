@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, radius, spacing, type } from '../../theme/tokens';
@@ -65,6 +66,13 @@ export function BarcodeScannerModal({
     handledRef.current = true;
     setHandled(true);
     onScanned(value);
+    if (Platform.OS === 'ios') {
+      // iOS suppresses Taptic Engine feedback while the camera is active.
+      // Wait for the scanner view to unmount before confirming the scan.
+      setTimeout(() => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      }, 280);
+    }
   };
 
   const scannerContent = (

@@ -17,6 +17,12 @@ grouped search, add/edit validation, native text input and paste, barcode scanni
 individual and multi-delete with Undo, local refresh/reset, accessible status banners, and deliberately
 limited haptics. Android and iPhone physical-device verification is still required.
 
+The V2 browser preview now runs against its own isolated Expo SQLite web database for responsive UI
+inspection. The dashboard, inventory, editor, calculator, backup sheet, populated rows, and banners
+were visually checked at 320, 360, and 390 pixel phone widths. The user physically confirmed that the
+calculator and camera open correctly on iPhone; delayed scan-complete haptics still require an iPhone
+retest because iOS suppresses feedback while the camera remains active.
+
 ## Authoritative source state
 
 The latest application milestone on `master` is:

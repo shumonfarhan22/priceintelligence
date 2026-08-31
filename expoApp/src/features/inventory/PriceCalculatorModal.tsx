@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, radius, spacing, type } from '../../theme/tokens';
@@ -96,16 +96,19 @@ export function PriceCalculatorModal({
     <SafeAreaView style={[styles.root, Platform.OS === 'android' && styles.backdrop]}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <View>
+            <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>PRICE CALCULATOR</Text>
-              <Text style={styles.title}>Calculate without losing work</Text>
+              <Text style={styles.title} numberOfLines={1}>Calculate shop prices</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close calculator" onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={25} color={colors.text} />
             </Pressable>
           </View>
 
-          <View style={styles.content}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.targetRow}>
               <TargetButton label="Purchase Cost" selected={target === 'purchaseCost'} onPress={() => onTargetChange('purchaseCost')} />
               <TargetButton label="Selling Price" selected={target === 'shopPrice'} onPress={() => onTargetChange('shopPrice')} />
@@ -117,18 +120,28 @@ export function PriceCalculatorModal({
             </View>
 
             <View style={styles.keypad}>
-              <CalculatorKey label="C" tone="danger" onPress={clear} />
-              <CalculatorKey label="⌫" tone="muted" onPress={backspace} />
-              <CalculatorKey label="÷" tone="accent" onPress={() => chooseOperator('÷')} />
-              <CalculatorKey label="×" tone="accent" onPress={() => chooseOperator('×')} />
-              {['7', '8', '9'].map((digit) => <CalculatorKey key={digit} label={digit} onPress={() => inputDigit(digit)} />)}
-              <CalculatorKey label="−" tone="accent" onPress={() => chooseOperator('−')} />
-              {['4', '5', '6'].map((digit) => <CalculatorKey key={digit} label={digit} onPress={() => inputDigit(digit)} />)}
-              <CalculatorKey label="+" tone="accent" onPress={() => chooseOperator('+')} />
-              {['1', '2', '3'].map((digit) => <CalculatorKey key={digit} label={digit} onPress={() => inputDigit(digit)} />)}
-              <CalculatorKey label="=" tone="primary" onPress={equals} />
-              <CalculatorKey label="0" wide onPress={() => inputDigit('0')} />
-              <CalculatorKey label="." onPress={inputDecimal} />
+              <View style={styles.keyRow}>
+                <CalculatorKey label="C" tone="danger" onPress={clear} />
+                <CalculatorKey label="⌫" tone="muted" onPress={backspace} />
+                <CalculatorKey label="÷" tone="accent" onPress={() => chooseOperator('÷')} />
+                <CalculatorKey label="×" tone="accent" onPress={() => chooseOperator('×')} />
+              </View>
+              <View style={styles.keyRow}>
+                {['7', '8', '9'].map((digit) => <CalculatorKey key={digit} label={digit} onPress={() => inputDigit(digit)} />)}
+                <CalculatorKey label="−" tone="accent" onPress={() => chooseOperator('−')} />
+              </View>
+              <View style={styles.keyRow}>
+                {['4', '5', '6'].map((digit) => <CalculatorKey key={digit} label={digit} onPress={() => inputDigit(digit)} />)}
+                <CalculatorKey label="+" tone="accent" onPress={() => chooseOperator('+')} />
+              </View>
+              <View style={styles.keyRow}>
+                {['1', '2', '3'].map((digit) => <CalculatorKey key={digit} label={digit} onPress={() => inputDigit(digit)} />)}
+                <CalculatorKey label="." onPress={inputDecimal} />
+              </View>
+              <View style={styles.keyRow}>
+                <CalculatorKey label="0" wide onPress={() => inputDigit('0')} />
+                <CalculatorKey label="=" wide tone="primary" onPress={equals} />
+              </View>
             </View>
 
             <Pressable
@@ -141,7 +154,7 @@ export function PriceCalculatorModal({
             >
               <Text style={styles.useButtonText}>USE FOR {fieldName(target).toLocaleUpperCase()}</Text>
             </Pressable>
-          </View>
+          </ScrollView>
         </View>
     </SafeAreaView>
   );
@@ -229,10 +242,11 @@ const styles = StyleSheet.create({
   backdrop: { backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end' },
   sheet: { flex: Platform.OS === 'ios' ? 1 : undefined, backgroundColor: colors.surface, borderTopLeftRadius: Platform.OS === 'ios' ? 0 : radius.lg, borderTopRightRadius: Platform.OS === 'ios' ? 0 : radius.lg, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerCopy: { flex: 1, minWidth: 0, paddingRight: spacing.md },
   eyebrow: { color: colors.accent, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
   title: { color: colors.text, fontFamily: type.bold, fontSize: 21, marginTop: spacing.xs },
   closeButton: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  content: { padding: spacing.xl },
+  content: { padding: spacing.xl, paddingBottom: spacing.xxl },
   targetRow: { flexDirection: 'row', gap: spacing.md },
   targetButton: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.background },
   targetSelected: { borderColor: colors.accent, backgroundColor: 'rgba(139,124,246,0.14)' },
@@ -241,9 +255,10 @@ const styles = StyleSheet.create({
   displayCard: { alignItems: 'flex-end', justifyContent: 'center', minHeight: 112, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.lg },
   pending: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13 },
   display: { width: '100%', color: colors.text, fontFamily: type.bold, fontSize: 38, textAlign: 'right', marginTop: spacing.sm },
-  keypad: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.sm, marginTop: spacing.lg },
-  key: { width: '22.5%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
-  keyWide: { width: '48%', aspectRatio: 2.15 },
+  keypad: { gap: spacing.sm, marginTop: spacing.lg },
+  keyRow: { flexDirection: 'row', gap: spacing.sm },
+  key: { flex: 1, height: 64, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
+  keyWide: { flex: 2 },
   keyPrimary: { backgroundColor: colors.primary, borderColor: colors.primary },
   keyMuted: { backgroundColor: colors.surfaceRaised },
   keyText: { fontFamily: type.bold, fontSize: 22 },

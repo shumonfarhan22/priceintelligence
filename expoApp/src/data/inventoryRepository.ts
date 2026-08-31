@@ -8,7 +8,7 @@ import {
   normalizeOptionalKey,
   parseBackupJson,
 } from './backup';
-import { getDatabase } from './database';
+import { getDatabase, withWriteTransaction } from './database';
 
 interface InventoryRow {
   id: number;
@@ -90,7 +90,7 @@ export class InventoryRepository {
 
   async saveProduct(input: ValidatedInventoryInput, editingId: number | null): Promise<number> {
     let savedId = editingId ?? 0;
-    await this.database.withExclusiveTransactionAsync(async (transaction) => {
+    await withWriteTransaction(this.database, async (transaction) => {
       await assertNoDuplicateIdentifiers(transaction, input, editingId);
       const now = Date.now();
       if (editingId == null) {
@@ -142,7 +142,7 @@ export class InventoryRepository {
     let addedCount = 0;
     let duplicateCount = 0;
 
-    await this.database.withExclusiveTransactionAsync(async (transaction) => {
+    await withWriteTransaction(this.database, async (transaction) => {
       const existing = await transaction.getAllAsync<InventoryRow>('SELECT * FROM inventory');
       const names = new Set(existing.map((item) => normalizeNameKey(item.product_name)));
       const barcodes = keySet(existing.map((item) => item.barcode));

@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
 const DATABASE_NAME = 'price-intelligence-v2.db';
 const DATABASE_VERSION = 1;
@@ -10,6 +11,17 @@ export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     databasePromise = openAndMigrateDatabase();
   }
   return databasePromise;
+}
+
+export async function withWriteTransaction(
+  database: SQLite.SQLiteDatabase,
+  task: (transaction: SQLite.SQLiteDatabase) => Promise<void>,
+): Promise<void> {
+  if (Platform.OS === 'web') {
+    await database.withTransactionAsync(() => task(database));
+    return;
+  }
+  await database.withExclusiveTransactionAsync(task);
 }
 
 async function openAndMigrateDatabase(): Promise<SQLite.SQLiteDatabase> {
@@ -25,7 +37,7 @@ async function openAndMigrateDatabase(): Promise<SQLite.SQLiteDatabase> {
   }
 
   if (currentVersion === 0) {
-    await database.withExclusiveTransactionAsync(async (transaction) => {
+    await withWriteTransaction(database, async (transaction) => {
       await transaction.execAsync(`
         CREATE TABLE inventory (
           id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

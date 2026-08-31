@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
   Keyboard,
+  Platform,
   Pressable,
   RefreshControl,
   SectionList,
@@ -401,8 +402,12 @@ function InventoryHeader({
         <Ionicons name="archive" size={25} color={colors.primary} />
       </View>
       <View style={styles.headerText}>
-        <Text style={styles.headerEyebrow}>{selectionMode ? 'INVENTORY SELECTION' : 'SUPREME INVENTORY'}</Text>
-        <Text style={styles.headerTitle}>{selectionMode ? `${selectionCount} selected` : `${total} Total Products`}</Text>
+        <Text style={styles.headerEyebrow} numberOfLines={1}>
+          {selectionMode ? 'INVENTORY SELECTION' : 'SUPREME INVENTORY'}
+        </Text>
+        <Text style={styles.headerTitle}>
+          {selectionMode ? `${selectionCount} selected` : `${total} Total ${total === 1 ? 'Product' : 'Products'}`}
+        </Text>
       </View>
       {selectionMode ? (
         <>
@@ -441,51 +446,57 @@ function ProductRow({
 }) {
   const longPressHandled = useRef(false);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={() => {
-        if (longPressHandled.current) {
-          longPressHandled.current = false;
-          return;
-        }
-        onPress();
-      }}
-      onLongPress={() => {
-        longPressHandled.current = true;
-        onLongPress();
-      }}
-      style={({ pressed }) => [styles.productRow, selected && styles.productSelected, pressed && styles.pressed]}
-    >
-      <View style={styles.productImageShell}>
-        {product.imageUrl ? (
-          <Image source={product.imageUrl} style={styles.productImage} contentFit="contain" transition={120} />
-        ) : (
-          <Ionicons name="cube-outline" size={27} color={colors.textMuted} />
-        )}
-      </View>
-      <View style={styles.productContent}>
-        <Text style={styles.productName} numberOfLines={2}>{product.productName}</Text>
-        <View style={styles.pricePill}>
-          <Ionicons name="pricetag" size={13} color={colors.primary} />
-          <Text style={styles.priceLabel}>Supreme Price</Text>
-          <Text style={styles.priceValue}>{formatInr(product.shopPrice)}</Text>
+    <View style={[styles.productRow, selected && styles.productSelected]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${selectionMode ? 'Select' : 'Open'} ${product.productName}`}
+        accessibilityState={{ selected }}
+        onPress={() => {
+          if (longPressHandled.current) {
+            longPressHandled.current = false;
+            return;
+          }
+          onPress();
+        }}
+        onLongPress={() => {
+          longPressHandled.current = true;
+          onLongPress();
+        }}
+        style={({ pressed }) => [styles.productMain, pressed && styles.pressed]}
+      >
+        <View style={styles.productImageShell}>
+          {product.imageUrl ? (
+            <Image source={product.imageUrl} style={styles.productImage} contentFit="contain" transition={120} />
+          ) : (
+            <Ionicons name="cube-outline" size={27} color={colors.textMuted} />
+          )}
         </View>
-        {product.barcode ? <Text style={styles.barcode} numberOfLines={1}>Barcode {product.barcode}</Text> : null}
-      </View>
-      {selectionMode ? (
-        <Ionicons name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={25} color={selected ? colors.primary : colors.textMuted} />
-      ) : (
-        <View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${product.productName}`} onPress={(event) => { event.stopPropagation(); onEdit(); }} hitSlop={8} style={styles.rowAction}>
+        <View style={styles.productContent}>
+          <Text style={styles.productName} numberOfLines={2}>{product.productName}</Text>
+          <View style={styles.pricePill}>
+            <Ionicons name="pricetag" size={13} color={colors.primary} />
+            <Text style={styles.priceLabel} numberOfLines={1}>Shop price</Text>
+            <Text style={styles.priceValue}>{formatInr(product.shopPrice)}</Text>
+          </View>
+          {product.barcode ? <Text style={styles.barcode} numberOfLines={1}>Barcode {product.barcode}</Text> : null}
+        </View>
+        {selectionMode ? (
+          <Ionicons name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={25} color={selected ? colors.primary : colors.textMuted} />
+        ) : (
+          null
+        )}
+      </Pressable>
+      {!selectionMode ? (
+        <View style={styles.rowActions}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${product.productName}`} onPress={onEdit} hitSlop={8} style={styles.rowAction}>
             <Ionicons name="pencil" size={21} color={colors.textMuted} />
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${product.productName}`} onPress={(event) => { event.stopPropagation(); onDelete(); }} hitSlop={8} style={styles.rowAction}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${product.productName}`} onPress={onDelete} hitSlop={8} style={styles.rowAction}>
             <Ionicons name="trash-outline" size={20} color={colors.danger} />
           </Pressable>
         </View>
-      )}
-    </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -504,7 +515,7 @@ const styles = StyleSheet.create({
   headerIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerBadge: { width: 54, height: 54, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryMuted, marginLeft: spacing.xs },
   headerText: { flex: 1, marginLeft: spacing.md },
-  headerEyebrow: { color: colors.text, fontFamily: type.bold, fontSize: 15, letterSpacing: 0.5 },
+  headerEyebrow: { color: colors.text, fontFamily: type.bold, fontSize: 13, letterSpacing: 0.4 },
   headerTitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, marginTop: spacing.xs },
   searchShell: { minHeight: 62, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingLeft: spacing.lg, paddingRight: spacing.sm, marginBottom: spacing.lg },
   searchInput: { flex: 1, minHeight: 60, color: colors.text, fontFamily: type.regular, fontSize: 17, paddingHorizontal: spacing.md },
@@ -515,6 +526,7 @@ const styles = StyleSheet.create({
   groupMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   groupCount: { color: colors.textMuted, fontFamily: type.regular, fontSize: 14 },
   productRow: { minHeight: 124, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md, marginLeft: spacing.md },
+  productMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
   productSelected: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
   productImageShell: { width: 84, height: 84, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
   productImage: { width: '100%', height: '100%', backgroundColor: '#F8FAFC' },
@@ -524,10 +536,30 @@ const styles = StyleSheet.create({
   priceLabel: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginLeft: spacing.xs },
   priceValue: { color: colors.text, fontFamily: type.bold, fontSize: 13, marginLeft: spacing.md },
   barcode: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginTop: spacing.xs },
+  rowActions: { width: 42, alignItems: 'center', justifyContent: 'center' },
   rowAction: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
   emptyTitle: { color: colors.text, fontFamily: type.bold, fontSize: 20, marginTop: spacing.lg },
   emptyBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: spacing.sm },
-  fab: { position: 'absolute', right: spacing.xl, width: 62, height: 62, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 9 },
+  fab: {
+    position: 'absolute',
+    right: spacing.xl,
+    width: 62,
+    height: 62,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    ...Platform.select({
+      web: { boxShadow: '0 5px 10px rgba(0, 0, 0, 0.35)' },
+      default: {
+        shadowColor: '#000',
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 5 },
+        elevation: 9,
+      },
+    }),
+  },
   pressed: { opacity: 0.72 },
 });

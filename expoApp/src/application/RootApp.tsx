@@ -167,7 +167,11 @@ export function RootApp({ fontFallback }: RootAppProps) {
         onImport={importBackup}
         onExport={exportBackup}
       />
-      <BottomBanner notice={notice} onDismiss={() => setNotice(null)} />
+      <BottomBanner
+        notice={notice}
+        onDismiss={() => setNotice(null)}
+        bottomOffset={route === 'inventory' ? 94 : 0}
+      />
       {busy ? (
         <View style={styles.busyOverlay} accessibilityLiveRegion="polite">
           <ActivityIndicator color={colors.primary} size="large" />
@@ -218,7 +222,9 @@ function MigrationToolsModal({
             <View style={styles.databaseCard}>
               <Ionicons name="shield-checkmark" size={25} color={colors.primary} />
               <View style={styles.databaseText}>
-                <Text style={styles.databaseTitle}>{productCount} products in V2</Text>
+                <Text style={styles.databaseTitle}>
+                  {productCount} {productCount === 1 ? 'product' : 'products'} in V2
+                </Text>
                 <Text style={styles.databaseBody}>Stored locally in the isolated SQLite database.</Text>
               </View>
             </View>

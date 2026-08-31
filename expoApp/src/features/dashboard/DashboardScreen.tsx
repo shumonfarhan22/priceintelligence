@@ -37,7 +37,9 @@ export function DashboardScreen({
 
       <View style={styles.overviewCard}>
         <Text style={styles.eyebrow}>LOCAL INVENTORY</Text>
-        <Text style={styles.overviewTitle}>{productCount} products protected</Text>
+        <Text style={styles.overviewTitle}>
+          {productCount} {productCount === 1 ? 'product' : 'products'} protected
+        </Text>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: productCount > 0 ? '100%' : '4%' }]} />
         </View>
@@ -51,7 +53,7 @@ export function DashboardScreen({
       </View>
 
       <View style={styles.milestoneCard}>
-        <View>
+        <View style={styles.milestoneCopy}>
           <Text style={styles.milestoneTitle}>V2 inventory milestone</Text>
           <Text style={styles.milestoneBody}>Inventory is active. Comparison tiles unlock after their reliability gate.</Text>
         </View>
@@ -116,13 +118,13 @@ const styles = StyleSheet.create({
   logo: { width: 62, height: 62 },
   brandText: { flex: 1, marginLeft: spacing.md },
   brandTitle: { color: colors.text, fontFamily: type.bold, fontSize: 25, letterSpacing: 1.2 },
-  brandSubtitle: { color: colors.text, fontFamily: type.semibold, fontSize: 12, letterSpacing: 1.2 },
+  brandSubtitle: { color: colors.text, fontFamily: type.semibold, fontSize: 11, letterSpacing: 0.75 },
   onlineRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm },
   onlineText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, marginLeft: spacing.xs },
   settingsButton: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   overviewCard: { marginTop: spacing.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.xl },
   eyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
-  overviewTitle: { color: colors.text, fontFamily: type.bold, fontSize: 24, marginTop: spacing.sm },
+  overviewTitle: { color: colors.text, fontFamily: type.bold, fontSize: 22, marginTop: spacing.sm },
   progressTrack: { height: 13, overflow: 'hidden', borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, marginTop: spacing.xl },
   progressFill: { height: '100%', minWidth: 14, borderRadius: radius.pill, backgroundColor: colors.primary },
   overviewMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.lg },
@@ -130,8 +132,9 @@ const styles = StyleSheet.create({
   metaDot: { width: 8, height: 8, borderRadius: 4, marginRight: spacing.sm },
   metaText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13 },
   milestoneCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.lg },
+  milestoneCopy: { flex: 1, minWidth: 0, paddingRight: spacing.md },
   milestoneTitle: { color: colors.text, fontFamily: type.bold, fontSize: 15 },
-  milestoneBody: { maxWidth: 285, color: colors.textMuted, fontFamily: type.regular, fontSize: 12, lineHeight: 17, marginTop: spacing.xs },
+  milestoneBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 12, lineHeight: 17, marginTop: spacing.xs },
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: spacing.lg, rowGap: spacing.lg },
   tile: { width: '48%', minHeight: 214, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: radius.lg, padding: spacing.lg },
   tileDisabled: { opacity: 0.43 },
