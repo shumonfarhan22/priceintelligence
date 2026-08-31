@@ -1,0 +1,52 @@
+name: Expo V2 Quality
+
+on:
+  push:
+    branches:
+      - codex/expo-v2-foundation
+    paths:
+      - "expoApp/**"
+      - ".github/workflows/expo-v2-quality.yml"
+  pull_request:
+    paths:
+      - "expoApp/**"
+      - ".github/workflows/expo-v2-quality.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Type, test, and bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: expoApp
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install pinned pnpm and Node.js
+        uses: pnpm/setup@v2
+        with:
+          working-directory: expoApp
+          cache: true
+          require-lockfile: true
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Test data contracts
+        run: pnpm test
+
+      - name: Check Expo compatibility
+        run: pnpm doctor
+
+      - name: Bundle Android JavaScript
+        run: pnpm exec expo export --platform android --output-dir dist/android-check
+
+      - name: Bundle iPhone JavaScript
+        run: pnpm exec expo export --platform ios --output-dir dist/ios-check

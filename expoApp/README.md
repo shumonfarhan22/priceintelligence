@@ -13,6 +13,16 @@ tested. The existing app remains the production baseline until the v2 parity gat
 - Price history is bounded to the newest 60 observations per product and retailer.
 - V2 can export the same portable backup format for migration verification.
 
+## Inventory milestone
+
+- Native Android/iPhone text fields with reliable keyboard dismissal and iPhone input accessory controls.
+- Product-name system paste plus an explicit clipboard-backed Paste action.
+- Add, edit, validation, grouped search, barcode/link search, and local pull-to-reset.
+- Native camera barcode scanning in search and the product editor.
+- Individual and multi-selection delete with a five-second Undo window.
+- A price calculator whose result is preserved while switching between purchase cost and selling price.
+- Haptics are limited to completed scans and bottom notification banners.
+
 The Room `inventory.db` file is never opened or modified. Migration happens through a backup made
 by the current app so that Room metadata and the installed app remain safe.
 

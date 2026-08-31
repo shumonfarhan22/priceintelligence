@@ -35,6 +35,16 @@
           "resizeMode": "contain",
           "backgroundColor": "#0B0F14"
         }
+      ],
+      "expo-image",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Price Intelligence to scan product barcodes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
       ]
     ]
   }

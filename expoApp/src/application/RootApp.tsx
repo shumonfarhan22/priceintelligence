@@ -1,11 +1,12 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Image,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,8 +15,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BottomBanner, type BannerNotice, type BannerTone } from '../components/BottomBanner';
 import { MAX_BACKUP_BYTES } from '../data/backup';
 import { InventoryRepository } from '../data/inventoryRepository';
+import { DashboardScreen } from '../features/dashboard/DashboardScreen';
+import { InventoryScreen } from '../features/inventory/InventoryScreen';
 import { colors, radius, spacing, type } from '../theme/tokens';
 
 interface RootAppProps {
@@ -27,9 +31,35 @@ type LoadState =
   | { phase: 'ready'; repository: InventoryRepository; productCount: number }
   | { phase: 'error'; message: string };
 
+type Route = 'dashboard' | 'inventory';
+
 export function RootApp({ fontFallback }: RootAppProps) {
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
+  const [route, setRoute] = useState<Route>('dashboard');
+  const [toolsVisible, setToolsVisible] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<BannerNotice | null>(null);
+  const noticeCounter = useRef(0);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showBanner = useCallback((
+    message: string,
+    tone: BannerTone = 'info',
+    action?: { label: string; onPress: () => void },
+  ) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    const nextNotice: BannerNotice = {
+      id: ++noticeCounter.current,
+      message,
+      tone,
+      actionLabel: action?.label,
+      onAction: action?.onPress,
+    };
+    setNotice(nextNotice);
+    noticeTimer.current = setTimeout(() => {
+      setNotice((current) => current?.id === nextNotice.id ? null : current);
+    }, action ? 5000 : 4200);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -43,20 +73,19 @@ export function RootApp({ fontFallback }: RootAppProps) {
       });
     return () => {
       active = false;
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
     };
   }, []);
 
-  if (state.phase === 'loading') {
-    return <CenteredStatus label="Preparing secure local storage…" />;
-  }
-  if (state.phase === 'error') {
-    return <CenteredStatus label={state.message} error />;
-  }
+  if (state.phase === 'loading') return <CenteredStatus label="Preparing secure local storage…" />;
+  if (state.phase === 'error') return <CenteredStatus label={state.message} error />;
 
-  const refreshCount = async () => {
-    const productCount = await state.repository.countProducts();
-    setState({ ...state, productCount });
-  };
+  const updateProductCount = useCallback((productCount: number) => {
+    setState((current) => {
+      if (current.phase !== 'ready' || current.productCount === productCount) return current;
+      return { ...current, productCount };
+    });
+  }, []);
 
   const importBackup = async () => {
     const selection = await DocumentPicker.getDocumentAsync({
@@ -66,8 +95,9 @@ export function RootApp({ fontFallback }: RootAppProps) {
     });
     if (selection.canceled) return;
     const asset = selection.assets[0];
+    setToolsVisible(false);
     if (asset.size != null && asset.size > MAX_BACKUP_BYTES) {
-      Alert.alert('Backup not imported', 'This backup is too large to import safely.');
+      showBanner('This backup is too large to import safely.', 'error');
       return;
     }
 
@@ -75,100 +105,69 @@ export function RootApp({ fontFallback }: RootAppProps) {
     try {
       const contents = await new File(asset.uri).text();
       const result = await state.repository.importBackupJson(contents);
-      await refreshCount();
-      Alert.alert(
-        'Backup import complete',
+      const productCount = await state.repository.countProducts();
+      updateProductCount(productCount);
+      showBanner(
         `${result.addedCount} added · ${result.duplicateCount} already present · ${result.invalidCount} invalid`,
+        result.invalidCount > 0 ? 'info' : 'success',
       );
     } catch (error) {
-      Alert.alert('Backup not imported', messageFrom(error));
+      showBanner(messageFrom(error), 'error');
     } finally {
       setBusy(false);
     }
   };
 
   const exportBackup = async () => {
+    setToolsVisible(false);
     setBusy(true);
     try {
       const contents = await state.repository.createBackupJson();
       const file = new File(Paths.cache, `price-intelligence-backup-${Date.now()}.json`);
       file.create({ overwrite: true, intermediates: true });
       file.write(contents);
-      if (!(await Sharing.isAvailableAsync())) {
-        throw new Error('Sharing is not available on this device.');
-      }
+      if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing is not available on this device.');
       await Sharing.shareAsync(file.uri, {
         dialogTitle: 'Save Price Intelligence backup',
         mimeType: 'application/json',
         UTI: 'public.json',
       });
+      showBanner('Backup prepared successfully.', 'success');
     } catch (error) {
-      Alert.alert('Backup not exported', messageFrom(error));
+      showBanner(messageFrom(error), 'error');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.brandRow}>
-          <Image
-            source={require('../../assets/brand/app_logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-            accessibilityLabel="Supreme Price Intelligence"
-          />
-          <View style={styles.brandText}>
-            <Text style={styles.brandTitle}>SUPREME</Text>
-            <Text style={styles.brandSubtitle}>PRICE INTELLIGENCE V2</Text>
-          </View>
-        </View>
-
-        <View style={styles.heroCard}>
-          <View style={styles.statusPill}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>LOCAL DATABASE READY</Text>
-          </View>
-          <Text style={styles.heroTitle}>A safer foundation for daily work</Text>
-          <Text style={styles.heroBody}>
-            The new app is isolated from the current installation. Its first contract is preserving
-            inventory and price history through the existing backup format.
-          </Text>
-          <View style={styles.countRow}>
-            <Text style={styles.countNumber}>{state.productCount}</Text>
-            <Text style={styles.countLabel}>products in the v2 database</Text>
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>SAFE MIGRATION</Text>
-        <ActionButton
-          title="Import current app backup"
-          subtitle="Merge valid products; keep duplicates and invalid rows out"
-          onPress={importBackup}
-          disabled={busy}
-          primary
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      {route === 'dashboard' ? (
+        <DashboardScreen
+          productCount={state.productCount}
+          onOpenInventory={() => setRoute('inventory')}
+          onOpenTools={() => setToolsVisible(true)}
         />
-        <ActionButton
-          title="Export v2 backup"
-          subtitle="Verify that migrated inventory remains portable"
-          onPress={exportBackup}
-          disabled={busy}
+      ) : (
+        <InventoryScreen
+          repository={state.repository}
+          productCount={state.productCount}
+          onBack={() => setRoute('dashboard')}
+          onProductCountChanged={updateProductCount}
+          showBanner={showBanner}
         />
+      )}
 
-        <View style={styles.contractCard}>
-          <Text style={styles.contractTitle}>Foundation guarantees</Text>
-          <ContractRow text="Separate Android and iPhone app identity during testing" />
-          <ContractRow text="SQLite storage with foreign keys, WAL, and explicit migrations" />
-          <ContractRow text="Backup versions 1 and 2 accepted without opening the Room database" />
-          <ContractRow text="Newest 60 observations retained per retailer" />
-          <ContractRow text="Supreme assets, typography, and dark palette reused exactly" />
-        </View>
-
-        {fontFallback ? (
-          <Text style={styles.warning}>Bundled typography could not load; system text is being used.</Text>
-        ) : null}
-      </ScrollView>
+      <MigrationToolsModal
+        visible={toolsVisible}
+        productCount={state.productCount}
+        busy={busy}
+        fontFallback={fontFallback}
+        onClose={() => setToolsVisible(false)}
+        onImport={importBackup}
+        onExport={exportBackup}
+      />
+      <BottomBanner notice={notice} onDismiss={() => setNotice(null)} />
       {busy ? (
         <View style={styles.busyOverlay} accessibilityLiveRegion="polite">
           <ActivityIndicator color={colors.primary} size="large" />
@@ -179,13 +178,88 @@ export function RootApp({ fontFallback }: RootAppProps) {
   );
 }
 
-function ActionButton({
+function MigrationToolsModal({
+  visible,
+  productCount,
+  busy,
+  fontFallback,
+  onClose,
+  onImport,
+  onExport,
+}: {
+  visible: boolean;
+  productCount: number;
+  busy: boolean;
+  fontFallback: boolean;
+  onClose: () => void;
+  onImport: () => void;
+  onExport: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent={Platform.OS !== 'ios'}
+      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'overFullScreen'}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <SafeAreaView style={[styles.toolsRoot, Platform.OS === 'android' && styles.toolsBackdrop]}>
+        <View style={styles.toolsSheet}>
+          <View style={styles.toolsHeader}>
+            <View>
+              <Text style={styles.toolsEyebrow}>DATA SAFETY</Text>
+              <Text style={styles.toolsTitle}>Backup & migration</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close tools" onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={26} color={colors.text} />
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.toolsContent}>
+            <View style={styles.databaseCard}>
+              <Ionicons name="shield-checkmark" size={25} color={colors.primary} />
+              <View style={styles.databaseText}>
+                <Text style={styles.databaseTitle}>{productCount} products in V2</Text>
+                <Text style={styles.databaseBody}>Stored locally in the isolated SQLite database.</Text>
+              </View>
+            </View>
+            <ToolButton
+              icon="download-outline"
+              title="Import current app backup"
+              subtitle="Safely merge products and price history"
+              onPress={onImport}
+              disabled={busy}
+              primary
+            />
+            <ToolButton
+              icon="share-outline"
+              title="Export V2 backup"
+              subtitle="Save or share a portable JSON backup"
+              onPress={onExport}
+              disabled={busy}
+            />
+            <View style={styles.safetyNote}>
+              <Text style={styles.safetyTitle}>The current app stays protected</Text>
+              <Text style={styles.safetyBody}>
+                V2 never opens or modifies the Room inventory database. Migration only reads a backup file you choose.
+              </Text>
+            </View>
+            {fontFallback ? <Text style={styles.fontWarning}>Bundled typography could not load; system text is being used.</Text> : null}
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+function ToolButton({
+  icon,
   title,
   subtitle,
   onPress,
   disabled,
   primary = false,
 }: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
   subtitle: string;
   onPress: () => void;
@@ -198,32 +272,24 @@ function ActionButton({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.actionButton,
-        primary && styles.actionButtonPrimary,
-        pressed && styles.pressed,
-        disabled && styles.disabled,
-      ]}
+      style={({ pressed }) => [styles.toolButton, primary && styles.toolButtonPrimary, pressed && styles.pressed, disabled && styles.disabled]}
     >
-      <Text style={styles.actionTitle}>{title}</Text>
-      <Text style={styles.actionSubtitle}>{subtitle}</Text>
+      <View style={styles.toolIcon}>
+        <Ionicons name={icon} size={23} color={primary ? colors.primary : colors.textMuted} />
+      </View>
+      <View style={styles.toolText}>
+        <Text style={styles.toolTitle}>{title}</Text>
+        <Text style={styles.toolSubtitle}>{subtitle}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
     </Pressable>
-  );
-}
-
-function ContractRow({ text }: { text: string }) {
-  return (
-    <View style={styles.contractRow}>
-      <Text style={styles.check}>✓</Text>
-      <Text style={styles.contractText}>{text}</Text>
-    </View>
   );
 }
 
 function CenteredStatus({ label, error = false }: { label: string; error?: boolean }) {
   return (
     <SafeAreaView style={styles.centered}>
-      {!error ? <ActivityIndicator color={colors.primary} size="large" /> : null}
+      {!error ? <ActivityIndicator color={colors.primary} size="large" /> : <Ionicons name="alert-circle" size={38} color={colors.danger} />}
       <Text style={[styles.centeredLabel, error && styles.error]}>{label}</Text>
     </SafeAreaView>
   );
@@ -235,37 +301,33 @@ function messageFrom(error: unknown): string {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.xl, paddingBottom: 48, gap: spacing.lg },
-  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
-  logo: { width: 56, height: 56 },
-  brandText: { marginLeft: spacing.md },
-  brandTitle: { color: colors.text, fontFamily: type.bold, fontSize: 24, letterSpacing: 1.3 },
-  brandSubtitle: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 12, letterSpacing: 1.2 },
-  heroCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: spacing.xl },
-  statusPill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primaryMuted, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginRight: spacing.sm },
-  statusText: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 0.8 },
-  heroTitle: { color: colors.text, fontFamily: type.bold, fontSize: 27, lineHeight: 32, marginTop: spacing.lg },
-  heroBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 16, lineHeight: 23, marginTop: spacing.md },
-  countRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: spacing.xl },
-  countNumber: { color: colors.primary, fontFamily: type.bold, fontSize: 38 },
-  countLabel: { color: colors.text, fontFamily: type.semibold, fontSize: 15, marginLeft: spacing.md },
-  sectionTitle: { color: colors.textMuted, fontFamily: type.bold, fontSize: 12, letterSpacing: 1.4, marginTop: spacing.sm },
-  actionButton: { minHeight: 76, justifyContent: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  actionButtonPrimary: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
-  actionTitle: { color: colors.text, fontFamily: type.bold, fontSize: 17 },
-  actionSubtitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, lineHeight: 18, marginTop: spacing.xs },
-  pressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
-  disabled: { opacity: 0.55 },
-  contractCard: { backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.sm },
-  contractTitle: { color: colors.text, fontFamily: type.bold, fontSize: 18, marginBottom: spacing.md },
-  contractRow: { flexDirection: 'row', alignItems: 'flex-start', marginVertical: spacing.sm },
-  check: { color: colors.primary, fontFamily: type.bold, fontSize: 17, width: 28 },
-  contractText: { flex: 1, color: colors.textMuted, fontFamily: type.regular, fontSize: 14, lineHeight: 20 },
-  warning: { color: colors.warning, fontFamily: type.regular, fontSize: 13 },
-  busyOverlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.scrim },
+  busyOverlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.62)', zIndex: 200 },
   busyText: { color: colors.text, fontFamily: type.semibold, fontSize: 16, marginTop: spacing.md },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, padding: spacing.xl },
   centeredLabel: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 16, textAlign: 'center', marginTop: spacing.lg },
   error: { color: colors.danger },
+  toolsRoot: { flex: 1, backgroundColor: colors.surface },
+  toolsBackdrop: { backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end' },
+  toolsSheet: { flex: Platform.OS === 'ios' ? 1 : undefined, maxHeight: Platform.OS === 'ios' ? '100%' : '90%', backgroundColor: colors.surface, borderTopLeftRadius: Platform.OS === 'ios' ? 0 : radius.lg, borderTopRightRadius: Platform.OS === 'ios' ? 0 : radius.lg, overflow: 'hidden' },
+  toolsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border },
+  toolsEyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
+  toolsTitle: { color: colors.text, fontFamily: type.bold, fontSize: 24, marginTop: spacing.xs },
+  closeButton: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  toolsContent: { padding: spacing.xl, gap: spacing.lg, paddingBottom: 48 },
+  databaseCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primaryMuted, borderWidth: 1, borderColor: 'rgba(16,185,129,0.45)', borderRadius: radius.md, padding: spacing.lg },
+  databaseText: { flex: 1, marginLeft: spacing.md },
+  databaseTitle: { color: colors.text, fontFamily: type.bold, fontSize: 17 },
+  databaseBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, marginTop: spacing.xs },
+  toolButton: { minHeight: 76, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md },
+  toolButtonPrimary: { borderColor: colors.primary },
+  toolIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderRadius: radius.sm },
+  toolText: { flex: 1, marginHorizontal: spacing.md },
+  toolTitle: { color: colors.text, fontFamily: type.bold, fontSize: 16 },
+  toolSubtitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, marginTop: spacing.xs },
+  safetyNote: { backgroundColor: colors.surfaceRaised, borderRadius: radius.md, padding: spacing.lg },
+  safetyTitle: { color: colors.text, fontFamily: type.bold, fontSize: 15 },
+  safetyBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, lineHeight: 19, marginTop: spacing.sm },
+  fontWarning: { color: colors.warning, fontFamily: type.regular, fontSize: 13 },
+  pressed: { opacity: 0.68 },
+  disabled: { opacity: 0.5 },
 });

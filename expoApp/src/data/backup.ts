@@ -163,7 +163,7 @@ function boundHistory(history: PriceObservation[]): PriceObservation[] {
   return [...newest('AMAZON'), ...newest('FLIPKART')];
 }
 
-function normalizeRetailerUrl(value: string | undefined, retailer: PriceRetailer): string | null {
+export function normalizeRetailerUrl(value: string | undefined, retailer: PriceRetailer): string | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
   const match = /^(https?):\/\/([^/]+)(\/.*)?$/i.exec(trimmed);

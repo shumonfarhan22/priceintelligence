@@ -12,6 +12,11 @@ compatible backup v1/v2 parsing, safe merge import, portable export, bounded ret
 shared Supreme assets/theme tokens, and automated compatibility tests. See
 `docs/EXPO_V2_MIGRATION.md` for the implementation order and physical-device cutover gates.
 
+The inventory milestone now adds the V2 dashboard and a real SQLite-backed inventory workflow:
+grouped search, add/edit validation, native text input and paste, barcode scanning, price calculator,
+individual and multi-delete with Undo, local refresh/reset, accessible status banners, and deliberately
+limited haptics. Android and iPhone physical-device verification is still required.
+
 ## Authoritative source state
 
 The latest application milestone on `master` is:

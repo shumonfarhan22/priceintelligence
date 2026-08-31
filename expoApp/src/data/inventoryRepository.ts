@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { BackupImportResult, ImportedProduct, InventoryProduct, PriceObservation } from '../domain/models';
+import type { ValidatedInventoryInput } from '../domain/inventoryValidation';
 import {
   encodeBackupDocument,
   normalizeNameKey,
@@ -46,6 +47,94 @@ export class InventoryRepository {
       'SELECT COUNT(*) AS count FROM inventory',
     );
     return row?.count ?? 0;
+  }
+
+  async listProducts(query = ''): Promise<InventoryProduct[]> {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      const rows = await this.database.getAllAsync<InventoryRow>(
+        'SELECT * FROM inventory ORDER BY product_name COLLATE NOCASE, id',
+      );
+      return rows.map(mapInventoryRow);
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      const barcodeRows = await this.database.getAllAsync<InventoryRow>(
+        `SELECT * FROM inventory
+         WHERE barcode = ? COLLATE NOCASE
+         ORDER BY product_name COLLATE NOCASE, id`,
+        trimmed,
+      );
+      if (barcodeRows.length > 0) return barcodeRows.map(mapInventoryRow);
+    }
+
+    const words = trimmed.split(/\s+/).filter(Boolean).slice(0, 12);
+    const nameClause = words.map(() => 'instr(lower(product_name), lower(?)) > 0').join(' AND ');
+    const params: string[] = [
+      ...words,
+      trimmed,
+      trimmed,
+      trimmed,
+    ];
+    const rows = await this.database.getAllAsync<InventoryRow>(
+      `SELECT * FROM inventory
+       WHERE (${nameClause})
+          OR instr(lower(COALESCE(barcode, '')), lower(?)) > 0
+          OR instr(lower(COALESCE(amazon_url, '')), lower(?)) > 0
+          OR instr(lower(COALESCE(flipkart_url, '')), lower(?)) > 0
+       ORDER BY product_name COLLATE NOCASE, id`,
+      params,
+    );
+    return rows.map(mapInventoryRow);
+  }
+
+  async saveProduct(input: ValidatedInventoryInput, editingId: number | null): Promise<number> {
+    let savedId = editingId ?? 0;
+    await this.database.withExclusiveTransactionAsync(async (transaction) => {
+      await assertNoDuplicateIdentifiers(transaction, input, editingId);
+      const now = Date.now();
+      if (editingId == null) {
+        const inserted = await transaction.runAsync(
+          `INSERT INTO inventory (
+            product_name, barcode, shop_price, purchase_cost, amazon_url, flipkart_url,
+            search_count, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+          input.productName,
+          input.barcode,
+          input.shopPrice,
+          input.purchaseCost,
+          input.amazonUrl,
+          input.flipkartUrl,
+          now,
+          now,
+        );
+        savedId = Number(inserted.lastInsertRowId);
+      } else {
+        const result = await transaction.runAsync(
+          `UPDATE inventory
+           SET product_name = ?, barcode = ?, shop_price = ?, purchase_cost = ?,
+               amazon_url = ?, flipkart_url = ?, updated_at = ?
+           WHERE id = ?`,
+          input.productName,
+          input.barcode,
+          input.shopPrice,
+          input.purchaseCost,
+          input.amazonUrl,
+          input.flipkartUrl,
+          now,
+          editingId,
+        );
+        if (result.changes !== 1) throw new Error('This product no longer exists.');
+      }
+    });
+    return savedId;
+  }
+
+  async deleteProducts(ids: number[]): Promise<void> {
+    const uniqueIds = [...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0))];
+    if (uniqueIds.length === 0) return;
+    const placeholders = uniqueIds.map(() => '?').join(', ');
+    await this.database.runAsync(`DELETE FROM inventory WHERE id IN (${placeholders})`, uniqueIds);
   }
 
   async importBackupJson(contents: string): Promise<BackupImportResult> {
@@ -118,6 +207,45 @@ export class InventoryRepository {
     }
 
     return encodeBackupDocument(products);
+  }
+}
+
+export class DuplicateInventoryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DuplicateInventoryError';
+  }
+}
+
+async function assertNoDuplicateIdentifiers(
+  database: SQLiteDatabase,
+  input: ValidatedInventoryInput,
+  editingId: number | null,
+): Promise<void> {
+  const ignoredId = editingId ?? -1;
+  if (input.barcode) {
+    const duplicate = await database.getFirstAsync<{ id: number }>(
+      'SELECT id FROM inventory WHERE lower(barcode) = lower(?) AND id != ? LIMIT 1',
+      input.barcode,
+      ignoredId,
+    );
+    if (duplicate) throw new DuplicateInventoryError('That barcode is already used by another product.');
+  }
+  if (input.amazonUrl) {
+    const duplicate = await database.getFirstAsync<{ id: number }>(
+      'SELECT id FROM inventory WHERE lower(amazon_url) = lower(?) AND id != ? LIMIT 1',
+      input.amazonUrl,
+      ignoredId,
+    );
+    if (duplicate) throw new DuplicateInventoryError('This Amazon link is already used by another product.');
+  }
+  if (input.flipkartUrl) {
+    const duplicate = await database.getFirstAsync<{ id: number }>(
+      'SELECT id FROM inventory WHERE lower(flipkart_url) = lower(?) AND id != ? LIMIT 1',
+      input.flipkartUrl,
+      ignoredId,
+    );
+    if (duplicate) throw new DuplicateInventoryError('This Flipkart link is already used by another product.');
   }
 }
 
