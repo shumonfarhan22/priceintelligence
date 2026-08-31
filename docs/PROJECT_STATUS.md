@@ -1,6 +1,16 @@
 # Price Intelligence project status
 
-Last updated: 2026-08-20
+Last updated: 2026-08-31
+
+## Parallel Expo V2 foundation
+
+The `codex/expo-v2-foundation` branch starts an isolated Expo/React Native replacement in
+`expoApp/`. It does not replace, modify, or open the installed Kotlin Multiplatform database.
+
+The first foundation milestone provides separate testing identifiers, a versioned SQLite schema,
+compatible backup v1/v2 parsing, safe merge import, portable export, bounded retailer history,
+shared Supreme assets/theme tokens, and automated compatibility tests. See
+`docs/EXPO_V2_MIGRATION.md` for the implementation order and physical-device cutover gates.
 
 ## Authoritative source state
 

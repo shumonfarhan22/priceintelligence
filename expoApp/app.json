@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Price Intelligence V2",
+    "slug": "price-intelligence-v2",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/brand/app_icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#0B0F14",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.supreme.priceintelligence.priceintelligence.v2"
+    },
+    "android": {
+      "package": "com.supreme.priceintelligence.v2",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0F14",
+        "foregroundImage": "./assets/brand/app_icon.png",
+        "monochromeImage": "./assets/brand/app_icon.png"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/brand/app_icon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-sharing",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/splash_branding.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0F14"
+        }
+      ]
+    ]
+  }
+}
