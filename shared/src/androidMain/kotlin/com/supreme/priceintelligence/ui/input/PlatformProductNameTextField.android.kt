@@ -23,6 +23,7 @@ internal actual fun PlatformProductNameTextField(
     state: TextFieldState,
     placeholder: String,
     onNext: () -> Unit,
+    isReadyForInteraction: Boolean,
     modifier: Modifier
 ) {
     OutlinedTextField(

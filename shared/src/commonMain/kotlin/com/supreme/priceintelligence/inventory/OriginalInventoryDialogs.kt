@@ -150,6 +150,7 @@ internal fun OriginalProductEditorDialog(
 
     val requestDismiss: () -> Unit = {
         if (!dismissRequested) {
+            dismissKeyboard()
             dismissRequested = true
         }
     }
@@ -331,6 +332,9 @@ internal fun OriginalProductEditorDialog(
                             placeholder = "e.g., Hawkins 3.5L Cooker",
                             state = textState.productName,
                             usePlatformProductNameField = true,
+                            isPlatformFieldReady =
+                                !dismissRequested &&
+                                    dialogMotionProgress.value >= 0.999f,
                             onImeAction = {
                                 purchaseCostFocusRequester.requestFocus()
                             }
@@ -976,6 +980,7 @@ private fun OriginalEditorField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     inputTransformation: InputTransformation? = null,
     usePlatformProductNameField: Boolean = false,
+    isPlatformFieldReady: Boolean = true,
     keyboardAccessoryAction: KeyboardAccessoryAction =
         KeyboardAccessoryAction.NONE,
     onImeAction: (() -> Unit)? = null,
@@ -1013,6 +1018,7 @@ private fun OriginalEditorField(
                 state = state,
                 placeholder = placeholder,
                 onNext = { onImeAction?.invoke() },
+                isReadyForInteraction = isPlatformFieldReady,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)

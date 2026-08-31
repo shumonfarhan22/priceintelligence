@@ -6,18 +6,29 @@
 
 package com.supreme.priceintelligence.ui.input
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.UIKitInteropInteractionMode
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
@@ -35,6 +46,7 @@ import platform.UIKit.UIControlEventEditingChanged
 import platform.UIKit.UIKeyboardAppearanceDark
 import platform.UIKit.UIKeyboardAppearanceLight
 import platform.UIKit.UIKeyboardTypeDefault
+import platform.UIKit.UIFont
 import platform.UIKit.UIReturnKeyType
 import platform.UIKit.UITextAutocapitalizationType
 import platform.UIKit.UITextAutocorrectionType
@@ -53,6 +65,7 @@ internal actual fun PlatformProductNameTextField(
     state: TextFieldState,
     placeholder: String,
     onNext: () -> Unit,
+    isReadyForInteraction: Boolean,
     modifier: Modifier
 ) {
     val currentState = rememberUpdatedState(state)
@@ -89,90 +102,124 @@ internal actual fun PlatformProductNameTextField(
         )
     }
 
-    UIKitView(
-        factory = {
-            UITextField(
-                frame = CGRectZero.readValue()
-            ).apply {
-                delegate = coordinator
-                borderStyle =
-                    UITextBorderStyle.UITextBorderStyleNone
-                clearButtonMode =
-                    UITextFieldViewMode.UITextFieldViewModeWhileEditing
-                leftView = UIView(
-                    frame = CGRectMake(
-                        x = 0.0,
-                        y = 0.0,
-                        width = 14.0,
-                        height = 1.0
-                    )
-                )
-                leftViewMode =
-                    UITextFieldViewMode.UITextFieldViewModeAlways
-                keyboardType = UIKeyboardTypeDefault
-                returnKeyType = UIReturnKeyType.UIReturnKeyNext
-                autocapitalizationType =
-                    UITextAutocapitalizationType
-                        .UITextAutocapitalizationTypeWords
-                autocorrectionType =
-                    UITextAutocorrectionType
-                        .UITextAutocorrectionTypeDefault
-                textContentType = null
-                layer.cornerRadius = 12.0
-                layer.borderWidth = 1.0
-
-                addTarget(
-                    target = coordinator,
-                    action = NSSelectorFromString("editingChanged:"),
-                    forControlEvents =
-                        UIControlEventEditingChanged
-                )
-
-                inputAccessoryView =
-                    productNameAccessoryToolbar(coordinator)
+    Surface(
+        modifier = modifier.heightIn(min = 56.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = if (isFocused && isReadyForInteraction) {
+            focusedContainerColor
+        } else {
+            unfocusedContainerColor
+        },
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isFocused && isReadyForInteraction) {
+                focusedBorderColor
+            } else {
+                unfocusedBorderColor
             }
-        },
-        modifier = modifier,
-        update = { textField ->
-            val composeText = state.text.toString()
-            if (textField.text != composeText) {
-                textField.text = composeText
-            }
-
-            textField.placeholder = placeholder
-            textField.textColor = textColor.toUIColor()
-            textField.tintColor = tintColor.toUIColor()
-            textField.backgroundColor = (
-                if (isFocused) {
-                    focusedContainerColor
-                } else {
-                    unfocusedContainerColor
-                }
-            ).toUIColor()
-            textField.layer.borderColor = (
-                if (isFocused) {
-                    focusedBorderColor
-                } else {
-                    unfocusedBorderColor
-                }
-            ).toUIColor().CGColor
-            textField.keyboardAppearance =
-                if (usesDarkKeyboard) {
-                    UIKeyboardAppearanceDark
-                } else {
-                    UIKeyboardAppearanceLight
-                }
-        },
-        onRelease = { textField ->
-            textField.delegate = null
-            coordinator.release(textField)
-        },
-        properties = UIKitInteropProperties(
-            interactionMode =
-                UIKitInteropInteractionMode.NonCooperative,
-            isNativeAccessibilityEnabled = true
         )
-    )
+    ) {
+        if (isReadyForInteraction) {
+            UIKitView(
+                factory = {
+                    UITextField(
+                        frame = CGRectZero.readValue()
+                    ).apply {
+                        delegate = coordinator
+                        borderStyle =
+                            UITextBorderStyle.UITextBorderStyleNone
+                        clearButtonMode =
+                            UITextFieldViewMode
+                                .UITextFieldViewModeWhileEditing
+                        leftView = UIView(
+                            frame = CGRectMake(
+                                x = 0.0,
+                                y = 0.0,
+                                width = 16.0,
+                                height = 1.0
+                            )
+                        )
+                        leftViewMode =
+                            UITextFieldViewMode.UITextFieldViewModeAlways
+                        font = UIFont.systemFontOfSize(16.0)
+                        keyboardType = UIKeyboardTypeDefault
+                        returnKeyType = UIReturnKeyType.UIReturnKeyNext
+                        autocapitalizationType =
+                            UITextAutocapitalizationType
+                                .UITextAutocapitalizationTypeWords
+                        autocorrectionType =
+                            UITextAutocorrectionType
+                                .UITextAutocorrectionTypeDefault
+                        textContentType = null
+                        backgroundColor = UIColor.clearColor
+                        clipsToBounds = true
+
+                        addTarget(
+                            target = coordinator,
+                            action = NSSelectorFromString(
+                                "editingChanged:"
+                            ),
+                            forControlEvents =
+                                UIControlEventEditingChanged
+                        )
+
+                        inputAccessoryView =
+                            productNameAccessoryToolbar(
+                                coordinator
+                            )
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { textField ->
+                    val composeText = state.text.toString()
+                    if (textField.text != composeText) {
+                        textField.text = composeText
+                    }
+
+                    textField.placeholder = placeholder
+                    textField.textColor = textColor.toUIColor()
+                    textField.tintColor = tintColor.toUIColor()
+                    textField.backgroundColor = UIColor.clearColor
+                    textField.keyboardAppearance =
+                        if (usesDarkKeyboard) {
+                            UIKeyboardAppearanceDark
+                        } else {
+                            UIKeyboardAppearanceLight
+                        }
+                },
+                onRelease = { textField ->
+                    textField.resignFirstResponder()
+                    coordinator.release(textField)
+                    textField.delegate = null
+                },
+                properties = UIKitInteropProperties(
+                    interactionMode =
+                        UIKitInteropInteractionMode.NonCooperative,
+                    isNativeAccessibilityEnabled = true
+                )
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = state.text.toString().ifEmpty {
+                        placeholder
+                    },
+                    color = if (state.text.isEmpty()) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        textColor
+                    },
+                    fontSize = 16.sp,
+                    maxLines = 1
+                )
+            }
+        }
+    }
 }
 
 private fun productNameAccessoryToolbar(
@@ -252,6 +299,7 @@ private class ProductNameTextFieldCoordinator(
         if (activeTextField === textField) {
             activeTextField = null
         }
+        onFocusChanged(false)
     }
 }
 
