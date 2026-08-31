@@ -151,8 +151,38 @@ export function ProductEditorModal({
         animationType="slide"
         transparent={Platform.OS !== 'ios'}
         presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'overFullScreen'}
-        onRequestClose={close}
+        onRequestClose={calculatorVisible
+          ? () => setCalculatorVisible(false)
+          : scannerVisible
+            ? () => setScannerVisible(false)
+            : close}
       >
+        {Platform.OS === 'ios' && scannerVisible ? (
+          <BarcodeScannerModal
+            embedded
+            visible
+            onClose={() => setScannerVisible(false)}
+            onScanned={(value) => {
+              changeField('barcode', value);
+              setScannerVisible(false);
+              onScanComplete?.();
+            }}
+          />
+        ) : Platform.OS === 'ios' && calculatorVisible ? (
+          <PriceCalculatorModal
+            embedded
+            visible
+            target={calculatorTarget}
+            initialValue={draft[calculatorTarget]}
+            onTargetChange={setCalculatorTarget}
+            onUseValue={(target, value) => {
+              changeField(target, value);
+              setCalculatorVisible(false);
+            }}
+            onClose={() => setCalculatorVisible(false)}
+          />
+        ) : (
+          <>
         <SafeAreaView style={[styles.modalRoot, Platform.OS === 'android' && styles.androidBackdrop]}>
           <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss}>
             <View style={[styles.sheet, Platform.OS === 'ios' && styles.iosSheet]} onStartShouldSetResponder={() => true}>
@@ -372,27 +402,33 @@ export function ProductEditorModal({
             </View>
           </InputAccessoryView>
         ) : null}
+          </>
+        )}
       </Modal>
-      <BarcodeScannerModal
-        visible={scannerVisible}
-        onClose={() => setScannerVisible(false)}
-        onScanned={(value) => {
-          changeField('barcode', value);
-          setScannerVisible(false);
-          onScanComplete?.();
-        }}
-      />
-      <PriceCalculatorModal
-        visible={calculatorVisible}
-        target={calculatorTarget}
-        initialValue={draft[calculatorTarget]}
-        onTargetChange={setCalculatorTarget}
-        onUseValue={(target, value) => {
-          changeField(target, value);
-          setCalculatorVisible(false);
-        }}
-        onClose={() => setCalculatorVisible(false)}
-      />
+      {Platform.OS !== 'ios' ? (
+        <>
+          <BarcodeScannerModal
+            visible={scannerVisible}
+            onClose={() => setScannerVisible(false)}
+            onScanned={(value) => {
+              changeField('barcode', value);
+              setScannerVisible(false);
+              onScanComplete?.();
+            }}
+          />
+          <PriceCalculatorModal
+            visible={calculatorVisible}
+            target={calculatorTarget}
+            initialValue={draft[calculatorTarget]}
+            onTargetChange={setCalculatorTarget}
+            onUseValue={(target, value) => {
+              changeField(target, value);
+              setCalculatorVisible(false);
+            }}
+            onClose={() => setCalculatorVisible(false)}
+          />
+        </>
+      ) : null}
     </>
   );
 }

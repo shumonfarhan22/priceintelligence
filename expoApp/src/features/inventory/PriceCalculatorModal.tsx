@@ -15,6 +15,7 @@ export function PriceCalculatorModal({
   onTargetChange,
   onUseValue,
   onClose,
+  embedded = false,
 }: {
   visible: boolean;
   target: PriceTarget;
@@ -22,6 +23,7 @@ export function PriceCalculatorModal({
   onTargetChange: (target: PriceTarget) => void;
   onUseValue: (target: PriceTarget, value: string) => void;
   onClose: () => void;
+  embedded?: boolean;
 }) {
   const [display, setDisplay] = useState('0');
   const [storedValue, setStoredValue] = useState<number | null>(null);
@@ -90,15 +92,8 @@ export function PriceCalculatorModal({
     setDisplay((current) => current.length <= 1 ? '0' : current.slice(0, -1));
   };
 
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={Platform.OS !== 'ios'}
-      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'overFullScreen'}
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={[styles.root, Platform.OS === 'android' && styles.backdrop]}>
+  const calculatorContent = (
+    <SafeAreaView style={[styles.root, Platform.OS === 'android' && styles.backdrop]}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View>
@@ -148,7 +143,20 @@ export function PriceCalculatorModal({
             </Pressable>
           </View>
         </View>
-      </SafeAreaView>
+    </SafeAreaView>
+  );
+
+  if (embedded) return visible ? calculatorContent : null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={Platform.OS !== 'ios'}
+      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'overFullScreen'}
+      onRequestClose={onClose}
+    >
+      {calculatorContent}
     </Modal>
   );
 }

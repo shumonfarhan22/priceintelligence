@@ -23,21 +23,41 @@ export function BarcodeScannerModal({
   visible,
   onClose,
   onScanned,
+  embedded = false,
 }: {
   visible: boolean;
   onClose: () => void;
   onScanned: (value: string) => void;
+  embedded?: boolean;
 }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [handled, setHandled] = useState(false);
   const handledRef = useRef(false);
+  const permissionRequestStartedRef = useRef(false);
 
   useEffect(() => {
     if (visible) {
       handledRef.current = false;
       setHandled(false);
+    } else {
+      permissionRequestStartedRef.current = false;
     }
   }, [visible]);
+
+  useEffect(() => {
+    if (
+      !visible
+      || !permission
+      || permission.granted
+      || !permission.canAskAgain
+      || permissionRequestStartedRef.current
+    ) return;
+
+    permissionRequestStartedRef.current = true;
+    requestPermission().catch(() => {
+      permissionRequestStartedRef.current = false;
+    });
+  }, [permission, requestPermission, visible]);
 
   const handleScan = (result: BarcodeScanningResult) => {
     const value = result.data.trim();
@@ -47,9 +67,8 @@ export function BarcodeScannerModal({
     onScanned(value);
   };
 
-  return (
-    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <SafeAreaView style={styles.screen}>
+  const scannerContent = (
+    <SafeAreaView style={styles.screen}>
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>BARCODE SCANNER</Text>
@@ -98,7 +117,14 @@ export function BarcodeScannerModal({
             </Pressable>
           </View>
         )}
-      </SafeAreaView>
+    </SafeAreaView>
+  );
+
+  if (embedded) return visible ? scannerContent : null;
+
+  return (
+    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
+      {scannerContent}
     </Modal>
   );
 }
