@@ -13,13 +13,20 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.text.input.PlatformImeOptions
 import androidx.compose.ui.text.input.usingNativeTextInput
 import kotlinx.cinterop.ObjCAction
+import platform.Foundation.NSItemProvider
 import platform.Foundation.NSSelectorFromString
 import platform.darwin.NSObject
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 import platform.UIKit.UIBarButtonItem
 import platform.UIKit.UIBarButtonItemStyle
 import platform.UIKit.UIBarButtonSystemItem
 import platform.UIKit.UIApplication
+import platform.UIKit.UIPasteConfiguration
+import platform.UIKit.UIPasteConfigurationSupportingProtocol
+import platform.UIKit.UIPasteControl
 import platform.UIKit.UIToolbar
+import platform.UniformTypeIdentifiers.UTTypePlainText
 
 internal actual fun KeyboardOptions.withPlatformTextInput(): KeyboardOptions =
     copy(
@@ -41,16 +48,27 @@ internal actual fun dismissPlatformKeyboard() {
 internal actual fun rememberPlatformTextInputOptions(
     keyboardOptions: KeyboardOptions,
     accessoryAction: KeyboardAccessoryAction,
-    onAccessoryAction: () -> Unit
+    onAccessoryAction: () -> Unit,
+    onPaste: (String) -> Unit
 ): KeyboardOptions {
     val currentOnAccessoryAction =
         rememberUpdatedState(onAccessoryAction)
+    val currentOnPaste = rememberUpdatedState(onPaste)
     val target = remember {
         KeyboardAccessoryTarget {
             currentOnAccessoryAction.value()
         }
     }
-    val toolbar = remember(accessoryAction, target) {
+    val pasteTarget = remember {
+        PasteRelayTarget { pastedText ->
+            currentOnPaste.value(pastedText)
+        }
+    }
+    val toolbar = remember(
+        accessoryAction,
+        target,
+        pasteTarget
+    ) {
         if (accessoryAction == KeyboardAccessoryAction.NONE) {
             null
         } else {
@@ -69,14 +87,13 @@ internal actual fun rememberPlatformTextInputOptions(
                         accessoryAction ==
                             KeyboardAccessoryAction.PASTE_NEXT
                     ) {
-                        UIBarButtonItem(
-                            title = "Paste",
-                            style = UIBarButtonItemStyle
-                                .UIBarButtonItemStyleDone,
-                            target = null,
-                            action =
-                                NSSelectorFromString("paste:")
-                        )
+                        val pasteControl =
+                            UIPasteControl().apply {
+                                this.target = pasteTarget
+                                sizeToFit()
+                            }
+
+                        UIBarButtonItem(customView = pasteControl)
                     } else {
                         null
                     }
@@ -125,5 +142,63 @@ private class KeyboardAccessoryTarget(
     @ObjCAction
     fun performAction() {
         onAction()
+    }
+}
+
+private class PasteRelayTarget(
+    private val onPaste: (String) -> Unit
+) : NSObject(), UIPasteConfigurationSupportingProtocol {
+    private val plainTextIdentifier =
+        UTTypePlainText.identifier
+    private var configuration: UIPasteConfiguration? =
+        UIPasteConfiguration(
+            acceptableTypeIdentifiers =
+                listOf(plainTextIdentifier)
+        )
+
+    override fun pasteConfiguration(): UIPasteConfiguration? =
+        configuration
+
+    override fun setPasteConfiguration(
+        pasteConfiguration: UIPasteConfiguration?
+    ) {
+        configuration = pasteConfiguration
+    }
+
+    override fun canPasteItemProviders(
+        itemProviders: List<*>
+    ): Boolean = itemProviders
+        .filterIsInstance<NSItemProvider>()
+        .any { provider ->
+            provider.hasItemConformingToTypeIdentifier(
+                plainTextIdentifier
+            )
+        }
+
+    override fun pasteItemProviders(
+        itemProviders: List<*>
+    ) {
+        val provider = itemProviders
+            .filterIsInstance<NSItemProvider>()
+            .firstOrNull { candidate ->
+                candidate.hasItemConformingToTypeIdentifier(
+                    plainTextIdentifier
+                )
+            }
+            ?: return
+
+        provider.loadItemForTypeIdentifier(
+            typeIdentifier = plainTextIdentifier,
+            options = null
+        ) { item, _ ->
+            val pastedText = item
+                ?.toString()
+                ?.takeIf { it.isNotEmpty() }
+                ?: return@loadItemForTypeIdentifier
+
+            dispatch_async(dispatch_get_main_queue()) {
+                onPaste(pastedText)
+            }
+        }
     }
 }

@@ -94,7 +94,8 @@ internal enum class KeyboardAccessoryAction {
 internal expect fun rememberPlatformTextInputOptions(
     keyboardOptions: KeyboardOptions,
     accessoryAction: KeyboardAccessoryAction,
-    onAccessoryAction: () -> Unit
+    onAccessoryAction: () -> Unit,
+    onPaste: (String) -> Unit = {}
 ): KeyboardOptions
 
 internal fun isValidDecimalInput(candidate: CharSequence): Boolean =

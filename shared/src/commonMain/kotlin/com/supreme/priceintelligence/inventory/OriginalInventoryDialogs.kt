@@ -989,6 +989,11 @@ private fun OriginalEditorField(
             accessoryAction = keyboardAccessoryAction,
             onAccessoryAction = {
                 onImeAction?.invoke()
+            },
+            onPaste = { pastedText ->
+                if (pastedText.isNotBlank()) {
+                    state.setTextAndPlaceCursorAtEnd(pastedText)
+                }
             }
         )
 
