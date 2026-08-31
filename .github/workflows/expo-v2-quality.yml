@@ -32,9 +32,15 @@ jobs:
       - name: Install pinned pnpm and Node.js
         uses: pnpm/setup@v2
         with:
-          working-directory: expoApp
+          version: 11.19.0
+          runtime: node@24.19.0
+          package-json-file: expoApp/package.json
           cache: true
-          require-lockfile: true
+          cache-dependency-path: expoApp/pnpm-lock.yaml
+          install: false
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile --no-runtime
 
       - name: Type-check
         run: pnpm typecheck
