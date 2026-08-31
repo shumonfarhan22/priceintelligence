@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,6 +83,14 @@ internal actual fun PlatformProductNameTextField(
         MaterialTheme.supremeColors.border
     val textColor = MaterialTheme.colorScheme.onSurface
     val tintColor = MaterialTheme.colorScheme.primary
+    val nativeFocusedContainerColor =
+        focusedContainerColor
+            .compositeOver(MaterialTheme.supremeColors.panelStrong)
+            .copy(alpha = 1f)
+    val nativeUnfocusedContainerColor =
+        unfocusedContainerColor
+            .compositeOver(MaterialTheme.supremeColors.panelStrong)
+            .copy(alpha = 1f)
     val usesDarkKeyboard =
         MaterialTheme.colorScheme.background.luminance() < 0.5f
 
@@ -151,7 +160,9 @@ internal actual fun PlatformProductNameTextField(
                             UITextAutocorrectionType
                                 .UITextAutocorrectionTypeDefault
                         textContentType = null
-                        backgroundColor = UIColor.clearColor
+                        backgroundColor =
+                            nativeUnfocusedContainerColor.toUIColor()
+                        layer.cornerRadius = 11.0
                         clipsToBounds = true
 
                         addTarget(
@@ -169,7 +180,9 @@ internal actual fun PlatformProductNameTextField(
                             )
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(1.dp),
                 update = { textField ->
                     val composeText = state.text.toString()
                     if (textField.text != composeText) {
@@ -179,7 +192,13 @@ internal actual fun PlatformProductNameTextField(
                     textField.placeholder = placeholder
                     textField.textColor = textColor.toUIColor()
                     textField.tintColor = tintColor.toUIColor()
-                    textField.backgroundColor = UIColor.clearColor
+                    textField.backgroundColor = (
+                        if (isFocused) {
+                            nativeFocusedContainerColor
+                        } else {
+                            nativeUnfocusedContainerColor
+                        }
+                    ).toUIColor()
                     textField.keyboardAppearance =
                         if (usesDarkKeyboard) {
                             UIKeyboardAppearanceDark
