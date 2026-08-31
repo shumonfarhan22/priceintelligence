@@ -64,6 +64,22 @@ internal actual fun rememberPlatformTextInputOptions(
                     target = null,
                     action = null
                 )
+                val pasteButton =
+                    if (
+                        accessoryAction ==
+                            KeyboardAccessoryAction.PASTE_NEXT
+                    ) {
+                        UIBarButtonItem(
+                            title = "Paste",
+                            style = UIBarButtonItemStyle
+                                .UIBarButtonItemStyleDone,
+                            target = null,
+                            action =
+                                NSSelectorFromString("paste:")
+                        )
+                    } else {
+                        null
+                    }
                 val actionButton =
                     if (accessoryAction == KeyboardAccessoryAction.DONE) {
                         UIBarButtonItem(
@@ -83,7 +99,11 @@ internal actual fun rememberPlatformTextInputOptions(
                         )
                     }
 
-                items = listOf(flexibleSpace, actionButton)
+                items = buildList {
+                    pasteButton?.let(::add)
+                    add(flexibleSpace)
+                    add(actionButton)
+                }
                 sizeToFit()
             }
         }

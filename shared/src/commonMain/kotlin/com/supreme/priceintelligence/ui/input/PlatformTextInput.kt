@@ -85,6 +85,7 @@ internal fun Modifier.dismissKeyboardOnUnhandledTap(
 
 internal enum class KeyboardAccessoryAction {
     NONE,
+    PASTE_NEXT,
     NEXT,
     DONE
 }
