@@ -61,6 +61,13 @@ export function RootApp({ fontFallback }: RootAppProps) {
     }, action ? 5000 : 4200);
   }, []);
 
+  const updateProductCount = useCallback((productCount: number) => {
+    setState((current) => {
+      if (current.phase !== 'ready' || current.productCount === productCount) return current;
+      return { ...current, productCount };
+    });
+  }, []);
+
   useEffect(() => {
     let active = true;
     InventoryRepository.create()
@@ -79,13 +86,6 @@ export function RootApp({ fontFallback }: RootAppProps) {
 
   if (state.phase === 'loading') return <CenteredStatus label="Preparing secure local storage…" />;
   if (state.phase === 'error') return <CenteredStatus label={state.message} error />;
-
-  const updateProductCount = useCallback((productCount: number) => {
-    setState((current) => {
-      if (current.phase !== 'ready' || current.productCount === productCount) return current;
-      return { ...current, productCount };
-    });
-  }, []);
 
   const importBackup = async () => {
     const selection = await DocumentPicker.getDocumentAsync({
