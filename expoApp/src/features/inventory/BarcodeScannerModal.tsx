@@ -35,6 +35,13 @@ export function BarcodeScannerModal({
   const [handled, setHandled] = useState(false);
   const handledRef = useRef(false);
   const permissionRequestStartedRef = useRef(false);
+  const pendingIosHapticRef = useRef(false);
+
+  const playPendingIosHaptic = () => {
+    if (!pendingIosHapticRef.current) return;
+    pendingIosHapticRef.current = false;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+  };
 
   useEffect(() => {
     if (visible) {
@@ -65,14 +72,17 @@ export function BarcodeScannerModal({
     if (!value || handledRef.current) return;
     handledRef.current = true;
     setHandled(true);
-    onScanned(value);
     if (Platform.OS === 'ios') {
-      // iOS suppresses Taptic Engine feedback while the camera is active.
-      // Wait for the scanner view to unmount before confirming the scan.
-      setTimeout(() => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-      }, 280);
+      pendingIosHapticRef.current = true;
+      if (embedded) {
+        // The product editor swaps its embedded camera out on the next render.
+        // Give AVFoundation time to release the camera before using the Taptic Engine.
+        // Do not cancel this when the embedded scanner unmounts: unmounting the
+        // CameraView is precisely what makes iOS haptics available again.
+        setTimeout(playPendingIosHaptic, 700);
+      }
     }
+    onScanned(value);
   };
 
   const scannerContent = (
@@ -131,7 +141,13 @@ export function BarcodeScannerModal({
   if (embedded) return visible ? scannerContent : null;
 
   return (
-    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="fade"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+      onDismiss={playPendingIosHaptic}
+    >
       {scannerContent}
     </Modal>
   );

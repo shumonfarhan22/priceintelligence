@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
+import { readAsStringAsync } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -130,7 +131,11 @@ export function RootApp({ fontFallback }: RootAppProps) {
 
     setBusy(true);
     try {
-      const contents = await new File(asset.uri).text();
+      // DocumentPicker copies Android documents into our cache, but the SDK 57
+      // File object can still reject that URI during its newer permission check.
+      // The legacy reader is the supported SAF/file-URI bridge and works for the
+      // picker result on Android as well as the temporary copy returned on iOS.
+      const contents = await readAsStringAsync(asset.uri);
       const result = await state.repository.importBackupJson(contents);
       const productCount = await state.repository.countProducts();
       updateProductCount(productCount);
