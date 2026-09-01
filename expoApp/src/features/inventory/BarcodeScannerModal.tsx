@@ -1,8 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, radius, spacing, type } from '../../theme/tokens';
@@ -35,12 +34,14 @@ export function BarcodeScannerModal({
   const [handled, setHandled] = useState(false);
   const handledRef = useRef(false);
   const permissionRequestStartedRef = useRef(false);
-  const pendingIosHapticRef = useRef(false);
+  const pendingIosVibrationRef = useRef(false);
 
-  const playPendingIosHaptic = () => {
-    if (!pendingIosHapticRef.current) return;
-    pendingIosHapticRef.current = false;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+  const playPendingIosVibration = () => {
+    if (!pendingIosVibrationRef.current) return;
+    pendingIosVibrationRef.current = false;
+    // React Native's iOS vibration uses the system vibration service rather than
+    // the Taptic Engine path that iOS disables while AVFoundation owns the camera.
+    Vibration.vibrate();
   };
 
   useEffect(() => {
@@ -73,13 +74,13 @@ export function BarcodeScannerModal({
     handledRef.current = true;
     setHandled(true);
     if (Platform.OS === 'ios') {
-      pendingIosHapticRef.current = true;
+      pendingIosVibrationRef.current = true;
       if (embedded) {
         // The product editor swaps its embedded camera out on the next render.
         // Give AVFoundation time to release the camera before using the Taptic Engine.
         // Do not cancel this when the embedded scanner unmounts: unmounting the
         // CameraView is precisely what makes iOS haptics available again.
-        setTimeout(playPendingIosHaptic, 700);
+        setTimeout(playPendingIosVibration, 900);
       }
     }
     onScanned(value);
@@ -114,7 +115,7 @@ export function BarcodeScannerModal({
               barcodeScannerSettings={{ barcodeTypes: [...PRODUCT_BARCODE_TYPES] }}
               onBarcodeScanned={handled ? undefined : handleScan}
             />
-            <View pointerEvents="none" style={styles.guide}>
+            <View style={styles.guide}>
               <View style={styles.scanWindow} />
               <Text style={styles.guideText}>EAN, UPC, Code 128, or QR</Text>
             </View>
@@ -146,7 +147,7 @@ export function BarcodeScannerModal({
       animationType="fade"
       presentationStyle="fullScreen"
       onRequestClose={onClose}
-      onDismiss={playPendingIosHaptic}
+      onDismiss={playPendingIosVibration}
     >
       {scannerContent}
     </Modal>
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontFamily: type.bold, fontSize: 20, marginTop: spacing.xs },
   closeButton: { width: 48, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   cameraFrame: { flex: 1, overflow: 'hidden', margin: spacing.lg, marginTop: 0, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
-  guide: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.12)' },
+  guide: { ...StyleSheet.absoluteFill, pointerEvents: 'none', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.12)' },
   scanWindow: { width: '82%', height: 190, borderWidth: 3, borderColor: colors.primary, borderRadius: radius.md, backgroundColor: 'transparent' },
   guideText: { color: colors.text, fontFamily: type.semibold, fontSize: 14, backgroundColor: 'rgba(11,15,20,0.82)', borderRadius: radius.pill, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, marginTop: spacing.lg },
   permissionState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },

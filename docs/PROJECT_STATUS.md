@@ -34,6 +34,13 @@ Comparison milestone verification on 1 September 2026: strict TypeScript checkin
 tests passed, Expo Doctor passed all 21 checks, and fresh Android, iPhone, and web production exports
 completed successfully. These checks do not claim physical-device or live-retailer verification.
 
+The comparison physical-test follow-up replaces Android backup restore with the SDK 57 FileSystem
+picker so Android keeps its document-provider read grant, and uses the native iPhone vibration service
+after the barcode camera closes. It also restores the original compact glass Add Product dialog,
+keyboard-floating Quick Compare search, and bento Product Details layout with the authoritative Amazon
+and Flipkart artwork. Browser checks passed at 320 and 390 pixel widths; Android import and iPhone scan
+vibration still require confirmation on physical phones.
+
 ## Authoritative source state
 
 The latest application milestone on `master` is:

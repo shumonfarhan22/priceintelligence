@@ -59,6 +59,7 @@ export function ProductEditorModal({
   const [scannerVisible, setScannerVisible] = useState(false);
   const [calculatorVisible, setCalculatorVisible] = useState(false);
   const [calculatorTarget, setCalculatorTarget] = useState<PriceTarget>('purchaseCost');
+  const [expandedRetailer, setExpandedRetailer] = useState<'amazonUrl' | 'flipkartUrl' | null>(null);
 
   const nameRef = useRef<TextInput>(null);
   const purchaseRef = useRef<TextInput>(null);
@@ -83,6 +84,7 @@ export function ProductEditorModal({
     setFocusedField(null);
     setClipboardAvailable(false);
     setCalculatorVisible(false);
+    setExpandedRetailer(null);
   }, [visible, product?.id]);
 
   useEffect(() => {
@@ -110,11 +112,20 @@ export function ProductEditorModal({
     }
   };
 
+  const focusField = (field: DraftField) => {
+    if (field === 'amazonUrl' || field === 'flipkartUrl') {
+      setExpandedRetailer(field);
+      setTimeout(() => refs[field].current?.focus(), 40);
+      return;
+    }
+    refs[field].current?.focus();
+  };
+
   const submit = async () => {
     const validation = validateInventoryDraft(draft);
     if (!validation.valid) {
       setError({ field: validation.field, message: validation.message });
-      refs[validation.field].current?.focus();
+      focusField(validation.field);
       return;
     }
 
@@ -141,16 +152,16 @@ export function ProductEditorModal({
   const focusedIndex = focusedField ? FIELD_ORDER.indexOf(focusedField) : -1;
   const focusRelativeField = (offset: number) => {
     const nextField = FIELD_ORDER[focusedIndex + offset];
-    if (nextField) refs[nextField].current?.focus();
+    if (nextField) focusField(nextField);
   };
 
   return (
     <>
       <Modal
         visible={visible}
-        animationType="slide"
-        transparent={Platform.OS !== 'ios'}
-        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'overFullScreen'}
+        animationType="fade"
+        transparent
+        presentationStyle="overFullScreen"
         onRequestClose={calculatorVisible
           ? () => setCalculatorVisible(false)
           : scannerVisible
@@ -183,14 +194,11 @@ export function ProductEditorModal({
           />
         ) : (
           <>
-        <SafeAreaView style={[styles.modalRoot, Platform.OS === 'android' && styles.androidBackdrop]}>
+        <SafeAreaView style={styles.modalRoot}>
           <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss}>
-            <View style={[styles.sheet, Platform.OS === 'ios' && styles.iosSheet]} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheet} onStartShouldSetResponder={() => true}>
               <View style={styles.header}>
-                <View>
-                  <Text style={styles.eyebrow}>{product ? 'EDIT INVENTORY' : 'NEW INVENTORY ITEM'}</Text>
-                  <Text style={styles.title}>{product ? 'Edit Product' : 'Add New Product'}</Text>
-                </View>
+                <Text style={styles.title}>{product ? 'Edit Product' : 'Add New Product'}</Text>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Close product editor"
@@ -295,7 +303,7 @@ export function ProductEditorModal({
                   inputMode="text"
                   inputRef={barcodeRef}
                   returnKeyType="next"
-                  onSubmitEditing={() => amazonRef.current?.focus()}
+                  onSubmitEditing={() => focusField('amazonUrl')}
                   error={error?.field === 'barcode'}
                   accessory={(
                     <Pressable
@@ -312,33 +320,51 @@ export function ProductEditorModal({
                   )}
                 />
 
-                <Text style={styles.sectionLabel}>OPTIONAL RETAILER LINKS</Text>
-                <Field
-                  label="Amazon"
-                  value={draft.amazonUrl}
-                  onChangeText={(value) => changeField('amazonUrl', value)}
-                  onFocus={() => handleFocus('amazonUrl')}
-                  placeholder="https://amazon.in/..."
-                  inputMode="url"
-                  autoCapitalize="none"
-                  inputRef={amazonRef}
-                  returnKeyType="next"
-                  onSubmitEditing={() => flipkartRef.current?.focus()}
-                  error={error?.field === 'amazonUrl'}
-                />
-                <Field
-                  label="Flipkart"
-                  value={draft.flipkartUrl}
-                  onChangeText={(value) => changeField('flipkartUrl', value)}
-                  onFocus={() => handleFocus('flipkartUrl')}
-                  placeholder="https://flipkart.com/..."
-                  inputMode="url"
-                  autoCapitalize="none"
-                  inputRef={flipkartRef}
-                  returnKeyType="done"
-                  onSubmitEditing={Keyboard.dismiss}
-                  error={error?.field === 'flipkartUrl'}
-                />
+                <View style={styles.retailerRow}>
+                  <RetailerFieldButton
+                    label="Amazon"
+                    active={expandedRetailer === 'amazonUrl'}
+                    linked={draft.amazonUrl.trim().length > 0}
+                    onPress={() => focusField('amazonUrl')}
+                  />
+                  <RetailerFieldButton
+                    label="Flipkart"
+                    active={expandedRetailer === 'flipkartUrl'}
+                    linked={draft.flipkartUrl.trim().length > 0}
+                    onPress={() => focusField('flipkartUrl')}
+                  />
+                </View>
+
+                {expandedRetailer === 'amazonUrl' ? (
+                  <Field
+                    label="Amazon URL (Optional)"
+                    value={draft.amazonUrl}
+                    onChangeText={(value) => changeField('amazonUrl', value)}
+                    onFocus={() => handleFocus('amazonUrl')}
+                    placeholder="https://amazon.in/..."
+                    inputMode="url"
+                    autoCapitalize="none"
+                    inputRef={amazonRef}
+                    returnKeyType="next"
+                    onSubmitEditing={() => focusField('flipkartUrl')}
+                    error={error?.field === 'amazonUrl'}
+                  />
+                ) : null}
+                {expandedRetailer === 'flipkartUrl' ? (
+                  <Field
+                    label="Flipkart URL (Optional)"
+                    value={draft.flipkartUrl}
+                    onChangeText={(value) => changeField('flipkartUrl', value)}
+                    onFocus={() => handleFocus('flipkartUrl')}
+                    placeholder="https://flipkart.com/..."
+                    inputMode="url"
+                    autoCapitalize="none"
+                    inputRef={flipkartRef}
+                    returnKeyType="done"
+                    onSubmitEditing={Keyboard.dismiss}
+                    error={error?.field === 'flipkartUrl'}
+                  />
+                ) : null}
 
                 <View style={styles.actions}>
                   <Pressable
@@ -493,6 +519,42 @@ function Field({
   );
 }
 
+function RetailerFieldButton({
+  label,
+  active,
+  linked,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  linked: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label} link${linked ? ', linked' : ', optional'}`}
+      accessibilityState={{ expanded: active }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.retailerButton,
+        active && styles.retailerButtonActive,
+        pressed && styles.pressed,
+      ]}
+    >
+      <Ionicons name="globe-outline" size={21} color={linked || active ? colors.primary : colors.textMuted} />
+      <Text style={[styles.retailerButtonText, (linked || active) && styles.retailerButtonTextActive]}>
+        {label}
+      </Text>
+      <Ionicons
+        name={linked ? 'checkmark-circle' : 'information-circle'}
+        size={17}
+        color={linked ? colors.primary : colors.textMuted}
+      />
+    </Pressable>
+  );
+}
+
 function draftFromProduct(product: InventoryProduct): InventoryDraft {
   return {
     productName: product.productName,
@@ -517,19 +579,16 @@ function fieldLabel(field: DraftField | null): string {
 }
 
 const styles = StyleSheet.create({
-  modalRoot: { flex: 1, backgroundColor: colors.surface },
-  androidBackdrop: { backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end' },
-  dismissArea: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { maxHeight: '96%', backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderBottomWidth: 0, borderColor: colors.border, overflow: 'hidden' },
-  iosSheet: { flex: 1, maxHeight: '100%', borderWidth: 0, borderRadius: 0 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
-  eyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
-  title: { color: colors.text, fontFamily: type.bold, fontSize: 24, marginTop: spacing.xs },
-  closeButton: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  form: { padding: spacing.xl, paddingBottom: 48, gap: spacing.lg },
+  modalRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.80)', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
+  dismissArea: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
+  sheet: { width: '100%', maxWidth: 560, maxHeight: '94%', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.xl, paddingRight: spacing.md, paddingTop: spacing.sm },
+  title: { color: colors.text, fontFamily: type.bold, fontSize: 21 },
+  closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  form: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.xl, gap: spacing.lg },
   errorBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(244,63,94,0.10)', borderColor: 'rgba(244,63,94,0.45)', borderWidth: 1, borderRadius: radius.md, padding: spacing.md },
   errorText: { flex: 1, color: colors.danger, fontFamily: type.semibold, fontSize: 14, lineHeight: 19, marginLeft: spacing.sm },
-  sectionLabel: { color: colors.textMuted, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2, marginTop: spacing.sm },
+  sectionLabel: { color: colors.textMuted, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
   sectionHeadingRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   calculatorButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.background },
   calculatorButtonText: { color: colors.text, fontFamily: type.semibold, fontSize: 13, marginLeft: spacing.sm },
@@ -543,6 +602,11 @@ const styles = StyleSheet.create({
   inlineAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.sm, backgroundColor: colors.primaryMuted },
   inlineActionText: { color: colors.primary, fontFamily: type.bold, fontSize: 13, marginLeft: spacing.xs },
   iconAction: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
+  retailerRow: { flexDirection: 'row', gap: spacing.md },
+  retailerButton: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: 'rgba(11,15,20,0.26)', paddingHorizontal: spacing.sm },
+  retailerButtonActive: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
+  retailerButtonText: { flexShrink: 1, color: colors.textMuted, fontFamily: type.semibold, fontSize: 14, marginHorizontal: spacing.sm },
+  retailerButtonTextActive: { color: colors.text },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
   secondaryButton: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
   secondaryButtonText: { color: colors.text, fontFamily: type.bold, fontSize: 14 },

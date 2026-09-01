@@ -1,7 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
-import { readAsStringAsync } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -116,26 +115,35 @@ export function RootApp({ fontFallback }: RootAppProps) {
   if (state.phase === 'error') return <CenteredStatus label={state.message} error />;
 
   const importBackup = async () => {
-    const selection = await DocumentPicker.getDocumentAsync({
-      type: ['application/json', 'text/json', 'text/plain'],
-      copyToCacheDirectory: true,
-      multiple: false,
-    });
-    if (selection.canceled) return;
-    const asset = selection.assets[0];
+    let backupFile: File;
+    if (Platform.OS === 'android') {
+      // FileSystem's picker retains Android's content-provider grant. Reading the
+      // returned content:// File avoids the permission failures caused by turning
+      // a DocumentPicker cache URI back into a plain filesystem path.
+      const selection = await File.pickFileAsync({
+        mimeTypes: ['application/json', 'text/json', 'text/plain'],
+        multipleFiles: false,
+      });
+      if (selection.canceled) return;
+      backupFile = selection.result;
+    } else {
+      const selection = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'text/json', 'text/plain'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (selection.canceled) return;
+      backupFile = new File(selection.assets[0].uri);
+    }
     setToolsVisible(false);
-    if (asset.size != null && asset.size > MAX_BACKUP_BYTES) {
+    if (backupFile.size != null && backupFile.size > MAX_BACKUP_BYTES) {
       showBanner('This backup is too large to import safely.', 'error');
       return;
     }
 
     setBusy(true);
     try {
-      // DocumentPicker copies Android documents into our cache, but the SDK 57
-      // File object can still reject that URI during its newer permission check.
-      // The legacy reader is the supported SAF/file-URI bridge and works for the
-      // picker result on Android as well as the temporary copy returned on iOS.
-      const contents = await readAsStringAsync(asset.uri);
+      const contents = await backupFile.text();
       const result = await state.repository.importBackupJson(contents);
       const productCount = await state.repository.countProducts();
       updateProductCount(productCount);

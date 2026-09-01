@@ -6,6 +6,8 @@ import {
   BackHandler,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,6 +16,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { BannerTone } from '../../components/BottomBanner';
 import type { ComparisonSort } from '../../domain/comparison';
@@ -60,6 +63,7 @@ export function QuickCompareScreen({
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
   const requestId = useRef(0);
   const searchRef = useRef<TextInput>(null);
+  const insets = useSafeAreaInsets();
 
   const loadProducts = useCallback(async (
     search: string,
@@ -162,81 +166,6 @@ export function QuickCompareScreen({
         </View>
       </View>
 
-      <View style={styles.searchArea}>
-        <View style={[styles.searchShell, searchFocused && styles.searchFocused]}>
-          <Ionicons name="search" size={22} color={searchFocused ? colors.warning : colors.textMuted} />
-          <TextInput
-            ref={searchRef}
-            value={query}
-            onChangeText={(value) => {
-              setLoading(true);
-              setQuery(value);
-              setPage(1);
-            }}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            onSubmitEditing={() => {
-              setSearchFocused(false);
-              Keyboard.dismiss();
-            }}
-            placeholder="Name, barcode, Amazon or Flipkart link"
-            placeholderTextColor={colors.textMuted}
-            selectionColor={colors.warning}
-            cursorColor={colors.warning}
-            returnKeyType="search"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.searchInput}
-          />
-          {query ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Clear comparison search"
-              hitSlop={10}
-              onPress={() => {
-                setQuery('');
-                setPage(1);
-                searchRef.current?.focus();
-              }}
-              style={styles.searchAction}
-            >
-              <Ionicons name="close-circle" size={22} color={colors.textMuted} />
-            </Pressable>
-          ) : null}
-          <View style={styles.searchDivider} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Scan barcode to compare"
-            hitSlop={10}
-            onPress={() => {
-              Keyboard.dismiss();
-              setSearchFocused(false);
-              setScannerVisible(true);
-            }}
-            style={styles.searchAction}
-          >
-            <Ionicons name="camera" size={23} color={colors.textMuted} />
-          </Pressable>
-        </View>
-
-        {suggestions.length > 0 ? (
-          <View style={styles.suggestions}>
-            {suggestions.map((product) => (
-              <Pressable
-                key={product.id}
-                accessibilityRole="button"
-                onPress={() => openProduct(product)}
-                style={({ pressed }) => [styles.suggestionRow, pressed && styles.pressed]}
-              >
-                <Ionicons name="cube-outline" size={18} color={colors.warning} />
-                <Text style={styles.suggestionText} numberOfLines={1}>{product.productName}</Text>
-                <Text style={styles.suggestionPrice}>{formatRupees(product.shopPrice)}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-      </View>
-
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -316,8 +245,103 @@ export function QuickCompareScreen({
           Keyboard.dismiss();
           setSearchFocused(false);
         }}
+        scrollEnabled={!searchFocused}
         showsVerticalScrollIndicator={false}
       />
+
+      {searchFocused ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close comparison search"
+          onPress={() => {
+            Keyboard.dismiss();
+            setSearchFocused(false);
+          }}
+          style={styles.searchDimmer}
+        />
+      ) : null}
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'position' : undefined}
+        keyboardVerticalOffset={0}
+        style={styles.searchAvoider}
+        contentContainerStyle={styles.searchAvoiderContent}
+      >
+        <View style={[styles.searchArea, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+          {suggestions.length > 0 ? (
+            <View style={styles.suggestions}>
+              {suggestions.map((product) => (
+                <Pressable
+                  key={product.id}
+                  accessibilityRole="button"
+                  onPress={() => openProduct(product)}
+                  style={({ pressed }) => [styles.suggestionRow, pressed && styles.pressed]}
+                >
+                  <Ionicons name="cube-outline" size={18} color={colors.warning} />
+                  <Text style={styles.suggestionText} numberOfLines={1}>{product.productName}</Text>
+                  <Text style={styles.suggestionPrice}>{formatRupees(product.shopPrice)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          <View style={[styles.searchShell, searchFocused && styles.searchFocused]}>
+            <Ionicons name="search" size={22} color={searchFocused ? colors.warning : colors.textMuted} />
+            <TextInput
+              ref={searchRef}
+              value={query}
+              onChangeText={(value) => {
+                setLoading(true);
+                setQuery(value);
+                setPage(1);
+              }}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              onSubmitEditing={() => {
+                setSearchFocused(false);
+                Keyboard.dismiss();
+              }}
+              placeholder="Search…"
+              placeholderTextColor={colors.textMuted}
+              selectionColor={colors.warning}
+              cursorColor={colors.warning}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.searchInput}
+            />
+            {query ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear comparison search"
+                hitSlop={10}
+                onPress={() => {
+                  setQuery('');
+                  setPage(1);
+                  searchRef.current?.focus();
+                }}
+                style={styles.searchAction}
+              >
+                <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
+            <View style={styles.searchDivider} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Scan barcode to compare"
+              hitSlop={10}
+              onPress={() => {
+                Keyboard.dismiss();
+                setSearchFocused(false);
+                setScannerVisible(true);
+              }}
+              style={styles.searchAction}
+            >
+              <Ionicons name="camera" size={23} color={colors.textMuted} />
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
 
       <BarcodeScannerModal
         visible={scannerVisible}
@@ -462,20 +486,23 @@ function messageFrom(error: unknown): string {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, paddingBottom: 48 },
+  content: { padding: spacing.lg, paddingBottom: 132 },
   header: { minHeight: 84, flexDirection: 'row', alignItems: 'center' },
   backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.sm },
   headerIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: withAlpha(colors.warning, '16'), marginHorizontal: spacing.sm },
   headerCopy: { flex: 1, minWidth: 0 },
   eyebrow: { color: colors.textMuted, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
   title: { color: colors.text, fontFamily: type.bold, fontSize: 22, lineHeight: 27, marginTop: spacing.xs },
-  searchArea: { zIndex: 5, marginTop: spacing.md },
-  searchShell: { minHeight: 62, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface, paddingHorizontal: spacing.lg },
+  searchDimmer: { ...StyleSheet.absoluteFill, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.58)' },
+  searchAvoider: { position: 'absolute', zIndex: 20, left: 0, right: 0, bottom: 0, pointerEvents: 'box-none' },
+  searchAvoiderContent: { width: '100%' },
+  searchArea: { paddingHorizontal: spacing.lg },
+  searchShell: { minHeight: 64, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: '#11161D', paddingHorizontal: spacing.lg },
   searchFocused: { borderColor: colors.warning },
   searchInput: { flex: 1, minWidth: 0, color: colors.text, fontFamily: type.regular, fontSize: 16, paddingHorizontal: spacing.md, paddingVertical: spacing.md },
   searchAction: { width: 38, height: 44, alignItems: 'center', justifyContent: 'center' },
   searchDivider: { width: 1, height: 30, backgroundColor: colors.border, marginHorizontal: spacing.xs },
-  suggestions: { marginTop: spacing.xs, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceRaised },
+  suggestions: { marginBottom: spacing.sm, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceRaised },
   suggestionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   suggestionText: { flex: 1, color: colors.text, fontFamily: type.semibold, fontSize: 14, marginHorizontal: spacing.md },
   suggestionPrice: { color: colors.textMuted, fontFamily: type.bold, fontSize: 13 },

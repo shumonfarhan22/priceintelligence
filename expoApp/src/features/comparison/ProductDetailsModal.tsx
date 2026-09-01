@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Linking,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,6 +20,9 @@ import type { InventoryProduct, PriceObservation, PriceRetailer } from '../../do
 import { InventoryRepository } from '../../data/inventoryRepository';
 import { fetchRetailerPrice } from '../../network/retailerPriceClient';
 import { colors, radius, spacing, type } from '../../theme/tokens';
+
+const AMAZON_LOGO = require('../../../assets/brand/logo_amazon.png');
+const FLIPKART_LOGO = require('../../../assets/brand/logo_flipkart.png');
 
 type RetailerState =
   | { phase: 'idle' }
@@ -124,9 +126,7 @@ export function ProductDetailsModal({
         successCount += 1;
         setState({ phase: 'live', price: result.price, checkedAt: result.checkedAt });
       } catch (error) {
-        if (!controller.signal.aborted) {
-          setState({ phase: 'failed', message: messageFrom(error) });
-        }
+        if (!controller.signal.aborted) setState({ phase: 'failed', message: messageFrom(error) });
       }
     }));
 
@@ -163,68 +163,95 @@ export function ProductDetailsModal({
     }
   };
 
-  const historySummary = useMemo(() => {
-    const amazon = history.filter((entry) => entry.retailer === 'AMAZON').length;
-    const flipkart = history.filter((entry) => entry.retailer === 'FLIPKART').length;
-    return { amazon, flipkart };
-  }, [history]);
+  const historySummary = useMemo(() => ({
+    amazon: history.filter((entry) => entry.retailer === 'AMAZON').length,
+    flipkart: history.filter((entry) => entry.retailer === 'FLIPKART').length,
+  }), [history]);
+
+  const lastChecked = currentProduct
+    ? Math.max(currentProduct.amazonLastChecked ?? 0, currentProduct.flipkartLastChecked ?? 0) || null
+    : null;
 
   return (
     <Modal
       visible={product != null}
-      transparent={Platform.OS !== 'ios'}
-      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'overFullScreen'}
-      animationType="slide"
+      transparent
+      presentationStyle="overFullScreen"
+      animationType="fade"
       onRequestClose={close}
     >
-      <SafeAreaView style={[styles.modalRoot, Platform.OS !== 'ios' && styles.backdrop]}>
+      <SafeAreaView style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>PRODUCT DETAILS</Text>
-              <Text style={styles.headerTitle}>Compare saved and live prices</Text>
+              <Text style={styles.lastChecked}>
+                {refreshing
+                  ? 'Checking live prices…'
+                  : lastChecked
+                    ? `Last checked: ${formatRelativeTime(lastChecked)}`
+                    : 'Last checked: not yet'}
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close product details"
               onPress={close}
+              hitSlop={10}
               style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
             >
-              <Ionicons name="close" size={27} color={colors.text} />
+              <Ionicons name="close" size={29} color={colors.textMuted} />
             </Pressable>
           </View>
 
           {currentProduct ? (
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-              <View style={styles.productCard}>
-                <View style={styles.imageShell}>
-                  {currentProduct.imageUrl ? (
-                    <Image source={{ uri: currentProduct.imageUrl }} style={styles.image} contentFit="contain" transition={160} />
-                  ) : (
-                    <Ionicons name="cube-outline" size={46} color={colors.textMuted} />
-                  )}
-                </View>
-                <View style={styles.productCopy}>
-                  <Text style={styles.productName}>{currentProduct.productName}</Text>
-                  <Text style={styles.shopLabel}>SHOP PRICE</Text>
+              <View style={styles.bentoRow}>
+                <View style={styles.productPanel}>
+                  <View style={styles.imageShell}>
+                    {currentProduct.imageUrl ? (
+                      <Image
+                        source={{ uri: currentProduct.imageUrl }}
+                        style={styles.image}
+                        contentFit="contain"
+                        transition={160}
+                      />
+                    ) : (
+                      <Ionicons name="cube-outline" size={42} color="#626A76" />
+                    )}
+                    <View style={styles.imageShade} />
+                  </View>
+                  <Text style={styles.productName} numberOfLines={3}>{currentProduct.productName}</Text>
+                  <View style={styles.productSpacer} />
+                  <Text style={styles.shopLabel}>Supreme Price</Text>
                   <Text style={styles.shopPrice}>{formatRupees(currentProduct.shopPrice)}</Text>
+                </View>
+
+                <View style={styles.retailerColumn}>
+                  <RetailerPanel
+                    retailer="AMAZON"
+                    product={currentProduct}
+                    state={amazonState}
+                    observationCount={historySummary.amazon}
+                  />
+                  <RetailerPanel
+                    retailer="FLIPKART"
+                    product={currentProduct}
+                    state={flipkartState}
+                    observationCount={historySummary.flipkart}
+                  />
                 </View>
               </View>
 
-              <View style={styles.retailerGrid}>
-                <RetailerPanel
+              <View style={styles.linkRow}>
+                <RetailerLink
                   retailer="AMAZON"
-                  product={currentProduct}
-                  state={amazonState}
-                  observationCount={historySummary.amazon}
-                  onOpen={() => openRetailer(currentProduct.amazonUrl, 'AMAZON')}
+                  linked={currentProduct.amazonUrl != null}
+                  onPress={() => openRetailer(currentProduct.amazonUrl, 'AMAZON')}
                 />
-                <RetailerPanel
+                <RetailerLink
                   retailer="FLIPKART"
-                  product={currentProduct}
-                  state={flipkartState}
-                  observationCount={historySummary.flipkart}
-                  onOpen={() => openRetailer(currentProduct.flipkartUrl, 'FLIPKART')}
+                  linked={currentProduct.flipkartUrl != null}
+                  onPress={() => openRetailer(currentProduct.flipkartUrl, 'FLIPKART')}
                 />
               </View>
 
@@ -237,19 +264,13 @@ export function ProductDetailsModal({
                 style={({ pressed }) => [styles.refreshButton, pressed && styles.pressed, refreshing && styles.disabled]}
               >
                 {refreshing ? (
-                  <ActivityIndicator color={colors.background} />
+                  <ActivityIndicator color={colors.textMuted} size="small" />
                 ) : (
-                  <Ionicons name="refresh" size={22} color={colors.background} />
+                  <Ionicons name="refresh" size={20} color={colors.primary} />
                 )}
-                <Text style={styles.refreshText}>{refreshing ? 'Checking retailers…' : 'Refresh live prices'}</Text>
+                <Text style={styles.refreshText}>{refreshing ? 'Checking prices…' : 'Refresh Live Prices'}</Text>
               </Pressable>
 
-              <View style={styles.safetyNote}>
-                <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
-                <Text style={styles.safetyText}>
-                  A failed live check never erases a valid saved price. Successful checks are added to bounded local history.
-                </Text>
-              </View>
             </ScrollView>
           ) : null}
         </View>
@@ -263,13 +284,11 @@ function RetailerPanel({
   product,
   state,
   observationCount,
-  onOpen,
 }: {
   retailer: PriceRetailer;
   product: InventoryProduct;
   state: RetailerState;
   observationCount: number;
-  onOpen: () => void;
 }) {
   const saved = savedRetailerPrice(product, retailer);
   const linked = retailer === 'AMAZON' ? product.amazonUrl != null : product.flipkartUrl != null;
@@ -282,68 +301,99 @@ function RetailerPanel({
       ? colors.textMuted
       : colors.primary;
   const source = retailerSourceLabel(state, saved?.checkedAt ?? null, linked);
+  const direction = relationship === 'ONLINE_LOWER'
+    ? 'LOWER'
+    : relationship === 'SHOP_LOWER'
+      ? 'HIGHER'
+      : relationship === 'MATCHED'
+        ? 'MATCHED'
+        : '';
+  const directionIcon = relationship === 'ONLINE_LOWER'
+    ? 'caret-down'
+    : relationship === 'SHOP_LOWER'
+      ? 'caret-up'
+      : 'remove';
 
   return (
     <View style={[styles.retailerCard, { borderColor: withAlpha(tone, '88') }]}>
-      <View style={styles.retailerHeader}>
-        <Text style={styles.retailerName}>{retailerDisplayName(retailer)}</Text>
-        <View style={[styles.sourceChip, { backgroundColor: withAlpha(tone, '18') }]}>
-          <Text style={[styles.sourceText, { color: tone }]}>{source}</Text>
-        </View>
+      <View style={[styles.logoShell, retailer === 'AMAZON' && styles.amazonLogoShell]}>
+        <Image
+          source={retailer === 'AMAZON' ? AMAZON_LOGO : FLIPKART_LOGO}
+          style={styles.retailerLogo}
+          contentFit="contain"
+        />
       </View>
 
       {state.phase === 'checking' ? (
-        <View style={styles.checkingRow}>
+        <View style={styles.checkingState}>
           <ActivityIndicator color={colors.warning} size="small" />
-          <Text style={styles.checkingText}>Checking live price…</Text>
+          <Text style={styles.checkingText}>Checking…</Text>
         </View>
       ) : visiblePrice != null ? (
         <>
-          <Text style={styles.retailerPrice}>{formatRupees(visiblePrice)}</Text>
-          <Text style={[styles.relationshipText, { color: tone }]}>
+          <View style={styles.priceRow}>
+            <Ionicons name={directionIcon} size={20} color={tone} />
+            <Text style={[styles.retailerPrice, { color: tone }]} numberOfLines={1} adjustsFontSizeToFit>
+              {formatRupees(visiblePrice)}
+            </Text>
+          </View>
+          <Text style={[styles.sourceText, { color: tone }]} numberOfLines={2}>
+            {source}{direction ? ` • ${direction}` : ''}
+          </Text>
+          <Text style={styles.differenceText} numberOfLines={2}>
             {relationshipText(product.shopPrice, visiblePrice)}
           </Text>
         </>
       ) : (
-        <Text style={styles.unavailablePrice}>{linked ? 'Not checked yet' : 'No retailer link'}</Text>
+        <>
+          <Text style={styles.unavailablePrice}>{linked ? 'Not checked' : 'No link'}</Text>
+          <Text style={styles.sourceText}>{source}</Text>
+        </>
       )}
 
-      {state.phase === 'failed' ? <Text style={styles.failureText}>{state.message}</Text> : null}
-      <Text style={styles.historyText}>
-        {observationCount} saved {observationCount === 1 ? 'observation' : 'observations'}
-      </Text>
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={`Open ${retailerDisplayName(retailer)}`}
-        onPress={onOpen}
-        style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}
-      >
-        <Ionicons name="globe-outline" size={18} color={linked ? colors.text : colors.textMuted} />
-        <Text style={[styles.openText, !linked && styles.muted]}>Open {retailerDisplayName(retailer)}</Text>
-      </Pressable>
+      {state.phase === 'failed' ? <Text style={styles.failureText} numberOfLines={2}>{state.message}</Text> : null}
+      <Text style={styles.observationText}>{observationCount} saved</Text>
     </View>
   );
 }
 
-function retailerSourceLabel(
-  state: RetailerState,
-  savedCheckedAt: number | null,
-  linked: boolean,
-): string {
+function RetailerLink({
+  retailer,
+  linked,
+  onPress,
+}: {
+  retailer: PriceRetailer;
+  linked: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Open ${retailerDisplayName(retailer)}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}
+    >
+      <Ionicons name="globe-outline" size={18} color={colors.textMuted} />
+      <Text style={[styles.linkText, !linked && styles.muted]}>{retailerDisplayName(retailer)}</Text>
+    </Pressable>
+  );
+}
+
+function retailerSourceLabel(state: RetailerState, savedCheckedAt: number | null, linked: boolean): string {
   if (state.phase === 'live') return 'LIVE';
   if (state.phase === 'checking') return 'CHECKING';
-  if (state.phase === 'failed' && savedCheckedAt != null) return 'SAVED • CHECK FAILED';
+  if (state.phase === 'failed' && savedCheckedAt != null) return 'SAVED';
   if (state.phase === 'failed') return 'FAILED';
-  if (savedCheckedAt != null) return `SAVED • ${formatRelativeTime(savedCheckedAt).toLocaleUpperCase()}`;
+  if (savedCheckedAt != null) return 'SAVED';
   return linked ? 'NOT CHECKED' : 'UNAVAILABLE';
 }
 
 function relationshipText(shopPrice: number, onlinePrice: number): string {
   const relationship = comparePrices(shopPrice, onlinePrice);
   const difference = Math.abs(shopPrice - onlinePrice);
-  if (relationship === 'ONLINE_LOWER') return `${formatRupees(difference)} lower than shop • review`;
-  if (relationship === 'SHOP_LOWER') return `${formatRupees(difference)} higher than shop • competitive`;
-  return 'Matches shop price • competitive';
+  if (relationship === 'ONLINE_LOWER') return `${formatRupees(difference)} lower`;
+  if (relationship === 'SHOP_LOWER') return `${formatRupees(difference)} higher`;
+  return 'Matches shop';
 }
 
 function withAlpha(hex: string, alpha: string): string {
@@ -355,50 +405,108 @@ function messageFrom(error: unknown): string {
 }
 
 const styles = StyleSheet.create({
-  modalRoot: { flex: 1, backgroundColor: colors.surface },
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.76)', justifyContent: 'flex-end' },
+  backdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+  },
   sheet: {
-    flex: Platform.OS === 'ios' ? 1 : undefined,
-    maxHeight: Platform.OS === 'ios' ? '100%' : '94%',
-    minHeight: Platform.OS === 'ios' ? undefined : '82%',
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '94%',
     overflow: 'hidden',
     backgroundColor: colors.surface,
-    borderTopLeftRadius: Platform.OS === 'ios' ? 0 : radius.lg,
-    borderTopRightRadius: Platform.OS === 'ios' ? 0 : radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
   },
-  header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border },
-  headerCopy: { flex: 1, minWidth: 0, paddingRight: spacing.md },
-  eyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
-  headerTitle: { color: colors.text, fontFamily: type.bold, fontSize: 21, marginTop: spacing.xs },
-  closeButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: 56 },
-  productCard: { flexDirection: 'row', borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.background, padding: spacing.md },
-  imageShell: { width: 132, height: 132, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: radius.md, backgroundColor: '#F4F4F2' },
+  header: {
+    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: spacing.xl,
+    paddingRight: spacing.md,
+  },
+  headerCopy: { flex: 1, minWidth: 0 },
+  lastChecked: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13 },
+  closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, gap: spacing.md },
+  bentoRow: { minHeight: 382, flexDirection: 'row', alignItems: 'stretch', gap: 10 },
+  productPanel: {
+    flex: 1.78,
+    minWidth: 0,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(11,15,20,0.36)',
+    padding: spacing.md,
+  },
+  imageShell: {
+    width: '100%',
+    aspectRatio: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: '#F8FAFC',
+  },
   image: { width: '100%', height: '100%' },
-  productCopy: { flex: 1, minWidth: 0, justifyContent: 'center', paddingLeft: spacing.lg },
-  productName: { color: colors.text, fontFamily: type.bold, fontSize: 18, lineHeight: 24 },
-  shopLabel: { color: colors.textMuted, fontFamily: type.bold, fontSize: 10, letterSpacing: 1, marginTop: spacing.lg },
-  shopPrice: { color: colors.text, fontFamily: type.bold, fontSize: 27, marginTop: spacing.xs },
-  retailerGrid: { gap: spacing.md },
-  retailerCard: { borderWidth: 1, borderRadius: radius.md, backgroundColor: colors.background, padding: spacing.lg },
-  retailerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  retailerName: { color: colors.text, fontFamily: type.bold, fontSize: 18 },
-  sourceChip: { maxWidth: '68%', borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6 },
-  sourceText: { fontFamily: type.bold, fontSize: 9, letterSpacing: 0.6, textAlign: 'center' },
-  retailerPrice: { color: colors.text, fontFamily: type.bold, fontSize: 28, marginTop: spacing.lg },
-  relationshipText: { fontFamily: type.semibold, fontSize: 13, marginTop: spacing.xs },
-  unavailablePrice: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 17, marginTop: spacing.lg },
-  checkingRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm },
-  checkingText: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 14, marginLeft: spacing.md },
-  failureText: { color: colors.danger, fontFamily: type.regular, fontSize: 12, lineHeight: 17, marginTop: spacing.sm },
-  historyText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 12, marginTop: spacing.lg },
-  openButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, marginTop: spacing.md },
-  openText: { color: colors.text, fontFamily: type.semibold, fontSize: 14, marginLeft: spacing.sm },
+  imageShade: { ...StyleSheet.absoluteFill, pointerEvents: 'none', backgroundColor: 'rgba(0,0,0,0.10)' },
+  productName: { color: '#CBD5E1', fontFamily: type.regular, fontSize: 14, lineHeight: 20, marginTop: spacing.md },
+  productSpacer: { flex: 1, minHeight: spacing.sm },
+  shopLabel: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11 },
+  shopPrice: { color: colors.text, fontFamily: type.bold, fontSize: 24, marginTop: spacing.xs },
+  retailerColumn: { flex: 1, minWidth: 0, gap: 10 },
+  retailerCard: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(11,15,20,0.30)',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  logoShell: { width: '100%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
+  amazonLogoShell: { backgroundColor: '#F2F2F0' },
+  retailerLogo: { width: '88%', height: 31 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
+  retailerPrice: { flexShrink: 1, fontFamily: type.bold, fontSize: 21, marginLeft: 2 },
+  sourceText: { color: colors.textMuted, fontFamily: type.bold, fontSize: 9, lineHeight: 13, textAlign: 'center', marginTop: spacing.sm },
+  differenceText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, lineHeight: 15, textAlign: 'center', marginTop: spacing.sm },
+  unavailablePrice: { color: colors.textMuted, fontFamily: type.bold, fontSize: 14, textAlign: 'center', marginTop: spacing.lg },
+  checkingState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  checkingText: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 11, marginTop: spacing.sm },
+  failureText: { color: colors.danger, fontFamily: type.regular, fontSize: 9, lineHeight: 12, textAlign: 'center', marginTop: spacing.xs },
+  observationText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 9, marginTop: 'auto', paddingTop: spacing.xs },
+  linkRow: { flexDirection: 'row', gap: 10 },
+  linkButton: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(11,15,20,0.24)',
+  },
+  linkText: { color: colors.text, fontFamily: type.semibold, fontSize: 14, marginLeft: spacing.sm },
   muted: { color: colors.textMuted },
-  refreshButton: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.primary },
-  refreshText: { color: colors.background, fontFamily: type.bold, fontSize: 16, marginLeft: spacing.sm },
-  safetyNote: { flexDirection: 'row', alignItems: 'flex-start', borderRadius: radius.md, backgroundColor: colors.primaryMuted, padding: spacing.lg },
-  safetyText: { flex: 1, color: colors.textMuted, fontFamily: type.regular, fontSize: 13, lineHeight: 19, marginLeft: spacing.md },
+  refreshButton: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(11,15,20,0.24)',
+  },
+  refreshText: { color: colors.text, fontFamily: type.semibold, fontSize: 15, marginLeft: spacing.sm },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.58 },
 });
