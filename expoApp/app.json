@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.supreme.priceintelligence.v2",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#0B0F14",
         "foregroundImage": "./assets/brand/app_icon.png",

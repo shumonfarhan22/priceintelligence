@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BannerTone } from '../../components/BottomBanner';
 import type { ComparisonSort } from '../../domain/comparison';
 import { summarizeProductComparison } from '../../domain/comparison';
-import { formatRelativeTime, formatRupees } from '../../domain/formatting';
+import { formatRupees } from '../../domain/formatting';
 import type { InventoryProduct } from '../../domain/models';
 import { InventoryRepository } from '../../data/inventoryRepository';
 import { colors, radius, spacing, type } from '../../theme/tokens';
@@ -272,12 +272,17 @@ export function QuickCompareScreen({
       ) : null}
 
       <KeyboardAvoidingView
-        behavior="position"
-        keyboardVerticalOffset={-Math.max(insets.bottom, spacing.md)}
+        behavior="padding"
+        keyboardVerticalOffset={0}
         style={styles.searchAvoider}
         contentContainerStyle={styles.searchAvoiderContent}
       >
-        <View style={[styles.searchArea, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <View
+          style={[
+            styles.searchArea,
+            { paddingBottom: searchFocused ? spacing.sm : Math.max(insets.bottom, 20) },
+          ]}
+        >
           {suggestions.length > 0 ? (
             <View style={styles.suggestions}>
               {suggestions.map((product) => (
@@ -416,8 +421,6 @@ function ComparisonCard({ product, onPress }: { product: InventoryProduct; onPre
     : summary.position === 'COMPETITIVE'
       ? 'Competitive • saved'
       : 'Not checked';
-  const latestChecked = Math.max(product.amazonLastChecked ?? 0, product.flipkartLastChecked ?? 0) || null;
-
   return (
     <Pressable
       accessibilityRole="button"
@@ -436,18 +439,17 @@ function ComparisonCard({ product, onPress }: { product: InventoryProduct; onPre
         )}
       </View>
       <View style={styles.cardBody}>
-        <Text style={styles.cardName} numberOfLines={3}>{product.productName}</Text>
+        <Text style={styles.cardName} numberOfLines={2}>{product.productName}</Text>
         <Text style={styles.shopPriceLabel}>SHOP PRICE</Text>
         <Text style={styles.cardPrice}>{formatRupees(product.shopPrice)}</Text>
         <View style={[styles.statusChip, { backgroundColor: withAlpha(tone, '18') }]}>
           <Ionicons
             name={summary.position === 'REVIEW' ? 'alert-circle' : summary.position === 'COMPETITIVE' ? 'trophy' : 'time-outline'}
-            size={16}
+            size={14}
             color={tone}
           />
           <Text style={[styles.statusText, { color: tone }]} numberOfLines={1}>{label}</Text>
         </View>
-        {latestChecked ? <Text style={styles.checkedText}>Checked {formatRelativeTime(latestChecked)}</Text> : null}
       </View>
     </Pressable>
   );
@@ -567,9 +569,9 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.textMuted, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
   title: { color: colors.text, fontFamily: type.bold, fontSize: 20, lineHeight: 24, marginTop: 2 },
   searchDimmer: { ...StyleSheet.absoluteFill, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.58)' },
-  searchAvoider: { position: 'absolute', zIndex: 20, left: 0, right: 0, bottom: 0, pointerEvents: 'box-none' },
-  searchAvoiderContent: { width: '100%' },
-  searchArea: { alignItems: 'flex-end', paddingHorizontal: spacing.lg },
+  searchAvoider: { position: 'absolute', zIndex: 20, left: 0, top: 0, right: 0, bottom: 0, justifyContent: 'flex-end', pointerEvents: 'box-none' },
+  searchAvoiderContent: { flex: 1, justifyContent: 'flex-end' },
+  searchArea: { alignItems: 'flex-end', paddingHorizontal: spacing.lg, pointerEvents: 'box-none' },
   searchShell: { height: 56, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
   searchContent: { ...StyleSheet.absoluteFill, flexDirection: 'row', alignItems: 'center', paddingLeft: spacing.lg },
   searchInput: { flex: 1, minWidth: 0, height: 54, color: colors.text, fontFamily: type.regular, fontSize: 16, paddingHorizontal: spacing.sm },
@@ -585,22 +587,21 @@ const styles = StyleSheet.create({
   suggestionPrice: { color: colors.textMuted, fontFamily: type.bold, fontSize: 13 },
   cardRow: { gap: spacing.md },
   cardSlot: { flex: 1, maxWidth: '49%', marginBottom: spacing.md },
-  card: { minHeight: 318, overflow: 'hidden', borderWidth: 1, borderRadius: radius.lg, backgroundColor: colors.surface },
+  card: { overflow: 'hidden', borderWidth: 1, borderRadius: 20, backgroundColor: colors.surface },
   cardPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  cardImageShell: { width: '100%', aspectRatio: 1.18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F4F2' },
+  cardImageShell: { width: '100%', aspectRatio: 1.08, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F4F2' },
   cardImage: { width: '100%', height: '100%' },
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   imagePlaceholderText: { color: '#626A76', fontFamily: type.bold, fontSize: 9, letterSpacing: 1.1, marginTop: spacing.sm },
   cardBody: { flex: 1, padding: spacing.md },
-  cardName: { minHeight: 56, color: colors.text, fontFamily: type.bold, fontSize: 15, lineHeight: 19 },
-  shopPriceLabel: { color: colors.textMuted, fontFamily: type.bold, fontSize: 9, letterSpacing: 0.9, marginTop: spacing.sm },
-  cardPrice: { color: colors.text, fontFamily: type.bold, fontSize: 21, marginTop: spacing.xs },
-  statusChip: { minHeight: 34, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: spacing.md, marginTop: spacing.sm },
-  statusText: { maxWidth: 118, fontFamily: type.bold, fontSize: 11, marginLeft: 6 },
-  checkedText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 10, marginTop: spacing.sm },
+  cardName: { minHeight: 36, color: colors.text, fontFamily: type.bold, fontSize: 13, lineHeight: 18 },
+  shopPriceLabel: { color: colors.textMuted, fontFamily: type.bold, fontSize: 8, letterSpacing: 0.7, marginTop: 5 },
+  cardPrice: { color: colors.text, fontFamily: type.bold, fontSize: 15, marginTop: 1 },
+  statusChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 6, marginTop: 7 },
+  statusText: { maxWidth: 118, fontFamily: type.bold, fontSize: 9, marginLeft: 5 },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  skeletonCard: { width: '47.8%', height: 304, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface },
-  skeletonImage: { width: '100%', aspectRatio: 1.18, backgroundColor: colors.surfaceRaised },
+  skeletonCard: { width: '47.8%', overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: 20, backgroundColor: colors.surface },
+  skeletonImage: { width: '100%', aspectRatio: 1.08, backgroundColor: colors.surfaceRaised },
   skeletonBody: { padding: spacing.md, gap: spacing.sm },
   skeletonLineWide: { width: '92%', height: 14, borderRadius: radius.pill, backgroundColor: '#6C737E' },
   skeletonLineMedium: { width: '72%', height: 12, borderRadius: radius.pill, backgroundColor: '#59616D' },

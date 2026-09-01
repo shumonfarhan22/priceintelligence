@@ -38,7 +38,7 @@ export function DashboardScreen({
           onPress={onOpenTools}
           style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
         >
-          <Ionicons name="settings" size={27} color={colors.text} />
+          <Ionicons name="settings" size={24} color={colors.text} />
         </Pressable>
       </View>
 
@@ -65,14 +65,6 @@ export function DashboardScreen({
         {overview.uncheckedCount > 0 ? (
           <Text style={styles.uncheckedText}>{overview.uncheckedCount} awaiting a first retailer check</Text>
         ) : null}
-      </View>
-
-      <View style={styles.milestoneCard}>
-        <View style={styles.milestoneCopy}>
-          <Text style={styles.milestoneTitle}>Comparison milestone active</Text>
-          <Text style={styles.milestoneBody}>Search, scan, open saved evidence, and refresh Amazon or Flipkart prices safely.</Text>
-        </View>
-        <Ionicons name="shield-checkmark-outline" size={25} color={colors.primary} />
       </View>
 
       <View style={styles.tileGrid}>
@@ -112,13 +104,8 @@ function DashboardTile({
         pressed && styles.pressed,
       ]}
     >
-      <View style={[styles.iconHalo, { backgroundColor: withAlpha(color, '18') }]}>
-        <View style={[styles.iconShell, { borderColor: withAlpha(color, '77'), backgroundColor: withAlpha(color, '20') }]}>
-          <Ionicons name={icon} size={31} color={color} />
-        </View>
-      </View>
+      <Ionicons name={icon} size={46} color={color} />
       <Text style={styles.tileLabel}>{label}</Text>
-      {disabled ? <Text style={styles.tileStatus}>NEXT MILESTONE</Text> : <Text style={[styles.tileStatus, { color }]}>READY</Text>}
     </Pressable>
   );
 }
@@ -128,35 +115,28 @@ function withAlpha(hex: string, alpha: string): string {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.xl, paddingBottom: 48 },
-  brandRow: { minHeight: 92, flexDirection: 'row', alignItems: 'center' },
-  logo: { width: 62, height: 62 },
-  brandText: { flex: 1, marginLeft: spacing.md },
-  brandTitle: { color: colors.text, fontFamily: type.bold, fontSize: 25, letterSpacing: 1.2 },
+  content: { padding: spacing.lg, paddingTop: spacing.md, paddingBottom: 28 },
+  brandRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center' },
+  logo: { width: 50, height: 50 },
+  brandText: { flex: 1, marginLeft: 10 },
+  brandTitle: { color: colors.text, fontFamily: type.bold, fontSize: 22, lineHeight: 24, letterSpacing: 0.8 },
   brandSubtitle: { color: colors.text, fontFamily: type.semibold, fontSize: 11, letterSpacing: 0.75 },
-  onlineRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm },
-  onlineText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, marginLeft: spacing.xs },
-  settingsButton: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  overviewCard: { marginTop: spacing.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.xl },
-  eyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
-  overviewTitle: { color: colors.text, fontFamily: type.bold, fontSize: 22, marginTop: spacing.sm },
-  progressTrack: { height: 13, flexDirection: 'row', overflow: 'hidden', borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, marginTop: spacing.xl },
+  onlineRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
+  onlineText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 10, marginLeft: 5 },
+  settingsButton: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  overviewCard: { marginTop: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: spacing.lg },
+  eyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 10, letterSpacing: 1 },
+  overviewTitle: { color: colors.text, fontFamily: type.bold, fontSize: 17, marginTop: 2 },
+  progressTrack: { height: 11, flexDirection: 'row', overflow: 'hidden', borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, marginTop: 14 },
   progressSegment: { height: '100%' },
-  overviewMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.lg },
+  overviewMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
   metaItem: { flexDirection: 'row', alignItems: 'center' },
   metaDot: { width: 8, height: 8, borderRadius: 4, marginRight: spacing.sm },
-  metaText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13 },
-  uncheckedText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 12, marginTop: spacing.md },
-  milestoneCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.lg },
-  milestoneCopy: { flex: 1, minWidth: 0, paddingRight: spacing.md },
-  milestoneTitle: { color: colors.text, fontFamily: type.bold, fontSize: 15 },
-  milestoneBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 12, lineHeight: 17, marginTop: spacing.xs },
-  tileGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: spacing.lg, rowGap: spacing.lg },
-  tile: { width: '48%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: radius.lg, padding: spacing.md },
-  tileDisabled: { opacity: 0.43 },
-  iconHalo: { width: 88, height: 88, alignItems: 'center', justifyContent: 'center', borderRadius: 30 },
-  iconShell: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center', borderRadius: 21, borderWidth: 1 },
-  tileLabel: { color: colors.text, fontFamily: type.bold, fontSize: 17, textAlign: 'center', marginTop: spacing.md },
-  tileStatus: { color: colors.textMuted, fontFamily: type.bold, fontSize: 9, letterSpacing: 0.8, marginTop: spacing.sm },
+  metaText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 12 },
+  uncheckedText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginTop: spacing.sm },
+  tileGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: spacing.md, rowGap: spacing.md },
+  tile: { width: '48.2%', minHeight: 174, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 26, padding: 14 },
+  tileDisabled: { opacity: 0.5 },
+  tileLabel: { width: '100%', color: colors.text, fontFamily: type.bold, fontSize: 15, lineHeight: 19, textAlign: 'center', marginTop: spacing.lg },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
 });
