@@ -2,12 +2,8 @@
   "name": "price-intelligence-v2",
   "version": "1.0.0",
   "packageManager": "pnpm@11.19.0",
-  "devEngines": {
-    "runtime": {
-      "name": "node",
-      "version": "24.19.0",
-      "onFail": "download"
-    }
+  "engines": {
+    "node": ">=24.19.0 <27"
   },
   "main": "index.ts",
   "dependencies": {
@@ -39,9 +35,11 @@
   },
   "scripts": {
     "start": "expo start",
+    "phone": "expo start --lan",
+    "phone:tunnel": "expo start --tunnel",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web",
+    "web": "expo start --web --localhost",
     "typecheck": "tsc --noEmit",
     "doctor": "expo-doctor",
     "test": "vitest run"

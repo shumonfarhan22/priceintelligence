@@ -17,7 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomBanner, type BannerNotice, type BannerTone } from '../components/BottomBanner';
 import { MAX_BACKUP_BYTES } from '../data/backup';
-import { InventoryRepository } from '../data/inventoryRepository';
+import { InventoryRepository, type ComparisonOverview } from '../data/inventoryRepository';
+import { QuickCompareScreen } from '../features/comparison/QuickCompareScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { InventoryScreen } from '../features/inventory/InventoryScreen';
 import { colors, radius, spacing, type } from '../theme/tokens';
@@ -28,10 +29,10 @@ interface RootAppProps {
 
 type LoadState =
   | { phase: 'loading' }
-  | { phase: 'ready'; repository: InventoryRepository; productCount: number }
+  | { phase: 'ready'; repository: InventoryRepository; overview: ComparisonOverview }
   | { phase: 'error'; message: string };
 
-type Route = 'dashboard' | 'inventory';
+type Route = 'dashboard' | 'inventory' | 'comparison';
 
 export function RootApp({ fontFallback }: RootAppProps) {
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
@@ -41,6 +42,7 @@ export function RootApp({ fontFallback }: RootAppProps) {
   const [notice, setNotice] = useState<BannerNotice | null>(null);
   const noticeCounter = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const repositoryRef = useRef<InventoryRepository | null>(null);
 
   const showBanner = useCallback((
     message: string,
@@ -61,25 +63,50 @@ export function RootApp({ fontFallback }: RootAppProps) {
     }, action ? 5000 : 4200);
   }, []);
 
-  const updateProductCount = useCallback((productCount: number) => {
+  const refreshOverview = useCallback(async (repository: InventoryRepository) => {
+    const overview = await repository.getComparisonOverview();
     setState((current) => {
-      if (current.phase !== 'ready' || current.productCount === productCount) return current;
-      return { ...current, productCount };
+      if (current.phase !== 'ready' || current.repository !== repository) return current;
+      return { ...current, overview };
     });
   }, []);
+
+  const updateProductCount = useCallback((productCount: number) => {
+    setState((current) => {
+      if (current.phase !== 'ready' || current.overview.productCount === productCount) return current;
+      const categorized = Math.min(
+        productCount,
+        current.overview.competitiveCount + current.overview.reviewCount,
+      );
+      return {
+        ...current,
+        overview: {
+          ...current.overview,
+          productCount,
+          uncheckedCount: Math.max(0, productCount - categorized),
+        },
+      };
+    });
+    const repository = repositoryRef.current;
+    if (repository) refreshOverview(repository).catch(() => undefined);
+  }, [refreshOverview]);
 
   useEffect(() => {
     let active = true;
     InventoryRepository.create()
       .then(async (repository) => {
-        const productCount = await repository.countProducts();
-        if (active) setState({ phase: 'ready', repository, productCount });
+        const overview = await repository.getComparisonOverview();
+        if (active) {
+          repositoryRef.current = repository;
+          setState({ phase: 'ready', repository, overview });
+        }
       })
       .catch((error: unknown) => {
         if (active) setState({ phase: 'error', message: messageFrom(error) });
       });
     return () => {
       active = false;
+      repositoryRef.current = null;
       if (noticeTimer.current) clearTimeout(noticeTimer.current);
     };
   }, []);
@@ -144,23 +171,31 @@ export function RootApp({ fontFallback }: RootAppProps) {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {route === 'dashboard' ? (
         <DashboardScreen
-          productCount={state.productCount}
+          overview={state.overview}
           onOpenInventory={() => setRoute('inventory')}
+          onOpenCompare={() => setRoute('comparison')}
           onOpenTools={() => setToolsVisible(true)}
         />
-      ) : (
+      ) : route === 'inventory' ? (
         <InventoryScreen
           repository={state.repository}
-          productCount={state.productCount}
+          productCount={state.overview.productCount}
           onBack={() => setRoute('dashboard')}
           onProductCountChanged={updateProductCount}
+          showBanner={showBanner}
+        />
+      ) : (
+        <QuickCompareScreen
+          repository={state.repository}
+          onBack={() => setRoute('dashboard')}
+          onComparisonChanged={() => refreshOverview(state.repository).catch(() => undefined)}
           showBanner={showBanner}
         />
       )}
 
       <MigrationToolsModal
         visible={toolsVisible}
-        productCount={state.productCount}
+        productCount={state.overview.productCount}
         busy={busy}
         fontFallback={fontFallback}
         onClose={() => setToolsVisible(false)}

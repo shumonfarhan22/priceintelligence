@@ -2,17 +2,24 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { ComparisonOverview } from '../../data/inventoryRepository';
 import { colors, radius, spacing, type } from '../../theme/tokens';
 
 export function DashboardScreen({
-  productCount,
+  overview,
   onOpenInventory,
+  onOpenCompare,
   onOpenTools,
 }: {
-  productCount: number;
+  overview: ComparisonOverview;
   onOpenInventory: () => void;
+  onOpenCompare: () => void;
   onOpenTools: () => void;
 }) {
+  const total = Math.max(1, overview.productCount);
+  const competitiveWidth = `${(overview.competitiveCount / total) * 100}%` as `${number}%`;
+  const reviewWidth = `${(overview.reviewCount / total) * 100}%` as `${number}%`;
+  const uncheckedWidth = `${(overview.uncheckedCount / total) * 100}%` as `${number}%`;
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.brandRow}>
@@ -36,35 +43,43 @@ export function DashboardScreen({
       </View>
 
       <View style={styles.overviewCard}>
-        <Text style={styles.eyebrow}>LOCAL INVENTORY</Text>
+        <Text style={styles.eyebrow}>SHOP OVERVIEW</Text>
         <Text style={styles.overviewTitle}>
-          {productCount} {productCount === 1 ? 'product' : 'products'} protected
+          {overview.productCount} {overview.productCount === 1 ? 'product' : 'products'} compared
         </Text>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: productCount > 0 ? '100%' : '4%' }]} />
+          <View style={[styles.progressSegment, { width: competitiveWidth, backgroundColor: colors.primary }]} />
+          <View style={[styles.progressSegment, { width: reviewWidth, backgroundColor: colors.danger }]} />
+          <View style={[styles.progressSegment, { width: uncheckedWidth, backgroundColor: colors.textMuted }]} />
         </View>
         <View style={styles.overviewMeta}>
           <View style={styles.metaItem}>
             <View style={[styles.metaDot, { backgroundColor: colors.primary }]} />
-            <Text style={styles.metaText}>Offline SQLite</Text>
+            <Text style={styles.metaText}>Competitive {overview.competitiveCount}</Text>
           </View>
-          <Text style={styles.metaText}>Backup compatible</Text>
+          <View style={styles.metaItem}>
+            <View style={[styles.metaDot, { backgroundColor: colors.danger }]} />
+            <Text style={styles.metaText}>Review {overview.reviewCount}</Text>
+          </View>
         </View>
+        {overview.uncheckedCount > 0 ? (
+          <Text style={styles.uncheckedText}>{overview.uncheckedCount} awaiting a first retailer check</Text>
+        ) : null}
       </View>
 
       <View style={styles.milestoneCard}>
         <View style={styles.milestoneCopy}>
-          <Text style={styles.milestoneTitle}>V2 inventory milestone</Text>
-          <Text style={styles.milestoneBody}>Inventory is active. Comparison tiles unlock after their reliability gate.</Text>
+          <Text style={styles.milestoneTitle}>Comparison milestone active</Text>
+          <Text style={styles.milestoneBody}>Search, scan, open saved evidence, and refresh Amazon or Flipkart prices safely.</Text>
         </View>
-        <Ionicons name="construct-outline" size={25} color={colors.warning} />
+        <Ionicons name="shield-checkmark-outline" size={25} color={colors.primary} />
       </View>
 
       <View style={styles.tileGrid}>
         <DashboardTile label="Insights" icon="grid" color={colors.primary} disabled />
         <DashboardTile label="Inventory" icon="archive" color="#4F8DF7" onPress={onOpenInventory} />
         <DashboardTile label="Price Movement" icon="trending-up" color={colors.accent} disabled />
-        <DashboardTile label="Quick Compare" icon="search" color={colors.warning} disabled />
+        <DashboardTile label="Quick Compare" icon="search" color={colors.warning} onPress={onOpenCompare} />
       </View>
     </ScrollView>
   );
@@ -125,12 +140,13 @@ const styles = StyleSheet.create({
   overviewCard: { marginTop: spacing.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.xl },
   eyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
   overviewTitle: { color: colors.text, fontFamily: type.bold, fontSize: 22, marginTop: spacing.sm },
-  progressTrack: { height: 13, overflow: 'hidden', borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, marginTop: spacing.xl },
-  progressFill: { height: '100%', minWidth: 14, borderRadius: radius.pill, backgroundColor: colors.primary },
+  progressTrack: { height: 13, flexDirection: 'row', overflow: 'hidden', borderRadius: radius.pill, backgroundColor: colors.surfaceRaised, marginTop: spacing.xl },
+  progressSegment: { height: '100%' },
   overviewMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.lg },
   metaItem: { flexDirection: 'row', alignItems: 'center' },
   metaDot: { width: 8, height: 8, borderRadius: 4, marginRight: spacing.sm },
   metaText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13 },
+  uncheckedText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 12, marginTop: spacing.md },
   milestoneCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.lg },
   milestoneCopy: { flex: 1, minWidth: 0, paddingRight: spacing.md },
   milestoneTitle: { color: colors.text, fontFamily: type.bold, fontSize: 15 },

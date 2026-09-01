@@ -1,5 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import type { ComparisonSort } from '../domain/comparison';
+import { summarizeProductComparison } from '../domain/comparison';
 import type { BackupImportResult, ImportedProduct, InventoryProduct, PriceObservation } from '../domain/models';
 import type { ValidatedInventoryInput } from '../domain/inventoryValidation';
 import {
@@ -33,6 +35,20 @@ interface HistoryRow {
   retailer: 'AMAZON' | 'FLIPKART';
   price: number;
   checked_at: number;
+}
+
+export interface ComparisonPage {
+  products: InventoryProduct[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface ComparisonOverview {
+  productCount: number;
+  competitiveCount: number;
+  reviewCount: number;
+  uncheckedCount: number;
 }
 
 export class InventoryRepository {
@@ -86,6 +102,123 @@ export class InventoryRepository {
       params,
     );
     return rows.map(mapInventoryRow);
+  }
+
+  async listComparisonProducts(
+    query: string,
+    sort: ComparisonSort,
+    requestedPage: number,
+    pageSize = 10,
+  ): Promise<ComparisonPage> {
+    const safePageSize = Math.min(50, Math.max(1, Math.trunc(pageSize)));
+    const search = comparisonSearch(query);
+    const countRow = await this.database.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) AS count FROM inventory${search.where}`,
+      search.params,
+    );
+    const total = countRow?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+    const page = Math.min(totalPages, Math.max(1, Math.trunc(requestedPage)));
+    const rows = await this.database.getAllAsync<InventoryRow>(
+      `SELECT * FROM inventory${search.where}
+       ORDER BY ${comparisonOrder(sort)}
+       LIMIT ? OFFSET ?`,
+      [...search.params, safePageSize, (page - 1) * safePageSize],
+    );
+    return { products: rows.map(mapInventoryRow), total, page, totalPages };
+  }
+
+  async listProductSuggestions(query: string, limit = 5): Promise<InventoryProduct[]> {
+    const page = await this.listComparisonProducts(query, 'ALPHABETICAL', 1, limit);
+    return page.products;
+  }
+
+  async getProduct(id: number): Promise<InventoryProduct | null> {
+    const row = await this.database.getFirstAsync<InventoryRow>(
+      'SELECT * FROM inventory WHERE id = ? LIMIT 1',
+      id,
+    );
+    return row ? mapInventoryRow(row) : null;
+  }
+
+  async incrementProductView(id: number): Promise<void> {
+    await this.database.runAsync(
+      'UPDATE inventory SET search_count = search_count + 1 WHERE id = ?',
+      id,
+    );
+  }
+
+  async getComparisonOverview(): Promise<ComparisonOverview> {
+    const rows = await this.database.getAllAsync<InventoryRow>('SELECT * FROM inventory');
+    let competitiveCount = 0;
+    let reviewCount = 0;
+    let uncheckedCount = 0;
+    for (const row of rows) {
+      const summary = summarizeProductComparison(mapInventoryRow(row));
+      if (summary.position === 'COMPETITIVE') competitiveCount += 1;
+      else if (summary.position === 'REVIEW') reviewCount += 1;
+      else uncheckedCount += 1;
+    }
+    return {
+      productCount: rows.length,
+      competitiveCount,
+      reviewCount,
+      uncheckedCount,
+    };
+  }
+
+  async recordRetailerPrice(
+    itemId: number,
+    retailer: 'AMAZON' | 'FLIPKART',
+    price: number,
+    checkedAt: number,
+    imageUrl: string | null,
+  ): Promise<boolean> {
+    if (!Number.isSafeInteger(itemId) || itemId <= 0) return false;
+    if (!Number.isFinite(price) || price <= 0 || !Number.isSafeInteger(checkedAt) || checkedAt <= 0) {
+      throw new Error('The live retailer result was invalid and was not saved.');
+    }
+    const priceColumn = retailer === 'AMAZON' ? 'amazon_last_price' : 'flipkart_last_price';
+    const checkedColumn = retailer === 'AMAZON' ? 'amazon_last_checked' : 'flipkart_last_checked';
+    const safeImage = normalizeRemoteImage(imageUrl);
+    let saved = false;
+    await withWriteTransaction(this.database, async (transaction) => {
+      const update = await transaction.runAsync(
+        `UPDATE inventory
+         SET ${priceColumn} = ?, ${checkedColumn} = ?, image_url = COALESCE(?, image_url)
+         WHERE id = ?`,
+        price,
+        checkedAt,
+        safeImage,
+        itemId,
+      );
+      if (update.changes !== 1) return;
+      await transaction.runAsync(
+        `INSERT OR IGNORE INTO price_history
+         (inventory_item_id, retailer, price, checked_at) VALUES (?, ?, ?, ?)`,
+        itemId,
+        retailer,
+        price,
+        checkedAt,
+      );
+      saved = true;
+    });
+    return saved;
+  }
+
+  async listPriceHistory(itemId: number): Promise<PriceObservation[]> {
+    const rows = await this.database.getAllAsync<HistoryRow>(
+      `SELECT retailer, price, checked_at
+       FROM price_history
+       WHERE inventory_item_id = ?
+       ORDER BY checked_at DESC`,
+      itemId,
+    );
+    return rows.map((row) => ({
+      retailer: row.retailer,
+      price: row.price,
+      checkedAt: row.checked_at,
+    }));
   }
 
   async saveProduct(input: ValidatedInventoryInput, editingId: number | null): Promise<number> {
@@ -314,4 +447,57 @@ function mapInventoryRow(row: InventoryRow): InventoryProduct {
     flipkartLastPrice: row.flipkart_last_price,
     flipkartLastChecked: row.flipkart_last_checked,
   };
+}
+
+function comparisonSearch(query: string): { where: string; params: string[] } {
+  const trimmed = query.trim();
+  if (!trimmed) return { where: '', params: [] };
+  if (/^\d+$/.test(trimmed)) {
+    return {
+      where: ' WHERE lower(COALESCE(barcode, \'\')) = lower(?)',
+      params: [trimmed],
+    };
+  }
+  const words = trimmed.split(/\s+/).filter(Boolean).slice(0, 12);
+  const nameClause = words.map(() => 'instr(lower(product_name), lower(?)) > 0').join(' AND ');
+  return {
+    where: ` WHERE ((${nameClause})
+      OR instr(lower(COALESCE(barcode, '')), lower(?)) > 0
+      OR instr(lower(COALESCE(amazon_url, '')), lower(?)) > 0
+      OR instr(lower(COALESCE(flipkart_url, '')), lower(?)) > 0)`,
+    params: [...words, trimmed, trimmed, trimmed],
+  };
+}
+
+function comparisonOrder(sort: ComparisonSort): string {
+  switch (sort) {
+    case 'ALPHABETICAL':
+      return 'product_name COLLATE NOCASE ASC, id ASC';
+    case 'RECENT':
+      return 'updated_at DESC, product_name COLLATE NOCASE ASC, id ASC';
+    case 'BEST_SAVING':
+      return `(shop_price - CASE
+        WHEN amazon_last_price > 0 AND flipkart_last_price > 0
+          THEN CASE WHEN amazon_last_price < flipkart_last_price THEN amazon_last_price ELSE flipkart_last_price END
+        WHEN amazon_last_price > 0 THEN amazon_last_price
+        WHEN flipkart_last_price > 0 THEN flipkart_last_price
+        ELSE shop_price
+      END) DESC, product_name COLLATE NOCASE ASC, id ASC`;
+    case 'MOST_VIEWED':
+    default:
+      return 'search_count DESC, updated_at DESC, product_name COLLATE NOCASE ASC, id ASC';
+  }
+}
+
+function normalizeRemoteImage(value: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    if (parsed.protocol === 'http:') parsed.protocol = 'https:';
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 }

@@ -21,7 +21,9 @@ throughout testing.
 1. Foundation (implemented): first-party Expo modules, explicit SQLite migrations, backup import/export, tests.
 2. Inventory (implemented, physical-device gate pending): grouping, search, add/edit/delete, Undo,
    camera barcode scan, native text input, paste, and keyboard behavior.
-3. Comparison: product discovery, Amazon/Flipkart checks, saved/live/unavailable/failed states.
+3. Comparison (implemented, physical-device gate pending): product discovery, barcode search,
+   paging/sorting, Amazon/Flipkart checks, safe external links, cancellable refresh, and explicit
+   saved/live/unavailable/failed states.
 4. Price movement: bounded history, charts, retailer/time filters, alerts and refresh rules.
 5. Personalization: Supreme Dark baseline, light theme, typography, accessibility, live preview.
 6. Hardening: backup round trips, offline behavior, cancellation/race tests, large inventories.

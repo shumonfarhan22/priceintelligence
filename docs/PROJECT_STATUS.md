@@ -1,6 +1,6 @@
 # Price Intelligence project status
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 ## Parallel Expo V2 foundation
 
@@ -22,6 +22,17 @@ inspection. The dashboard, inventory, editor, calculator, backup sheet, populate
 were visually checked at 320, 360, and 390 pixel phone widths. The user physically confirmed that the
 calculator and camera open correctly on iPhone; delayed scan-complete haptics still require an iPhone
 retest because iOS suppresses feedback while the camera remains active.
+
+The comparison milestone now adds a complete V2 Quick Compare workflow: product-name, barcode, and
+retailer-link discovery; ten-item paging; four useful sorts; saved evidence on cards; a responsive
+product-details sheet; explicit live, saved, unavailable, checking, and failed retailer states; safe
+Amazon/Flipkart link opening; cancellable live checks; challenge-page detection; and deletion-safe
+SQLite cache/history writes. The browser UI passed responsive checks at 320 and 390 pixels, but live
+retailer networking and scan-to-compare still require physical Android and iPhone confirmation.
+
+Comparison milestone verification on 1 September 2026: strict TypeScript checking passed, 17 focused
+tests passed, Expo Doctor passed all 21 checks, and fresh Android, iPhone, and web production exports
+completed successfully. These checks do not claim physical-device or live-retailer verification.
 
 ## Authoritative source state
 
