@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   InputAccessoryView,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -204,6 +205,12 @@ export function ProductEditorModal({
           />
         ) : (
           <>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          enabled={Platform.OS === 'ios'}
+          keyboardVerticalOffset={0}
+          style={styles.keyboardRoot}
+        >
         <SafeAreaView style={styles.modalRoot}>
           <Pressable style={styles.dismissArea} onPress={Keyboard.dismiss}>
             <View style={styles.sheet} onStartShouldSetResponder={() => true}>
@@ -223,7 +230,6 @@ export function ProductEditorModal({
                 contentContainerStyle={styles.form}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-                automaticallyAdjustKeyboardInsets
                 showsVerticalScrollIndicator={false}
               >
                 {error ? (
@@ -245,6 +251,7 @@ export function ProductEditorModal({
                   }, 180)}
                   placeholder="e.g., Hawkins 3.5L Cooker"
                   inputRef={nameRef}
+                  focused={focusedField === 'productName'}
                   returnKeyType="next"
                   onSubmitEditing={() => purchaseRef.current?.focus()}
                   error={error?.field === 'productName'}
@@ -279,6 +286,7 @@ export function ProductEditorModal({
                 <View style={styles.priceRow}>
                   <Field
                     compact
+                    optional
                     label="Purchase Cost"
                     value={draft.purchaseCost}
                     onChangeText={(value) => changeField('purchaseCost', value)}
@@ -286,6 +294,7 @@ export function ProductEditorModal({
                     placeholder="₹ 0.00"
                     inputMode="decimal"
                     inputRef={purchaseRef}
+                    focused={focusedField === 'purchaseCost'}
                     returnKeyType="next"
                     onSubmitEditing={() => sellingRef.current?.focus()}
                     error={error?.field === 'purchaseCost'}
@@ -299,6 +308,7 @@ export function ProductEditorModal({
                     placeholder="₹ 0.00"
                     inputMode="decimal"
                     inputRef={sellingRef}
+                    focused={focusedField === 'shopPrice'}
                     returnKeyType="next"
                     onSubmitEditing={() => barcodeRef.current?.focus()}
                     error={error?.field === 'shopPrice'}
@@ -306,6 +316,7 @@ export function ProductEditorModal({
                 </View>
 
                 <Field
+                  optional
                   label="Barcode"
                   value={draft.barcode}
                   onChangeText={(value) => changeField('barcode', value)}
@@ -313,6 +324,7 @@ export function ProductEditorModal({
                   placeholder="Scan or enter barcode"
                   inputMode="text"
                   inputRef={barcodeRef}
+                  focused={focusedField === 'barcode'}
                   returnKeyType="done"
                   onSubmitEditing={Keyboard.dismiss}
                   error={error?.field === 'barcode'}
@@ -354,6 +366,7 @@ export function ProductEditorModal({
                     inputMode="url"
                     autoCapitalize="none"
                     inputRef={amazonRef}
+                    focused={focusedField === 'amazonUrl'}
                     returnKeyType="next"
                     onSubmitEditing={() => draft.flipkartUrl.trim() ? focusField('flipkartUrl') : Keyboard.dismiss()}
                     error={error?.field === 'amazonUrl'}
@@ -382,6 +395,7 @@ export function ProductEditorModal({
                     inputMode="url"
                     autoCapitalize="none"
                     inputRef={flipkartRef}
+                    focused={focusedField === 'flipkartUrl'}
                     returnKeyType="done"
                     onSubmitEditing={Keyboard.dismiss}
                     error={error?.field === 'flipkartUrl'}
@@ -431,6 +445,7 @@ export function ProductEditorModal({
             </View>
           </Pressable>
         </SafeAreaView>
+        </KeyboardAvoidingView>
         {Platform.OS === 'ios' ? (
           <InputAccessoryView nativeID={ACCESSORY_ID}>
             <View style={styles.keyboardAccessory}>
@@ -520,6 +535,8 @@ function Field({
   autoCapitalize = 'sentences',
   accessory,
   compact = false,
+  optional = false,
+  focused = false,
   error = false,
 }: {
   label: string;
@@ -535,12 +552,24 @@ function Field({
   autoCapitalize?: 'none' | 'sentences';
   accessory?: React.ReactNode;
   compact?: boolean;
+  optional?: boolean;
+  focused?: boolean;
   error?: boolean;
 }) {
   return (
     <View style={[styles.fieldGroup, compact && styles.compactField]}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={[styles.inputShell, error && styles.inputError]}>
+      <View style={styles.fieldLabelRow}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        {optional ? (
+          <Ionicons
+            name="information-circle"
+            size={14}
+            color={colors.textMuted}
+            accessibilityLabel="Optional field"
+          />
+        ) : null}
+      </View>
+      <View style={[styles.inputShell, focused && styles.inputFocused, error && styles.inputError]}>
         <TextInput
           ref={inputRef}
           value={value}
@@ -621,37 +650,40 @@ function fieldLabel(field: DraftField | null): string {
 }
 
 const styles = StyleSheet.create({
-  modalRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.80)', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl },
+  keyboardRoot: { flex: 1 },
+  modalRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   dismissArea: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
-  sheet: { width: '100%', maxWidth: 560, maxHeight: '94%', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.xl, paddingRight: spacing.md, paddingTop: spacing.sm },
-  title: { color: colors.text, fontFamily: type.bold, fontSize: 21 },
+  sheet: { width: '100%', maxWidth: 560, maxHeight: '100%', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  header: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 20, paddingRight: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.xs },
+  title: { color: colors.text, fontFamily: type.bold, fontSize: 18 },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  form: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: spacing.xl, gap: spacing.lg },
+  form: { paddingHorizontal: 20, paddingBottom: 20, gap: 14 },
   errorBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(244,63,94,0.10)', borderColor: 'rgba(244,63,94,0.45)', borderWidth: 1, borderRadius: radius.md, padding: spacing.md },
   errorText: { flex: 1, color: colors.danger, fontFamily: type.semibold, fontSize: 14, lineHeight: 19, marginLeft: spacing.sm },
-  sectionLabel: { color: colors.textMuted, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
-  sectionHeadingRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  calculatorButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.background },
-  calculatorButtonText: { color: colors.text, fontFamily: type.semibold, fontSize: 13, marginLeft: spacing.sm },
+  sectionLabel: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 11, letterSpacing: 0.8 },
+  sectionHeadingRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  calculatorButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 11, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.surfaceRaised },
+  calculatorButtonText: { color: colors.textMuted, fontFamily: type.bold, fontSize: 10, letterSpacing: 0.2, marginLeft: 7 },
   priceRow: { flexDirection: 'row', gap: spacing.md },
   fieldGroup: { width: '100%' },
   compactField: { flex: 1 },
-  fieldLabel: { color: colors.text, fontFamily: type.semibold, fontSize: 14, marginBottom: spacing.sm },
-  inputShell: { minHeight: 58, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingLeft: spacing.lg, paddingRight: spacing.sm },
+  fieldLabelRow: { minHeight: 20, flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: spacing.xs, marginBottom: 6 },
+  fieldLabel: { color: colors.text, fontFamily: type.regular, fontSize: 13 },
+  inputShell: { minHeight: 56, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingLeft: spacing.lg, paddingRight: spacing.sm },
+  inputFocused: { backgroundColor: colors.surfaceRaised, borderColor: colors.primary },
   inputError: { borderColor: colors.danger },
   input: { flex: 1, minHeight: 56, color: colors.text, fontFamily: type.regular, fontSize: 16, paddingVertical: spacing.md },
   inlineAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.sm, backgroundColor: colors.primaryMuted },
   inlineActionText: { color: colors.primary, fontFamily: type.bold, fontSize: 13, marginLeft: spacing.xs },
   iconAction: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
   retailerRow: { flexDirection: 'row', gap: spacing.md },
-  retailerButton: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: 'rgba(11,15,20,0.26)', paddingHorizontal: spacing.sm },
+  retailerButton: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface, paddingHorizontal: spacing.sm },
   retailerButtonWide: { flex: 0, width: '100%' },
   retailerButtonText: { flexShrink: 1, color: colors.primary, fontFamily: type.semibold, fontSize: 13, marginHorizontal: spacing.sm },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
-  secondaryButton: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
+  secondaryButton: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 12 },
   secondaryButtonText: { color: colors.text, fontFamily: type.bold, fontSize: 14 },
-  primaryButton: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md },
+  primaryButton: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: 12 },
   primaryButtonText: { color: colors.background, fontFamily: type.bold, fontSize: 14, letterSpacing: 0.4 },
   keyboardAccessory: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceRaised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingHorizontal: spacing.lg },
   keyboardFieldName: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 13 },

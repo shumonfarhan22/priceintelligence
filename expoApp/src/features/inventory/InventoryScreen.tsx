@@ -5,6 +5,8 @@ import {
   Animated,
   BackHandler,
   Keyboard,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   PanResponder,
   Platform,
   Pressable,
@@ -21,7 +23,7 @@ import type { BannerTone } from '../../components/BottomBanner';
 import type { InventoryProduct } from '../../domain/models';
 import type { ValidatedInventoryInput } from '../../domain/inventoryValidation';
 import { InventoryRepository } from '../../data/inventoryRepository';
-import { colors, radius, spacing, type } from '../../theme/tokens';
+import { colors, spacing, type } from '../../theme/tokens';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { ProductEditorModal } from './ProductEditorModal';
 
@@ -43,12 +45,14 @@ export function InventoryScreen({
   onBack,
   onProductCountChanged,
   showBanner,
+  bannerVisible,
 }: {
   repository: InventoryRepository;
   productCount: number;
   onBack: () => void;
   onProductCountChanged: (count: number) => void;
   showBanner: ShowBanner;
+  bannerVisible: boolean;
 }) {
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [query, setQuery] = useState('');
@@ -65,6 +69,10 @@ export function InventoryScreen({
   const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDeleteRef = useRef<InventoryProduct[] | null>(null);
   const searchRef = useRef<TextInput>(null);
+  const lastScrollY = useRef(0);
+  const accumulatedScroll = useRef(0);
+  const headerProgress = useRef(new Animated.Value(1)).current;
+  const [scrollHeaderVisible, setScrollHeaderVisible] = useState(true);
 
   const loadProducts = useCallback(async (search = query) => {
     const id = ++requestId.current;
@@ -117,6 +125,39 @@ export function InventoryScreen({
 
   const allShownIds = visibleProducts.map((product) => product.id);
   const allShownSelected = allShownIds.length > 0 && allShownIds.every((id) => selectedIds.has(id));
+  const selectionMode = selectedIds.size > 0;
+  const headerVisible = selectionMode || visibleProducts.length === 0 || scrollHeaderVisible;
+
+  useEffect(() => {
+    Animated.timing(headerProgress, {
+      toValue: headerVisible ? 1 : 0,
+      duration: 170,
+      useNativeDriver: false,
+    }).start();
+  }, [headerProgress, headerVisible]);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offset = Math.max(0, event.nativeEvent.contentOffset.y);
+    const delta = offset - lastScrollY.current;
+    if (
+      (delta > 0 && accumulatedScroll.current < 0) ||
+      (delta < 0 && accumulatedScroll.current > 0)
+    ) {
+      accumulatedScroll.current = 0;
+    }
+    accumulatedScroll.current += delta;
+    if (selectionMode || visibleProducts.length === 0 || offset < 8) {
+      setScrollHeaderVisible(true);
+      accumulatedScroll.current = 0;
+    } else if (accumulatedScroll.current > 12) {
+      setScrollHeaderVisible(false);
+      accumulatedScroll.current = 0;
+    } else if (accumulatedScroll.current < -8) {
+      setScrollHeaderVisible(true);
+      accumulatedScroll.current = 0;
+    }
+    lastScrollY.current = offset;
+  }, [selectionMode, visibleProducts.length]);
 
   const toggleSelection = (id: number) => {
     setSelectedIds((current) => {
@@ -181,6 +222,9 @@ export function InventoryScreen({
   const refresh = async () => {
     setRefreshing(true);
     Keyboard.dismiss();
+    lastScrollY.current = 0;
+    accumulatedScroll.current = 0;
+    setScrollHeaderVisible(true);
     setQuery('');
     setExpandedGroups(new Set());
     setSelectedIds(new Set());
@@ -221,13 +265,85 @@ export function InventoryScreen({
 
   return (
     <View style={styles.screen}>
+      <View style={styles.directoryChrome}>
+        <Animated.View
+          style={[
+            styles.headerClip,
+            {
+              height: headerProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
+              opacity: headerProgress,
+            },
+          ]}
+        >
+          <InventoryHeader
+            total={loading ? productCount : visibleProducts.length}
+            selectionCount={selectedIds.size}
+            allShownSelected={allShownSelected}
+            onBack={leaveInventory}
+            onRefresh={refresh}
+            onSelectAll={() => setSelectedIds(allShownSelected ? new Set() : new Set(allShownIds))}
+            onClearSelection={() => setSelectedIds(new Set())}
+            onDeleteSelection={() => queueDelete(visibleProducts.filter((product) => selectedIds.has(product.id)))}
+          />
+        </Animated.View>
+        <View style={styles.searchShell}>
+          <Ionicons name="search" size={21} color={colors.textMuted} />
+          <TextInput
+            ref={searchRef}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search inventory…"
+            placeholderTextColor={colors.textMuted}
+            selectionColor={colors.primary}
+            cursorColor={colors.primary}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="never"
+            onSubmitEditing={Keyboard.dismiss}
+            style={styles.searchInput}
+            accessibilityLabel="Search inventory"
+          />
+          <View style={styles.searchClearSlot}>
+            {query ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear inventory search"
+                hitSlop={10}
+                onPress={() => {
+                  setQuery('');
+                  Keyboard.dismiss();
+                }}
+                style={styles.searchAction}
+              >
+                <Ionicons name="close" size={20} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Scan inventory barcode"
+            onPress={() => {
+              Keyboard.dismiss();
+              setScannerVisible(true);
+            }}
+            style={styles.searchAction}
+          >
+            <Ionicons name="camera" size={21} color={colors.textMuted} />
+          </Pressable>
+        </View>
+      </View>
       <SectionList
+        style={styles.list}
         sections={sections}
         keyExtractor={(item) => item.id.toString()}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         stickySectionHeadersEnabled={false}
         contentContainerStyle={styles.listContent}
+        onScroll={handleScroll}
+        onScrollBeginDrag={Keyboard.dismiss}
+        scrollEventThrottle={16}
         refreshControl={(
           <RefreshControl
             refreshing={refreshing}
@@ -237,69 +353,12 @@ export function InventoryScreen({
             progressBackgroundColor={colors.surface}
           />
         )}
-        ListHeaderComponent={(
-          <View>
-            <InventoryHeader
-              total={productCount}
-              selectionCount={selectedIds.size}
-              allShownSelected={allShownSelected}
-              onBack={leaveInventory}
-              onRefresh={refresh}
-              onSelectAll={() => setSelectedIds(allShownSelected ? new Set() : new Set(allShownIds))}
-              onClearSelection={() => setSelectedIds(new Set())}
-              onDeleteSelection={() => queueDelete(visibleProducts.filter((product) => selectedIds.has(product.id)))}
-            />
-            <View style={styles.searchShell}>
-              <Ionicons name="search" size={23} color={colors.textMuted} />
-              <TextInput
-                ref={searchRef}
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search inventory…"
-                placeholderTextColor={colors.textMuted}
-                selectionColor={colors.primary}
-                cursorColor={colors.primary}
-                returnKeyType="search"
-                autoCapitalize="none"
-                autoCorrect={false}
-                clearButtonMode="never"
-                onSubmitEditing={Keyboard.dismiss}
-                style={styles.searchInput}
-                accessibilityLabel="Search inventory"
-              />
-              {query ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear inventory search"
-                  hitSlop={10}
-                  onPress={() => {
-                    setQuery('');
-                    searchRef.current?.focus();
-                  }}
-                  style={styles.searchAction}
-                >
-                  <Ionicons name="close" size={20} color={colors.textMuted} />
-                </Pressable>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Scan inventory barcode"
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setScannerVisible(true);
-                }}
-                style={styles.searchAction}
-              >
-                <Ionicons name="camera" size={23} color={colors.textMuted} />
-              </Pressable>
-            </View>
-          </View>
-        )}
         renderSectionHeader={({ section }) => (
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ expanded: query.trim() ? true : expandedGroups.has(section.title) }}
             onPress={() => {
+              Keyboard.dismiss();
               if (query.trim()) return;
               setExpandedGroups((current) => {
                 const next = new Set(current);
@@ -340,17 +399,19 @@ export function InventoryScreen({
             </Text>
           </View>
         ) : null}
-        ListFooterComponent={<View style={{ height: 100 + insets.bottom }} />}
+        ListFooterComponent={<View style={{ height: 100 + insets.bottom + (bannerVisible ? 64 : 0) }} />}
       />
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add new product"
-        onPress={openNewProduct}
-        style={({ pressed }) => [styles.fab, { bottom: spacing.xl + insets.bottom }, pressed && styles.pressed]}
-      >
-        <Ionicons name="add" size={31} color={colors.background} />
-      </Pressable>
+      {!selectionMode && !bannerVisible ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add new product"
+          onPress={openNewProduct}
+          style={({ pressed }) => [styles.fab, { bottom: spacing.lg + insets.bottom }, pressed && styles.pressed]}
+        >
+          <Ionicons name="add" size={31} color={colors.background} />
+        </Pressable>
+      ) : null}
 
       <ProductEditorModal
         visible={editorVisible}
@@ -392,36 +453,41 @@ function InventoryHeader({
   onDeleteSelection: () => void;
 }) {
   const selectionMode = selectionCount > 0;
+  if (selectionMode) {
+    return (
+      <View style={styles.selectionHeader}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Clear selection" onPress={onClearSelection} style={styles.headerIcon}>
+          <Ionicons name="close" size={25} color={colors.text} />
+        </Pressable>
+        <Text style={styles.selectionTitle}>{selectionCount} selected</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={allShownSelected ? 'Deselect all shown' : 'Select all shown'} onPress={onSelectAll} style={styles.selectionAllButton}>
+          <Text style={styles.selectionAllText}>{allShownSelected ? 'None' : 'All'}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Delete selected products" onPress={onDeleteSelection} style={styles.headerIcon}>
+          <Ionicons name="trash" size={23} color={colors.danger} />
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel={selectionMode ? 'Clear selection' : 'Back'} onPress={selectionMode ? onClearSelection : onBack} style={styles.headerIcon}>
-        <Ionicons name={selectionMode ? 'close' : 'arrow-back'} size={26} color={colors.text} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.headerIcon}>
+        <Ionicons name="arrow-back" size={25} color={colors.primary} />
       </Pressable>
       <View style={styles.headerBadge}>
-        <Ionicons name="archive" size={25} color={colors.primary} />
+        <Ionicons name="storefront" size={24} color={colors.primary} />
       </View>
       <View style={styles.headerText}>
-        <Text style={styles.headerEyebrow} numberOfLines={1}>
-          {selectionMode ? 'INVENTORY SELECTION' : 'SUPREME INVENTORY'}
-        </Text>
-        <Text style={styles.headerTitle}>
-          {selectionMode ? `${selectionCount} selected` : `${total} Total ${total === 1 ? 'Product' : 'Products'}`}
-        </Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerBrand}>SUPREME </Text>
+          <Text style={styles.headerName}>INVENTORY</Text>
+        </View>
+        <Text style={styles.headerSubtitle}>{total} Total {total === 1 ? 'Product' : 'Products'}</Text>
       </View>
-      {selectionMode ? (
-        <>
-          <Pressable accessibilityRole="button" accessibilityLabel={allShownSelected ? 'Deselect all shown' : 'Select all shown'} onPress={onSelectAll} style={styles.headerIcon}>
-            <Ionicons name={allShownSelected ? 'checkbox' : 'square-outline'} size={24} color={colors.text} />
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Delete selected products" onPress={onDeleteSelection} style={styles.headerIcon}>
-            <Ionicons name="trash-outline" size={24} color={colors.danger} />
-          </Pressable>
-        </>
-      ) : (
-        <Pressable accessibilityRole="button" accessibilityLabel="Refresh inventory" onPress={onRefresh} style={styles.headerIcon}>
-          <Ionicons name="refresh" size={25} color={colors.text} />
-        </Pressable>
-      )}
+      <Pressable accessibilityRole="button" accessibilityLabel="Refresh inventory" onPress={onRefresh} style={styles.headerIcon}>
+        <Ionicons name="refresh" size={25} color={colors.text} />
+      </Pressable>
     </View>
   );
 }
@@ -510,6 +576,14 @@ function ProductRow({
             }}
             style={({ pressed }) => [styles.productMain, pressed && styles.pressed]}
           >
+            {selectionMode ? (
+              <Ionicons
+                name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                size={25}
+                color={selected ? colors.primary : colors.textMuted}
+                style={styles.selectionCheck}
+              />
+            ) : null}
             <View style={styles.productImageShell}>
               {product.imageUrl ? (
                 <Image source={product.imageUrl} style={styles.productImage} contentFit="contain" transition={120} />
@@ -520,13 +594,11 @@ function ProductRow({
             <View style={styles.productContent}>
               <Text style={styles.productName} numberOfLines={2}>{product.productName}</Text>
               <View style={styles.pricePill}>
-                <Ionicons name="pricetag" size={13} color={colors.primary} />
-                <Text style={styles.priceValue} numberOfLines={1}>SUPREME • {formatInr(product.shopPrice)}</Text>
+                <Ionicons name="pricetag" size={12} color={colors.primary} />
+                <Text style={styles.priceLabel} numberOfLines={1}>Supreme Price:</Text>
+                <Text style={styles.priceValue} numberOfLines={1}>{formatInr(product.shopPrice)}</Text>
               </View>
             </View>
-            {selectionMode ? (
-              <Ionicons name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={25} color={selected ? colors.primary : colors.textMuted} />
-            ) : null}
           </Pressable>
           {!selectionMode ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${product.productName}`} onPress={onEdit} hitSlop={8} style={styles.rowAction}>
@@ -549,34 +621,46 @@ function messageFrom(error: unknown): string {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  directoryChrome: { paddingHorizontal: spacing.lg },
+  headerClip: { overflow: 'hidden' },
+  list: { flex: 1 },
+  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
   header: { minHeight: 60, flexDirection: 'row', alignItems: 'center' },
+  selectionHeader: { minHeight: 52, flexDirection: 'row', alignItems: 'center' },
   headerIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerBadge: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryMuted, marginLeft: spacing.xs },
   headerText: { flex: 1, marginLeft: 10 },
-  headerEyebrow: { color: colors.text, fontFamily: type.bold, fontSize: 13, letterSpacing: 0.2 },
-  headerTitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginTop: 2 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  headerBrand: { color: colors.primary, fontFamily: type.bold, fontSize: 19, lineHeight: 21 },
+  headerName: { color: colors.text, fontFamily: type.bold, fontSize: 19, lineHeight: 21 },
+  headerSubtitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginTop: 1 },
+  selectionTitle: { flex: 1, color: colors.text, fontFamily: type.bold, fontSize: 16, marginLeft: spacing.xs },
+  selectionAllButton: { minWidth: 52, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  selectionAllText: { color: colors.textMuted, fontFamily: type.bold, fontSize: 13 },
   searchShell: { height: 56, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, paddingLeft: 14, paddingRight: spacing.xs, marginVertical: spacing.md },
   searchInput: { flex: 1, minHeight: 54, color: colors.text, fontFamily: type.regular, fontSize: 16, paddingHorizontal: spacing.md },
+  searchClearSlot: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   searchAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  groupHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, marginBottom: spacing.sm },
+  groupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceRaised, borderColor: 'transparent', borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, marginTop: spacing.xs, marginBottom: 10 },
   groupName: { color: colors.primary, fontFamily: type.bold, fontSize: 15, letterSpacing: 0.3 },
   groupMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   groupCount: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13 },
-  swipeContainer: { overflow: 'hidden', borderRadius: 13, marginBottom: 10 },
-  deleteUnderlay: { ...StyleSheet.absoluteFill, alignItems: 'flex-end', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.danger },
+  swipeContainer: { overflow: 'hidden', borderRadius: 12, marginBottom: 10 },
+  deleteUnderlay: { ...StyleSheet.absoluteFill, alignItems: 'flex-end', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.danger },
   deleteAction: { width: 76, height: '100%', alignItems: 'center', justifyContent: 'center' },
   deleteText: { color: colors.text, fontFamily: type.bold, fontSize: 10, marginTop: 2 },
-  productRow: { minHeight: 84, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 13, padding: 9 },
+  productRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 },
   productMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
   productSelected: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
-  productImageShell: { width: 64, height: 64, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
-  productImage: { width: '100%', height: '100%', backgroundColor: '#F8FAFC' },
-  productContent: { flex: 1, marginLeft: 11, marginRight: spacing.sm },
-  productName: { color: colors.text, fontFamily: type.bold, fontSize: 14, lineHeight: 18 },
-  pricePill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(16,185,129,0.70)', borderRadius: 7, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, marginTop: 6 },
-  priceValue: { flexShrink: 1, color: colors.primary, fontFamily: type.bold, fontSize: 10, marginLeft: 6 },
-  rowAction: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  selectionCheck: { marginRight: spacing.sm },
+  productImageShell: { width: 64, height: 64, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  productImage: { width: 52, height: 52 },
+  productContent: { flex: 1, marginLeft: 14, marginRight: spacing.sm },
+  productName: { color: colors.text, fontFamily: type.semibold, fontSize: 15, lineHeight: 19 },
+  pricePill: { width: '100%', flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16,185,129,0.30)', borderRadius: 6, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, marginTop: 10 },
+  priceLabel: { flex: 1, color: colors.primary, fontFamily: type.regular, fontSize: 12, marginLeft: 6 },
+  priceValue: { color: colors.primary, fontFamily: type.bold, fontSize: 12, marginLeft: 5 },
+  rowAction: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
   emptyTitle: { color: colors.text, fontFamily: type.bold, fontSize: 20, marginTop: spacing.lg },
   emptyBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: spacing.sm },

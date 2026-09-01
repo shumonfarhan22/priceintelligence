@@ -196,6 +196,7 @@ export function RootApp({ fontFallback }: RootAppProps) {
           onBack={() => setRoute('dashboard')}
           onProductCountChanged={updateProductCount}
           showBanner={showBanner}
+          bannerVisible={notice != null}
         />
       ) : (
         <QuickCompareScreen
@@ -218,7 +219,7 @@ export function RootApp({ fontFallback }: RootAppProps) {
       <BottomBanner
         notice={notice}
         onDismiss={() => setNotice(null)}
-        bottomOffset={route === 'inventory' ? 94 : 0}
+        bottomOffset={0}
       />
       {busy ? (
         <View style={styles.busyOverlay} accessibilityLiveRegion="polite">

@@ -66,6 +66,17 @@ Creators API can remove the captcha/scraping dependency, and those secret creden
 stored in the app. Keyboard placement, proportions on the three reported phones, and live retailer timing
 still require physical-device confirmation.
 
+The iPhone Inventory calibration pass uses the user's side-by-side recordings plus the authoritative
+shared KMP source. The Expo screen now keeps search fixed while the 60 dp title header responds to scroll,
+uses the original compact selection header, and reports the filtered product total. Group rows use the
+original 14/12 dp spacing; product rows restore 64 dp inset images, two-line 15 sp names, full-width
+Supreme Price evidence, and leading selection controls. Add/Edit Product now follows the original 92%
+sheet proportions, 24 dp radius, outlined 56 dp fields, optional-field indicators, compact calculator
+control, and keyboard-reduced available height. Selection and Undo hide the Add button, while Undo returns
+to the safe bottom instead of covering the directory. TypeScript, all 26 tests, all-platform Expo export,
+and a 384×848 browser inspection passed. Keyboard movement and final pixel matching still require the
+next physical iPhone comparison recording.
+
 ## Authoritative source state
 
 The latest application milestone on `master` is:
