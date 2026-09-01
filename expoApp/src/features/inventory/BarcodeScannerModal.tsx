@@ -34,15 +34,6 @@ export function BarcodeScannerModal({
   const [handled, setHandled] = useState(false);
   const handledRef = useRef(false);
   const permissionRequestStartedRef = useRef(false);
-  const pendingIosVibrationRef = useRef(false);
-
-  const playPendingIosVibration = () => {
-    if (!pendingIosVibrationRef.current) return;
-    pendingIosVibrationRef.current = false;
-    // React Native's iOS vibration uses the system vibration service rather than
-    // the Taptic Engine path that iOS disables while AVFoundation owns the camera.
-    Vibration.vibrate();
-  };
 
   useEffect(() => {
     if (visible) {
@@ -73,17 +64,13 @@ export function BarcodeScannerModal({
     if (!value || handledRef.current) return;
     handledRef.current = true;
     setHandled(true);
-    if (Platform.OS === 'ios') {
-      pendingIosVibrationRef.current = true;
-      if (embedded) {
-        // The product editor swaps its embedded camera out on the next render.
-        // Give AVFoundation time to release the camera before using the Taptic Engine.
-        // Do not cancel this when the embedded scanner unmounts: unmounting the
-        // CameraView is precisely what makes iOS haptics available again.
-        setTimeout(playPendingIosVibration, 900);
-      }
-    }
     onScanned(value);
+    if (Platform.OS === 'ios') {
+      // The handled state removes CameraView immediately. A very short release
+      // delay lets AVFoundation release the camera before the system vibration,
+      // without the noticeable one-second lag of the previous implementation.
+      setTimeout(() => Vibration.vibrate(), 70);
+    }
   };
 
   const scannerContent = (
@@ -107,7 +94,7 @@ export function BarcodeScannerModal({
           <View style={styles.permissionState}>
             <ActivityIndicator color={colors.primary} size="large" />
           </View>
-        ) : permission.granted ? (
+        ) : permission.granted && !handled ? (
           <View style={styles.cameraFrame}>
             <CameraView
               style={StyleSheet.absoluteFill}
@@ -119,6 +106,11 @@ export function BarcodeScannerModal({
               <View style={styles.scanWindow} />
               <Text style={styles.guideText}>EAN, UPC, Code 128, or QR</Text>
             </View>
+          </View>
+        ) : permission.granted ? (
+          <View style={styles.permissionState}>
+            <Ionicons name="checkmark-circle" size={46} color={colors.primary} />
+            <Text style={styles.permissionTitle}>Barcode captured</Text>
           </View>
         ) : (
           <View style={styles.permissionState}>
@@ -147,7 +139,6 @@ export function BarcodeScannerModal({
       animationType="fade"
       presentationStyle="fullScreen"
       onRequestClose={onClose}
-      onDismiss={playPendingIosVibration}
     >
       {scannerContent}
     </Modal>

@@ -272,8 +272,8 @@ export function QuickCompareScreen({
       ) : null}
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'position' : undefined}
-        keyboardVerticalOffset={0}
+        behavior="position"
+        keyboardVerticalOffset={-Math.max(insets.bottom, spacing.md)}
         style={styles.searchAvoider}
         contentContainerStyle={styles.searchAvoiderContent}
       >
@@ -560,12 +560,12 @@ function messageFrom(error: unknown): string {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingTop: spacing.sm, paddingBottom: 112 },
-  header: { minHeight: 76, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+  header: { minHeight: 70, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
   backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.sm },
-  headerIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: withAlpha(colors.warning, '16'), marginHorizontal: spacing.sm },
+  headerIcon: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: withAlpha(colors.warning, '16'), marginHorizontal: spacing.sm },
   headerCopy: { flex: 1, minWidth: 0 },
   eyebrow: { color: colors.textMuted, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
-  title: { color: colors.text, fontFamily: type.bold, fontSize: 22, lineHeight: 27, marginTop: spacing.xs },
+  title: { color: colors.text, fontFamily: type.bold, fontSize: 20, lineHeight: 24, marginTop: 2 },
   searchDimmer: { ...StyleSheet.absoluteFill, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.58)' },
   searchAvoider: { position: 'absolute', zIndex: 20, left: 0, right: 0, bottom: 0, pointerEvents: 'box-none' },
   searchAvoiderContent: { width: '100%' },
@@ -585,22 +585,22 @@ const styles = StyleSheet.create({
   suggestionPrice: { color: colors.textMuted, fontFamily: type.bold, fontSize: 13 },
   cardRow: { gap: spacing.md },
   cardSlot: { flex: 1, maxWidth: '49%', marginBottom: spacing.md },
-  card: { minHeight: 360, overflow: 'hidden', borderWidth: 1, borderRadius: radius.lg, backgroundColor: colors.surface },
+  card: { minHeight: 318, overflow: 'hidden', borderWidth: 1, borderRadius: radius.lg, backgroundColor: colors.surface },
   cardPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  cardImageShell: { height: 174, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F4F2' },
+  cardImageShell: { width: '100%', aspectRatio: 1.18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F4F2' },
   cardImage: { width: '100%', height: '100%' },
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   imagePlaceholderText: { color: '#626A76', fontFamily: type.bold, fontSize: 9, letterSpacing: 1.1, marginTop: spacing.sm },
   cardBody: { flex: 1, padding: spacing.md },
-  cardName: { minHeight: 61, color: colors.text, fontFamily: type.bold, fontSize: 15, lineHeight: 20 },
+  cardName: { minHeight: 56, color: colors.text, fontFamily: type.bold, fontSize: 15, lineHeight: 19 },
   shopPriceLabel: { color: colors.textMuted, fontFamily: type.bold, fontSize: 9, letterSpacing: 0.9, marginTop: spacing.sm },
   cardPrice: { color: colors.text, fontFamily: type.bold, fontSize: 21, marginTop: spacing.xs },
-  statusChip: { minHeight: 38, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: spacing.md, marginTop: spacing.md },
+  statusChip: { minHeight: 34, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: spacing.md, marginTop: spacing.sm },
   statusText: { maxWidth: 118, fontFamily: type.bold, fontSize: 11, marginLeft: 6 },
   checkedText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 10, marginTop: spacing.sm },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  skeletonCard: { width: '47.8%', height: 330, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface },
-  skeletonImage: { height: 174, backgroundColor: colors.surfaceRaised },
+  skeletonCard: { width: '47.8%', height: 304, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface },
+  skeletonImage: { width: '100%', aspectRatio: 1.18, backgroundColor: colors.surfaceRaised },
   skeletonBody: { padding: spacing.md, gap: spacing.sm },
   skeletonLineWide: { width: '92%', height: 14, borderRadius: radius.pill, backgroundColor: '#6C737E' },
   skeletonLineMedium: { width: '72%', height: 12, borderRadius: radius.pill, backgroundColor: '#59616D' },

@@ -3,9 +3,13 @@ import { Platform } from 'react-native';
 import { normalizeRetailerUrl } from '../data/backup';
 import type { PriceRetailer } from '../domain/models';
 import { parseRetailerPage } from './pricePageParser';
+import { buildRetailerRequestUrl } from './retailerRequestStrategy';
 
-const REQUEST_TIMEOUT_MS = 22_000;
-const MAX_HTML_CHARACTERS = 8_000_000;
+const REQUEST_TIMEOUT_MS: Record<PriceRetailer, number> = {
+  AMAZON: 10_000,
+  FLIPKART: 8_000,
+};
+const MAX_HTML_CHARACTERS = 5_000_000;
 
 export type RetailerCheckFailureCode =
   | 'BLOCKED'
@@ -30,10 +34,9 @@ export type RetailerCheckResult =
       message: string;
     };
 
-const AMAZON_USER_AGENTS = [
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Mobile/15E148 Safari/604.1',
-  'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36',
-];
+const AMAZON_MOBILE_USER_AGENT = Platform.OS === 'ios'
+  ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1'
+  : 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/138.0 Mobile Safari/537.36';
 
 export async function fetchRetailerPrice(
   rawUrl: string,
@@ -44,6 +47,7 @@ export async function fetchRetailerPrice(
   if (!url) {
     return failure(retailer, 'INVALID_URL', `The saved ${displayName(retailer)} link is invalid.`);
   }
+  const requestUrl = buildRetailerRequestUrl(url, retailer);
 
   const controller = new AbortController();
   let timedOut = false;
@@ -52,10 +56,10 @@ export async function fetchRetailerPrice(
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, REQUEST_TIMEOUT_MS);
+  }, REQUEST_TIMEOUT_MS[retailer]);
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(requestUrl, {
       method: 'GET',
       redirect: 'follow',
       signal: controller.signal,
@@ -74,7 +78,7 @@ export async function fetchRetailerPrice(
     if (html.length > MAX_HTML_CHARACTERS) {
       return failure(retailer, 'UNAVAILABLE', `${displayName(retailer)} returned a page that was too large to inspect safely.`);
     }
-    const parsed = parseRetailerPage(html, response.url || url);
+    const parsed = parseRetailerPage(html, response.url || requestUrl);
     if (parsed.blocked) {
       return failure(retailer, 'BLOCKED', `${displayName(retailer)} requested a human verification check.`);
     }
@@ -91,7 +95,11 @@ export async function fetchRetailerPrice(
   } catch (error) {
     if (externalSignal?.aborted) throw abortError();
     if (timedOut) {
-      return failure(retailer, 'TIMEOUT', `${displayName(retailer)} did not respond in time.`);
+      return failure(
+        retailer,
+        'TIMEOUT',
+        `${displayName(retailer)} did not respond within ${REQUEST_TIMEOUT_MS[retailer] / 1000} seconds. The saved price is still available.`,
+      );
     }
     return failure(
       retailer,
@@ -108,16 +116,15 @@ export async function fetchRetailerPrice(
 
 function requestHeaders(retailer: PriceRetailer): Record<string, string> {
   const common = {
-    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.7',
     'Accept-Language': 'en-IN,en;q=0.9',
-    'Cache-Control': 'no-cache',
   };
   if (Platform.OS === 'web') return common;
   return {
     ...common,
     'User-Agent': retailer === 'FLIPKART'
       ? 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-      : AMAZON_USER_AGENTS[Math.floor(Math.random() * AMAZON_USER_AGENTS.length)]!,
+      : AMAZON_MOBILE_USER_AGENT,
   };
 }
 

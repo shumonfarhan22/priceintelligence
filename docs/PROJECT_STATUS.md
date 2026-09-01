@@ -52,6 +52,17 @@ skeleton shimmer. These layouts were visually checked at 320 and 390 pixel phone
 navigation, swipe deletion/Undo, calculator application, and keyboard animation still require physical
 Android and iPhone confirmation.
 
+The device-polish follow-up replaces tall fixed dashboard and comparison-card heights with width-based
+phone proportions, compacts the Quick Compare heading, and enables safe-area-aware keyboard positioning
+on both Android and iPhone. The iPhone barcode camera is removed immediately after a result and the scan
+vibration now follows after one short frame instead of the previous 900 ms delay. Amazon live checks now
+canonicalize copied ASIN links, use one stable mobile request, reject oversized pages, and stop after a
+bounded 10 seconds while preserving the last saved price. This reduces referral redirects and avoids
+retry traffic, but direct page checks can still be refused by Amazon; only its credentialed Creators API
+can remove the captcha/scraping dependency, and those secret credentials must never be stored in the app.
+The responsive layout was checked at 360×800, 393×852, and 412×915. Keyboard placement, iPhone vibration,
+and live retailer timing still require physical-device confirmation.
+
 ## Authoritative source state
 
 The latest application milestone on `master` is:
