@@ -26,6 +26,7 @@ import {
 import { colors, radius, spacing, type } from '../../theme/tokens';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { PriceCalculatorModal, type PriceTarget } from './PriceCalculatorModal';
+import { RetailerBrowserModal, type RetailerBrowserSite } from './RetailerBrowserModal';
 
 const ACCESSORY_ID = 'price-intelligence-product-editor-accessory';
 type DraftField = keyof InventoryDraft;
@@ -59,7 +60,7 @@ export function ProductEditorModal({
   const [scannerVisible, setScannerVisible] = useState(false);
   const [calculatorVisible, setCalculatorVisible] = useState(false);
   const [calculatorTarget, setCalculatorTarget] = useState<PriceTarget>('purchaseCost');
-  const [expandedRetailer, setExpandedRetailer] = useState<'amazonUrl' | 'flipkartUrl' | null>(null);
+  const [browserSite, setBrowserSite] = useState<RetailerBrowserSite | null>(null);
 
   const nameRef = useRef<TextInput>(null);
   const purchaseRef = useRef<TextInput>(null);
@@ -84,7 +85,7 @@ export function ProductEditorModal({
     setFocusedField(null);
     setClipboardAvailable(false);
     setCalculatorVisible(false);
-    setExpandedRetailer(null);
+    setBrowserSite(null);
   }, [visible, product?.id]);
 
   useEffect(() => {
@@ -113,11 +114,6 @@ export function ProductEditorModal({
   };
 
   const focusField = (field: DraftField) => {
-    if (field === 'amazonUrl' || field === 'flipkartUrl') {
-      setExpandedRetailer(field);
-      setTimeout(() => refs[field].current?.focus(), 40);
-      return;
-    }
     refs[field].current?.focus();
   };
 
@@ -162,13 +158,26 @@ export function ProductEditorModal({
         animationType="fade"
         transparent
         presentationStyle="overFullScreen"
-        onRequestClose={calculatorVisible
-          ? () => setCalculatorVisible(false)
-          : scannerVisible
-            ? () => setScannerVisible(false)
-            : close}
+        onRequestClose={browserSite
+          ? () => setBrowserSite(null)
+          : calculatorVisible
+            ? () => setCalculatorVisible(false)
+            : scannerVisible
+              ? () => setScannerVisible(false)
+              : close}
       >
-        {Platform.OS === 'ios' && scannerVisible ? (
+        {Platform.OS === 'ios' && browserSite ? (
+          <RetailerBrowserModal
+            embedded
+            visible
+            site={browserSite}
+            onUseLink={(url) => {
+              changeField(browserSite === 'AMAZON' ? 'amazonUrl' : 'flipkartUrl', url);
+              setBrowserSite(null);
+            }}
+            onClose={() => setBrowserSite(null)}
+          />
+        ) : Platform.OS === 'ios' && scannerVisible ? (
           <BarcodeScannerModal
             embedded
             visible
@@ -184,7 +193,8 @@ export function ProductEditorModal({
             embedded
             visible
             target={calculatorTarget}
-            initialValue={draft[calculatorTarget]}
+            purchaseCost={draft.purchaseCost}
+            sellingPrice={draft.shopPrice}
             onTargetChange={setCalculatorTarget}
             onUseValue={(target, value) => {
               changeField(target, value);
@@ -257,6 +267,7 @@ export function ProductEditorModal({
                     accessibilityRole="button"
                     onPress={() => {
                       Keyboard.dismiss();
+                      setCalculatorTarget('shopPrice');
                       setCalculatorVisible(true);
                     }}
                     style={({ pressed }) => [styles.calculatorButton, pressed && styles.pressed]}
@@ -302,8 +313,8 @@ export function ProductEditorModal({
                   placeholder="Scan or enter barcode"
                   inputMode="text"
                   inputRef={barcodeRef}
-                  returnKeyType="next"
-                  onSubmitEditing={() => focusField('amazonUrl')}
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
                   error={error?.field === 'barcode'}
                   accessory={(
                     <Pressable
@@ -320,24 +331,22 @@ export function ProductEditorModal({
                   )}
                 />
 
-                <View style={styles.retailerRow}>
-                  <RetailerFieldButton
-                    label="Amazon"
-                    active={expandedRetailer === 'amazonUrl'}
-                    linked={draft.amazonUrl.trim().length > 0}
-                    onPress={() => focusField('amazonUrl')}
-                  />
-                  <RetailerFieldButton
-                    label="Flipkart"
-                    active={expandedRetailer === 'flipkartUrl'}
-                    linked={draft.flipkartUrl.trim().length > 0}
-                    onPress={() => focusField('flipkartUrl')}
-                  />
-                </View>
+                {!draft.amazonUrl.trim() && !draft.flipkartUrl.trim() ? (
+                  <View style={styles.retailerRow}>
+                    <RetailerBrowserButton label="Amazon" onPress={() => {
+                      Keyboard.dismiss();
+                      setBrowserSite('AMAZON');
+                    }} />
+                    <RetailerBrowserButton label="Flipkart" onPress={() => {
+                      Keyboard.dismiss();
+                      setBrowserSite('FLIPKART');
+                    }} />
+                  </View>
+                ) : null}
 
-                {expandedRetailer === 'amazonUrl' ? (
+                {draft.amazonUrl.trim() ? (
                   <Field
-                    label="Amazon URL (Optional)"
+                    label="Amazon URL"
                     value={draft.amazonUrl}
                     onChangeText={(value) => changeField('amazonUrl', value)}
                     onFocus={() => handleFocus('amazonUrl')}
@@ -346,13 +355,26 @@ export function ProductEditorModal({
                     autoCapitalize="none"
                     inputRef={amazonRef}
                     returnKeyType="next"
-                    onSubmitEditing={() => focusField('flipkartUrl')}
+                    onSubmitEditing={() => draft.flipkartUrl.trim() ? focusField('flipkartUrl') : Keyboard.dismiss()}
                     error={error?.field === 'amazonUrl'}
+                    accessory={(
+                      <Pressable accessibilityRole="button" accessibilityLabel="Browse Amazon India" onPress={() => {
+                        Keyboard.dismiss();
+                        setBrowserSite('AMAZON');
+                      }} style={styles.iconAction}>
+                        <Ionicons name="globe-outline" size={22} color={colors.primary} />
+                      </Pressable>
+                    )}
                   />
+                ) : draft.flipkartUrl.trim() ? (
+                  <RetailerBrowserButton label="Amazon" wide onPress={() => {
+                    Keyboard.dismiss();
+                    setBrowserSite('AMAZON');
+                  }} />
                 ) : null}
-                {expandedRetailer === 'flipkartUrl' ? (
+                {draft.flipkartUrl.trim() ? (
                   <Field
-                    label="Flipkart URL (Optional)"
+                    label="Flipkart URL"
                     value={draft.flipkartUrl}
                     onChangeText={(value) => changeField('flipkartUrl', value)}
                     onFocus={() => handleFocus('flipkartUrl')}
@@ -363,7 +385,20 @@ export function ProductEditorModal({
                     returnKeyType="done"
                     onSubmitEditing={Keyboard.dismiss}
                     error={error?.field === 'flipkartUrl'}
+                    accessory={(
+                      <Pressable accessibilityRole="button" accessibilityLabel="Browse Flipkart" onPress={() => {
+                        Keyboard.dismiss();
+                        setBrowserSite('FLIPKART');
+                      }} style={styles.iconAction}>
+                        <Ionicons name="globe-outline" size={22} color={colors.primary} />
+                      </Pressable>
+                    )}
                   />
+                ) : draft.amazonUrl.trim() ? (
+                  <RetailerBrowserButton label="Flipkart" wide onPress={() => {
+                    Keyboard.dismiss();
+                    setBrowserSite('FLIPKART');
+                  }} />
                 ) : null}
 
                 <View style={styles.actions}>
@@ -445,7 +480,8 @@ export function ProductEditorModal({
           <PriceCalculatorModal
             visible={calculatorVisible}
             target={calculatorTarget}
-            initialValue={draft[calculatorTarget]}
+            purchaseCost={draft.purchaseCost}
+            sellingPrice={draft.shopPrice}
             onTargetChange={setCalculatorTarget}
             onUseValue={(target, value) => {
               changeField(target, value);
@@ -453,6 +489,17 @@ export function ProductEditorModal({
             }}
             onClose={() => setCalculatorVisible(false)}
           />
+          {browserSite ? (
+            <RetailerBrowserModal
+              visible
+              site={browserSite}
+              onUseLink={(url) => {
+                changeField(browserSite === 'AMAZON' ? 'amazonUrl' : 'flipkartUrl', url);
+                setBrowserSite(null);
+              }}
+              onClose={() => setBrowserSite(null)}
+            />
+          ) : null}
         </>
       ) : null}
     </>
@@ -519,37 +566,32 @@ function Field({
   );
 }
 
-function RetailerFieldButton({
+function RetailerBrowserButton({
   label,
-  active,
-  linked,
   onPress,
+  wide = false,
 }: {
   label: string;
-  active: boolean;
-  linked: boolean;
   onPress: () => void;
+  wide?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${label} link${linked ? ', linked' : ', optional'}`}
-      accessibilityState={{ expanded: active }}
+      accessibilityLabel={`Browse ${label}. Link optional`}
       onPress={onPress}
       style={({ pressed }) => [
         styles.retailerButton,
-        active && styles.retailerButtonActive,
+        wide && styles.retailerButtonWide,
         pressed && styles.pressed,
       ]}
     >
-      <Ionicons name="globe-outline" size={21} color={linked || active ? colors.primary : colors.textMuted} />
-      <Text style={[styles.retailerButtonText, (linked || active) && styles.retailerButtonTextActive]}>
-        {label}
-      </Text>
+      <Ionicons name="globe-outline" size={21} color={colors.primary} />
+      <Text style={styles.retailerButtonText}>{label}</Text>
       <Ionicons
-        name={linked ? 'checkmark-circle' : 'information-circle'}
+        name="information-circle"
         size={17}
-        color={linked ? colors.primary : colors.textMuted}
+        color={colors.textMuted}
       />
     </Pressable>
   );
@@ -604,9 +646,8 @@ const styles = StyleSheet.create({
   iconAction: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
   retailerRow: { flexDirection: 'row', gap: spacing.md },
   retailerButton: { flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: 'rgba(11,15,20,0.26)', paddingHorizontal: spacing.sm },
-  retailerButtonActive: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
-  retailerButtonText: { flexShrink: 1, color: colors.textMuted, fontFamily: type.semibold, fontSize: 14, marginHorizontal: spacing.sm },
-  retailerButtonTextActive: { color: colors.text },
+  retailerButtonWide: { flex: 0, width: '100%' },
+  retailerButtonText: { flexShrink: 1, color: colors.primary, fontFamily: type.semibold, fontSize: 13, marginHorizontal: spacing.sm },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
   secondaryButton: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
   secondaryButtonText: { color: colors.text, fontFamily: type.bold, fontSize: 14 },

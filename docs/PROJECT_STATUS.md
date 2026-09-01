@@ -41,6 +41,17 @@ keyboard-floating Quick Compare search, and bento Product Details layout with th
 and Flipkart artwork. Browser checks passed at 320 and 390 pixel widths; Android import and iPhone scan
 vibration still require confirmation on physical phones.
 
+The original-workflow refinement milestone now brings the Expo Inventory and Quick Compare screens
+closer to the authoritative shared KMP experience. Inventory uses the compact header, search, group,
+product-row, price-pill, edit, and swipe-delete treatment. Add Product opens a private in-app Amazon or
+Flipkart browser and returns only a validated retailer link. The price calculator restores the original
+two-target display, five-by-four keypad, operator precedence, percentages, and calculation preservation
+when switching between Purchase Cost and Selling Price. Quick Compare removes non-original controls and
+restores the bottom search FAB expansion, keyboard-aware close sequence, background lock, and continuous
+skeleton shimmer. These layouts were visually checked at 320 and 390 pixel phone widths. Retailer web
+navigation, swipe deletion/Undo, calculator application, and keyboard animation still require physical
+Android and iPhone confirmation.
+
 ## Authoritative source state
 
 The latest application milestone on `master` is:

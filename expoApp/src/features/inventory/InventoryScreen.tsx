@@ -2,8 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   BackHandler,
   Keyboard,
+  PanResponder,
   Platform,
   Pressable,
   RefreshControl,
@@ -276,7 +278,7 @@ export function InventoryScreen({
                   }}
                   style={styles.searchAction}
                 >
-                  <Ionicons name="close-circle" size={21} color={colors.textMuted} />
+                  <Ionicons name="close" size={20} color={colors.textMuted} />
                 </Pressable>
               ) : null}
               <Pressable
@@ -291,9 +293,6 @@ export function InventoryScreen({
                 <Ionicons name="camera" size={23} color={colors.textMuted} />
               </Pressable>
             </View>
-            {query.trim() ? (
-              <Text style={styles.resultCount}>{visibleProducts.length} matching product{visibleProducts.length === 1 ? '' : 's'}</Text>
-            ) : null}
           </View>
         )}
         renderSectionHeader={({ section }) => (
@@ -445,57 +444,97 @@ function ProductRow({
   onDelete: () => void;
 }) {
   const longPressHandled = useRef(false);
+  const swipeX = useRef(new Animated.Value(0)).current;
+  const swipeOpen = useRef(false);
+
+  const settleSwipe = (open: boolean) => {
+    swipeOpen.current = open;
+    Animated.spring(swipeX, {
+      toValue: open ? -76 : 0,
+      useNativeDriver: Platform.OS !== 'web',
+      damping: 22,
+      stiffness: 240,
+      mass: 0.65,
+    }).start();
+  };
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => (
+      !selectionMode && Math.abs(gesture.dx) > 7 && Math.abs(gesture.dx) > Math.abs(gesture.dy)
+    ),
+    onPanResponderMove: (_, gesture) => {
+      const base = swipeOpen.current ? -76 : 0;
+      swipeX.setValue(Math.max(-92, Math.min(0, base + gesture.dx)));
+    },
+    onPanResponderRelease: (_, gesture) => settleSwipe((swipeOpen.current ? -76 : 0) + gesture.dx < -42),
+    onPanResponderTerminate: () => settleSwipe(swipeOpen.current),
+  }), [selectionMode, swipeX]);
+
   return (
-    <View style={[styles.productRow, selected && styles.productSelected]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${selectionMode ? 'Select' : 'Open'} ${product.productName}`}
-        accessibilityState={{ selected }}
-        onPress={() => {
-          if (longPressHandled.current) {
-            longPressHandled.current = false;
-            return;
-          }
-          onPress();
-        }}
-        onLongPress={() => {
-          longPressHandled.current = true;
-          onLongPress();
-        }}
-        style={({ pressed }) => [styles.productMain, pressed && styles.pressed]}
-      >
-        <View style={styles.productImageShell}>
-          {product.imageUrl ? (
-            <Image source={product.imageUrl} style={styles.productImage} contentFit="contain" transition={120} />
-          ) : (
-            <Ionicons name="cube-outline" size={27} color={colors.textMuted} />
-          )}
-        </View>
-        <View style={styles.productContent}>
-          <Text style={styles.productName} numberOfLines={2}>{product.productName}</Text>
-          <View style={styles.pricePill}>
-            <Ionicons name="pricetag" size={13} color={colors.primary} />
-            <Text style={styles.priceLabel} numberOfLines={1}>Shop price</Text>
-            <Text style={styles.priceValue}>{formatInr(product.shopPrice)}</Text>
-          </View>
-          {product.barcode ? <Text style={styles.barcode} numberOfLines={1}>Barcode {product.barcode}</Text> : null}
-        </View>
-        {selectionMode ? (
-          <Ionicons name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={25} color={selected ? colors.primary : colors.textMuted} />
-        ) : (
-          null
-        )}
-      </Pressable>
-      {!selectionMode ? (
-        <View style={styles.rowActions}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${product.productName}`} onPress={onEdit} hitSlop={8} style={styles.rowAction}>
-            <Ionicons name="pencil" size={21} color={colors.textMuted} />
+    <View style={styles.swipeContainer}>
+      <View style={styles.deleteUnderlay}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${product.productName}`}
+          onPress={() => {
+            settleSwipe(false);
+            onDelete();
+          }}
+          style={styles.deleteAction}
+        >
+          <Ionicons name="trash" size={22} color={colors.text} />
+          <Text style={styles.deleteText}>Delete</Text>
+        </Pressable>
+      </View>
+      <Animated.View style={{ transform: [{ translateX: swipeX }] }} {...panResponder.panHandlers}>
+        <View style={[styles.productRow, selected && styles.productSelected]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${selectionMode ? 'Select' : 'Open'} ${product.productName}`}
+            accessibilityState={{ selected }}
+            onPress={() => {
+              if (longPressHandled.current) {
+                longPressHandled.current = false;
+                return;
+              }
+              if (swipeOpen.current) {
+                settleSwipe(false);
+                return;
+              }
+              onPress();
+            }}
+            onLongPress={() => {
+              longPressHandled.current = true;
+              settleSwipe(false);
+              onLongPress();
+            }}
+            style={({ pressed }) => [styles.productMain, pressed && styles.pressed]}
+          >
+            <View style={styles.productImageShell}>
+              {product.imageUrl ? (
+                <Image source={product.imageUrl} style={styles.productImage} contentFit="contain" transition={120} />
+              ) : (
+                <Ionicons name="cube-outline" size={25} color={colors.textMuted} />
+              )}
+            </View>
+            <View style={styles.productContent}>
+              <Text style={styles.productName} numberOfLines={2}>{product.productName}</Text>
+              <View style={styles.pricePill}>
+                <Ionicons name="pricetag" size={13} color={colors.primary} />
+                <Text style={styles.priceValue} numberOfLines={1}>SUPREME • {formatInr(product.shopPrice)}</Text>
+              </View>
+            </View>
+            {selectionMode ? (
+              <Ionicons name={selected ? 'checkmark-circle' : 'ellipse-outline'} size={25} color={selected ? colors.primary : colors.textMuted} />
+            ) : null}
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${product.productName}`} onPress={onDelete} hitSlop={8} style={styles.rowAction}>
-            <Ionicons name="trash-outline" size={20} color={colors.danger} />
-          </Pressable>
+          {!selectionMode ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${product.productName}`} onPress={onEdit} hitSlop={8} style={styles.rowAction}>
+              <Ionicons name="pencil" size={20} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
         </View>
-      ) : null}
+      </Animated.View>
     </View>
   );
 }
@@ -510,43 +549,43 @@ function messageFrom(error: unknown): string {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  header: { minHeight: 76, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg },
-  headerIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerBadge: { width: 54, height: 54, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryMuted, marginLeft: spacing.xs },
-  headerText: { flex: 1, marginLeft: spacing.md },
-  headerEyebrow: { color: colors.text, fontFamily: type.bold, fontSize: 13, letterSpacing: 0.4 },
-  headerTitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, marginTop: spacing.xs },
-  searchShell: { minHeight: 62, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingLeft: spacing.lg, paddingRight: spacing.sm, marginBottom: spacing.lg },
-  searchInput: { flex: 1, minHeight: 60, color: colors.text, fontFamily: type.regular, fontSize: 17, paddingHorizontal: spacing.md },
+  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  header: { minHeight: 60, flexDirection: 'row', alignItems: 'center' },
+  headerIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerBadge: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryMuted, marginLeft: spacing.xs },
+  headerText: { flex: 1, marginLeft: 10 },
+  headerEyebrow: { color: colors.text, fontFamily: type.bold, fontSize: 13, letterSpacing: 0.2 },
+  headerTitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginTop: 2 },
+  searchShell: { height: 56, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, paddingLeft: 14, paddingRight: spacing.xs, marginVertical: spacing.md },
+  searchInput: { flex: 1, minHeight: 54, color: colors.text, fontFamily: type.regular, fontSize: 16, paddingHorizontal: spacing.md },
   searchAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  resultCount: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 13, marginTop: -spacing.sm, marginBottom: spacing.md },
-  groupHeader: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
-  groupName: { color: colors.text, fontFamily: type.bold, fontSize: 18, letterSpacing: 0.5 },
+  groupHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceRaised, borderColor: colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, marginBottom: spacing.sm },
+  groupName: { color: colors.primary, fontFamily: type.bold, fontSize: 15, letterSpacing: 0.3 },
   groupMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  groupCount: { color: colors.textMuted, fontFamily: type.regular, fontSize: 14 },
-  productRow: { minHeight: 124, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md, marginLeft: spacing.md },
+  groupCount: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13 },
+  swipeContainer: { overflow: 'hidden', borderRadius: 13, marginBottom: 10 },
+  deleteUnderlay: { ...StyleSheet.absoluteFill, alignItems: 'flex-end', justifyContent: 'center', borderRadius: 13, backgroundColor: colors.danger },
+  deleteAction: { width: 76, height: '100%', alignItems: 'center', justifyContent: 'center' },
+  deleteText: { color: colors.text, fontFamily: type.bold, fontSize: 10, marginTop: 2 },
+  productRow: { minHeight: 84, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 13, padding: 9 },
   productMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
   productSelected: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
-  productImageShell: { width: 84, height: 84, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
+  productImageShell: { width: 64, height: 64, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
   productImage: { width: '100%', height: '100%', backgroundColor: '#F8FAFC' },
-  productContent: { flex: 1, marginHorizontal: spacing.md },
-  productName: { color: colors.text, fontFamily: type.bold, fontSize: 16, lineHeight: 21 },
-  pricePill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 6, marginTop: spacing.sm },
-  priceLabel: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginLeft: spacing.xs },
-  priceValue: { color: colors.text, fontFamily: type.bold, fontSize: 13, marginLeft: spacing.md },
-  barcode: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginTop: spacing.xs },
-  rowActions: { width: 42, alignItems: 'center', justifyContent: 'center' },
+  productContent: { flex: 1, marginLeft: 11, marginRight: spacing.sm },
+  productName: { color: colors.text, fontFamily: type.bold, fontSize: 14, lineHeight: 18 },
+  pricePill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(16,185,129,0.70)', borderRadius: 7, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, marginTop: 6 },
+  priceValue: { flexShrink: 1, color: colors.primary, fontFamily: type.bold, fontSize: 10, marginLeft: 6 },
   rowAction: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
   emptyTitle: { color: colors.text, fontFamily: type.bold, fontSize: 20, marginTop: spacing.lg },
   emptyBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: spacing.sm },
   fab: {
     position: 'absolute',
-    right: spacing.xl,
-    width: 62,
-    height: 62,
-    borderRadius: 20,
+    right: 14,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,

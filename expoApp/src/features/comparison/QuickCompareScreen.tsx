@@ -2,18 +2,19 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  Animated,
   BackHandler,
+  Easing,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,12 +31,7 @@ import { ProductDetailsModal } from './ProductDetailsModal';
 
 const PAGE_SIZE = 10;
 
-const SORT_OPTIONS: Array<{ value: ComparisonSort; label: string }> = [
-  { value: 'MOST_VIEWED', label: 'Most viewed' },
-  { value: 'ALPHABETICAL', label: 'A–Z' },
-  { value: 'RECENT', label: 'Recent' },
-  { value: 'BEST_SAVING', label: 'Best saving' },
-];
+const DEFAULT_SORT: ComparisonSort = 'MOST_VIEWED';
 
 type ShowBanner = (message: string, tone?: BannerTone) => void;
 
@@ -51,10 +47,8 @@ export function QuickCompareScreen({
   showBanner: ShowBanner;
 }) {
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<ComparisonSort>('MOST_VIEWED');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +57,12 @@ export function QuickCompareScreen({
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
   const requestId = useRef(0);
   const searchRef = useRef<TextInput>(null);
+  const searchProgress = useRef(new Animated.Value(0)).current;
+  const keyboardVisible = useRef(false);
+  const closeAfterKeyboard = useRef(false);
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const expandedSearchWidth = Math.max(288, windowWidth - (spacing.lg * 2));
 
   const loadProducts = useCallback(async (
     search: string,
@@ -74,7 +73,6 @@ export function QuickCompareScreen({
     const result = await repository.listComparisonProducts(search, selectedSort, selectedPage, PAGE_SIZE);
     if (requestId.current !== id) return;
     setProducts(result.products);
-    setTotal(result.total);
     setTotalPages(result.totalPages);
     if (result.page !== selectedPage) setPage(result.page);
     setLoading(false);
@@ -82,13 +80,13 @@ export function QuickCompareScreen({
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      loadProducts(query, sort, page).catch((error) => {
+      loadProducts(query, DEFAULT_SORT, page).catch((error) => {
         setLoading(false);
         showBanner(messageFrom(error), 'error');
       });
     }, query.trim() ? 180 : 0);
     return () => clearTimeout(timeout);
-  }, [loadProducts, page, query, showBanner, sort]);
+  }, [loadProducts, page, query, showBanner]);
 
   const leave = useCallback(() => {
     Keyboard.dismiss();
@@ -108,11 +106,12 @@ export function QuickCompareScreen({
     Keyboard.dismiss();
     setRefreshing(true);
     setQuery('');
-    setSort('MOST_VIEWED');
     setPage(1);
+    closeAfterKeyboard.current = false;
     setSearchFocused(false);
+    searchProgress.setValue(0);
     try {
-      await loadProducts('', 'MOST_VIEWED', 1);
+      await loadProducts('', DEFAULT_SORT, 1);
     } catch (error) {
       showBanner(messageFrom(error), 'error');
     } finally {
@@ -123,6 +122,7 @@ export function QuickCompareScreen({
   const openProduct = async (product: InventoryProduct) => {
     Keyboard.dismiss();
     setSearchFocused(false);
+    searchProgress.setValue(0);
     setSelectedProduct(product);
     try {
       await repository.incrementProductView(product.id);
@@ -138,13 +138,59 @@ export function QuickCompareScreen({
     setSelectedProduct(updated);
     setProducts((current) => current.map((entry) => entry.id === updated.id ? updated : entry));
     onComparisonChanged();
-    loadProducts(query, sort, page).catch(() => undefined);
+    loadProducts(query, DEFAULT_SORT, page).catch(() => undefined);
   };
 
   const suggestions = useMemo(
     () => searchFocused && query.trim() ? products.slice(0, 4) : [],
     [products, query, searchFocused],
   );
+
+  const collapseSearch = useCallback(() => {
+    closeAfterKeyboard.current = false;
+    setSearchFocused(false);
+    Animated.timing(searchProgress, {
+      toValue: 0,
+      duration: 125,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [searchProgress]);
+
+  const dismissSearch = useCallback(() => {
+    closeAfterKeyboard.current = true;
+    Keyboard.dismiss();
+    if (!keyboardVisible.current) collapseSearch();
+  }, [collapseSearch]);
+
+  const openSearch = useCallback(() => {
+    if (searchFocused) return;
+    setSearchFocused(true);
+    Animated.timing(searchProgress, {
+      toValue: 1,
+      duration: 125,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished) searchRef.current?.focus();
+    });
+  }, [searchFocused, searchProgress]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = 'keyboardDidHide';
+    const shown = Keyboard.addListener(showEvent, () => {
+      keyboardVisible.current = true;
+    });
+    const hidden = Keyboard.addListener(hideEvent, () => {
+      keyboardVisible.current = false;
+      if (searchFocused) collapseSearch();
+    });
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, [collapseSearch, searchFocused]);
 
   const header = (
     <View>
@@ -166,38 +212,6 @@ export function QuickCompareScreen({
         </View>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.sortRow}
-        keyboardShouldPersistTaps="handled"
-      >
-        {SORT_OPTIONS.map((option) => {
-          const selected = option.value === sort;
-          return (
-            <Pressable
-              key={option.value}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => {
-                setLoading(true);
-                setSort(option.value);
-                setPage(1);
-              }}
-              style={({ pressed }) => [styles.sortChip, selected && styles.sortChipSelected, pressed && styles.pressed]}
-            >
-              <Text style={[styles.sortText, selected && styles.sortTextSelected]}>{option.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <View style={styles.resultRow}>
-        <Text style={styles.resultText}>
-          {total} {total === 1 ? 'product' : 'products'}{query.trim() ? ' found' : ''}
-        </Text>
-        <Text style={styles.pageText}>Page {Math.min(page, totalPages)} of {totalPages}</Text>
-      </View>
     </View>
   );
 
@@ -243,7 +257,6 @@ export function QuickCompareScreen({
         keyboardDismissMode="on-drag"
         onScrollBeginDrag={() => {
           Keyboard.dismiss();
-          setSearchFocused(false);
         }}
         scrollEnabled={!searchFocused}
         showsVerticalScrollIndicator={false}
@@ -253,10 +266,7 @@ export function QuickCompareScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close comparison search"
-          onPress={() => {
-            Keyboard.dismiss();
-            setSearchFocused(false);
-          }}
+          onPress={dismissSearch}
           style={styles.searchDimmer}
         />
       ) : null}
@@ -267,7 +277,7 @@ export function QuickCompareScreen({
         style={styles.searchAvoider}
         contentContainerStyle={styles.searchAvoiderContent}
       >
-        <View style={[styles.searchArea, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+        <View style={[styles.searchArea, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           {suggestions.length > 0 ? (
             <View style={styles.suggestions}>
               {suggestions.map((product) => (
@@ -285,61 +295,91 @@ export function QuickCompareScreen({
             </View>
           ) : null}
 
-          <View style={[styles.searchShell, searchFocused && styles.searchFocused]}>
-            <Ionicons name="search" size={22} color={searchFocused ? colors.warning : colors.textMuted} />
-            <TextInput
-              ref={searchRef}
-              value={query}
-              onChangeText={(value) => {
-                setLoading(true);
-                setQuery(value);
-                setPage(1);
-              }}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              onSubmitEditing={() => {
-                setSearchFocused(false);
-                Keyboard.dismiss();
-              }}
-              placeholder="Search…"
-              placeholderTextColor={colors.textMuted}
-              selectionColor={colors.warning}
-              cursorColor={colors.warning}
-              returnKeyType="search"
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.searchInput}
-            />
-            {query ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Clear comparison search"
-                hitSlop={10}
-                onPress={() => {
-                  setQuery('');
-                  setPage(1);
-                  searchRef.current?.focus();
-                }}
-                style={styles.searchAction}
+          <Animated.View
+            style={[
+              styles.searchShell,
+              {
+                width: searchProgress.interpolate({ inputRange: [0, 1], outputRange: [56, expandedSearchWidth] }),
+                borderRadius: searchProgress.interpolate({ inputRange: [0, 1], outputRange: [28, 12] }),
+                backgroundColor: searchProgress.interpolate({ inputRange: [0, 1], outputRange: [colors.warning, '#11161D'] }),
+              },
+            ]}
+          >
+            {searchFocused ? (
+              <Animated.View
+                style={[
+                  styles.searchContent,
+                  {
+                    opacity: searchProgress.interpolate({ inputRange: [0, 0.55, 1], outputRange: [0, 0, 1] }),
+                  },
+                ]}
               >
-                <Ionicons name="close-circle" size={22} color={colors.textMuted} />
-              </Pressable>
-            ) : null}
-            <View style={styles.searchDivider} />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Scan barcode to compare"
-              hitSlop={10}
-              onPress={() => {
-                Keyboard.dismiss();
-                setSearchFocused(false);
-                setScannerVisible(true);
-              }}
-              style={styles.searchAction}
-            >
-              <Ionicons name="camera" size={23} color={colors.textMuted} />
-            </Pressable>
-          </View>
+                <Ionicons name="search" size={20} color={colors.warning} />
+                <TextInput
+                  ref={searchRef}
+                  value={query}
+                  onChangeText={(value) => {
+                    setLoading(true);
+                    setQuery(value);
+                    setPage(1);
+                  }}
+                  onFocus={() => setSearchFocused(true)}
+                  onSubmitEditing={dismissSearch}
+                  placeholder="Search…"
+                  placeholderTextColor={colors.textMuted}
+                  selectionColor={colors.warning}
+                  cursorColor={colors.warning}
+                  returnKeyType="search"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.searchInput}
+                />
+                <View style={styles.searchClearSlot}>
+                  {query ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear comparison search"
+                      hitSlop={10}
+                      onPress={() => {
+                        setQuery('');
+                        setPage(1);
+                        searchRef.current?.focus();
+                      }}
+                      style={styles.searchAction}
+                    >
+                      <Ionicons name="close" size={20} color={colors.textMuted} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                <View style={styles.searchDivider} />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan barcode to compare"
+                  hitSlop={10}
+                  onPress={() => {
+                    dismissSearch();
+                    setTimeout(() => setScannerVisible(true), Platform.OS === 'ios' ? 260 : 100);
+                  }}
+                  style={styles.searchCamera}
+                >
+                  <Ionicons name="camera" size={22} color={colors.warning} />
+                </Pressable>
+              </Animated.View>
+            ) : (
+              <Animated.View
+                style={[
+                  styles.searchFabLayer,
+                  {
+                    opacity: searchProgress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [1, 0, 0] }),
+                  },
+                ]}
+              >
+                <Pressable accessibilityRole="button" accessibilityLabel="Open product search" onPress={openSearch} style={styles.searchFabButton}>
+                  <Ionicons name="search" size={25} color={colors.background} />
+                </Pressable>
+              </Animated.View>
+            )}
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
 
@@ -454,10 +494,43 @@ function Pagination({
 }
 
 function LoadingState() {
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(Animated.timing(shimmer, {
+      toValue: 1,
+      duration: 1150,
+      easing: Easing.linear,
+      useNativeDriver: Platform.OS !== 'web',
+    }));
+    animation.start();
+    return () => animation.stop();
+  }, [shimmer]);
+
   return (
-    <View style={styles.stateCard}>
-      <ActivityIndicator color={colors.warning} size="large" />
-      <Text style={styles.stateTitle}>Loading comparisons…</Text>
+    <View style={styles.skeletonGrid} accessibilityLabel="Loading comparisons">
+      {[0, 1, 2, 3].map((index) => (
+        <View key={index} style={styles.skeletonCard}>
+          <View style={styles.skeletonImage} />
+          <View style={styles.skeletonBody}>
+            <View style={styles.skeletonLineWide} />
+            <View style={styles.skeletonLineMedium} />
+            <View style={styles.skeletonLineShort} />
+            <View style={styles.skeletonChip} />
+          </View>
+          <Animated.View
+            style={[
+              styles.shimmerBand,
+              {
+                transform: [
+                  { translateX: shimmer.interpolate({ inputRange: [0, 1], outputRange: [-220, 260] }) },
+                  { skewX: '-14deg' },
+                ],
+              },
+            ]}
+          />
+        </View>
+      ))}
     </View>
   );
 }
@@ -486,8 +559,8 @@ function messageFrom(error: unknown): string {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, paddingBottom: 132 },
-  header: { minHeight: 84, flexDirection: 'row', alignItems: 'center' },
+  content: { padding: spacing.lg, paddingTop: spacing.sm, paddingBottom: 112 },
+  header: { minHeight: 76, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
   backButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', marginLeft: -spacing.sm },
   headerIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: withAlpha(colors.warning, '16'), marginHorizontal: spacing.sm },
   headerCopy: { flex: 1, minWidth: 0 },
@@ -496,24 +569,20 @@ const styles = StyleSheet.create({
   searchDimmer: { ...StyleSheet.absoluteFill, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.58)' },
   searchAvoider: { position: 'absolute', zIndex: 20, left: 0, right: 0, bottom: 0, pointerEvents: 'box-none' },
   searchAvoiderContent: { width: '100%' },
-  searchArea: { paddingHorizontal: spacing.lg },
-  searchShell: { minHeight: 64, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: '#11161D', paddingHorizontal: spacing.lg },
-  searchFocused: { borderColor: colors.warning },
-  searchInput: { flex: 1, minWidth: 0, color: colors.text, fontFamily: type.regular, fontSize: 16, paddingHorizontal: spacing.md, paddingVertical: spacing.md },
+  searchArea: { alignItems: 'flex-end', paddingHorizontal: spacing.lg },
+  searchShell: { height: 56, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  searchContent: { ...StyleSheet.absoluteFill, flexDirection: 'row', alignItems: 'center', paddingLeft: spacing.lg },
+  searchInput: { flex: 1, minWidth: 0, height: 54, color: colors.text, fontFamily: type.regular, fontSize: 16, paddingHorizontal: spacing.sm },
+  searchClearSlot: { width: 42, height: 48, alignItems: 'center', justifyContent: 'center' },
   searchAction: { width: 38, height: 44, alignItems: 'center', justifyContent: 'center' },
-  searchDivider: { width: 1, height: 30, backgroundColor: colors.border, marginHorizontal: spacing.xs },
-  suggestions: { marginBottom: spacing.sm, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceRaised },
+  searchDivider: { width: 1, height: 24, backgroundColor: colors.border },
+  searchCamera: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
+  searchFabLayer: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  searchFabButton: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
+  suggestions: { width: '100%', marginBottom: spacing.sm, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceRaised },
   suggestionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   suggestionText: { flex: 1, color: colors.text, fontFamily: type.semibold, fontSize: 14, marginHorizontal: spacing.md },
   suggestionPrice: { color: colors.textMuted, fontFamily: type.bold, fontSize: 13 },
-  sortRow: { gap: spacing.sm, paddingVertical: spacing.lg },
-  sortChip: { minHeight: 42, justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, backgroundColor: colors.surface, paddingHorizontal: spacing.lg },
-  sortChipSelected: { borderColor: colors.warning, backgroundColor: withAlpha(colors.warning, '16') },
-  sortText: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 13 },
-  sortTextSelected: { color: colors.warning },
-  resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  resultText: { color: colors.text, fontFamily: type.bold, fontSize: 15 },
-  pageText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 12 },
   cardRow: { gap: spacing.md },
   cardSlot: { flex: 1, maxWidth: '49%', marginBottom: spacing.md },
   card: { minHeight: 360, overflow: 'hidden', borderWidth: 1, borderRadius: radius.lg, backgroundColor: colors.surface },
@@ -529,6 +598,15 @@ const styles = StyleSheet.create({
   statusChip: { minHeight: 38, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: spacing.md, marginTop: spacing.md },
   statusText: { maxWidth: 118, fontFamily: type.bold, fontSize: 11, marginLeft: 6 },
   checkedText: { color: colors.textMuted, fontFamily: type.regular, fontSize: 10, marginTop: spacing.sm },
+  skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  skeletonCard: { width: '47.8%', height: 330, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface },
+  skeletonImage: { height: 174, backgroundColor: colors.surfaceRaised },
+  skeletonBody: { padding: spacing.md, gap: spacing.sm },
+  skeletonLineWide: { width: '92%', height: 14, borderRadius: radius.pill, backgroundColor: '#6C737E' },
+  skeletonLineMedium: { width: '72%', height: 12, borderRadius: radius.pill, backgroundColor: '#59616D' },
+  skeletonLineShort: { width: '46%', height: 10, borderRadius: radius.pill, backgroundColor: '#59616D' },
+  skeletonChip: { width: '64%', height: 32, borderRadius: radius.pill, backgroundColor: '#59616D', marginTop: spacing.xs },
+  shimmerBand: { position: 'absolute', top: -30, bottom: -30, width: 72, backgroundColor: 'rgba(255,255,255,0.14)' },
   pagination: { minHeight: 82, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
   pageButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md },
   pageButtonText: { color: colors.text, fontFamily: type.semibold, fontSize: 13 },
