@@ -58,7 +58,9 @@ jobs:
         run: node scripts/patch-swift6-manifest.js
 
       - name: Prebuild iOS project
-        run: npx expo prebuild --platform ios --clean --no-install
+        run: |
+          npx expo prebuild --platform ios --clean --no-install
+          find ios -name "project.pbxproj" -exec sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' {} + || true
 
       - name: Configure Xcode Node environment
         run: |
@@ -72,6 +74,7 @@ jobs:
 
       - name: Prebuild ExpoModulesJSI xcframework
         run: |
+          set -o pipefail
           node scripts/patch-swift6-manifest.js
           cd ios
           export PODS_ROOT="$(pwd)/Pods"
@@ -88,6 +91,8 @@ jobs:
 
       - name: Build unsigned iOS archive
         run: |
+          set -o pipefail
+          mkdir -p build
           cd ios
           WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -n 1)
           APP_NAME=$(basename $(find . -maxdepth 1 -name "*.xcodeproj" | head -n 1) .xcodeproj)
@@ -99,19 +104,35 @@ jobs:
             -scheme "$APP_NAME" \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath ../build/App.xcarchive \
+            -archivePath "$PWD/../build/App.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | tee ../archive.log || {
-              echo "::error::xcodebuild archive failed! Displaying errors:"
-              grep -E "error:" ../archive.log || tail -n 100 ../archive.log
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" 2>&1 | tee "$PWD/../archive.log" || {
+              echo "::error::xcodebuild archive failed! Last 100 lines of log:"
+              tail -n 100 "$PWD/../archive.log"
+              echo "::error::All errors in log:"
+              grep -i "error:" "$PWD/../archive.log" || true
               exit 1
             }
 
+          echo "Archive completed successfully. Contents of build directory:"
+          ls -la "$PWD/../build"
+
       - name: Package into unsigned IPA
         run: |
+          echo "Looking for .app bundle in build directory..."
+          APP_PATH=$(find build -name "*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app bundle found in build directory!"
+            ls -la build || true
+            exit 1
+          fi
+          echo "Found .app at: $APP_PATH"
+
           mkdir -p Payload
-          cp -r build/App.xcarchive/Products/Applications/*.app Payload/
+          cp -r "$APP_PATH" Payload/
           zip -r PriceIntelligenceV2-unsigned.ipa Payload
           ls -lh PriceIntelligenceV2-unsigned.ipa
 
