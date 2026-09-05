@@ -48,6 +48,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Patch ExpoModulesJSI for Swift 6 / Xcode 16.2
+        run: |
+          echo "Patching weak let -> weak var in Swift files..."
+          find node_modules -name "*.swift" -exec sed -i '' 's/weak let/weak var/g' {} + || true
+
+          echo "Patching SWIFT_RETURNS_RETAINED in RuntimeScheduler.h..."
+          find node_modules -name "RuntimeScheduler.h" -exec sed -i '' 's/SWIFT_RETURNS_RETAINED RuntimeScheduler/RuntimeScheduler/g' {} + || true
+
+          echo "Removing -quiet flag from build-xcframework.sh..."
+          find node_modules -name "build-xcframework.sh" -exec sed -i '' 's/-quiet//g' {} + || true
+
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --clean --no-install
 
@@ -60,6 +71,17 @@ jobs:
         run: |
           cd ios
           pod install --repo-update
+
+      - name: Prebuild ExpoModulesJSI xcframework
+        run: |
+          cd ios
+          export PODS_ROOT="$(pwd)/Pods"
+          export PLATFORM_NAME="iphoneos"
+          SCRIPT=$(find ../node_modules -name "build-xcframework.sh" | head -n 1)
+          if [ -n "$SCRIPT" ]; then
+            echo "Prebuilding ExpoModulesJSI with: $SCRIPT"
+            bash "$SCRIPT"
+          fi
 
       - name: Build unsigned iOS archive
         run: |
