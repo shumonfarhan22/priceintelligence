@@ -1,5 +1,22 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
+
+let swiftMajor = 6;
+let swiftMinor = 0;
+try {
+  const out = execSync('swift --version', { encoding: 'utf8' });
+  const match = out.match(/Swift version (\d+)\.(\d+)/);
+  if (match) {
+    swiftMajor = parseInt(match[1], 10);
+    swiftMinor = parseInt(match[2], 10);
+  }
+} catch (e) {}
+
+const isSwift62OrHigher = swiftMajor > 6 || (swiftMajor === 6 && swiftMinor >= 2);
+console.log(
+  `[patch] Detected Swift ${swiftMajor}.${swiftMinor} (isSwift62OrHigher: ${isSwift62OrHigher})`
+);
 
 function findFiles(dir, matchName, visited = new Set(), fileList = []) {
   if (!fs.existsSync(dir)) return fileList;
@@ -47,7 +64,7 @@ function findFiles(dir, matchName, visited = new Set(), fileList = []) {
 const nodeModulesDir = path.resolve(__dirname, '../node_modules');
 console.log('[patch] Searching node_modules at:', nodeModulesDir);
 
-// 1. Patch Package.swift files: down-pin to 6.0, comment out 6.2-only flags, and remove trailing commas before closing parentheses
+// 1. Patch Package.swift files: down-pin and adapt if older Swift toolchain
 const pkgFiles = findFiles(nodeModulesDir, (n) => n === 'Package.swift');
 console.log(`[patch] Found ${pkgFiles.length} Package.swift files`);
 
@@ -55,26 +72,32 @@ for (const f of pkgFiles) {
   let content = fs.readFileSync(f, 'utf8');
   const original = content;
 
-  content = content.replace(/swift-tools-version:\s*6\.[1-9]/g, 'swift-tools-version: 6.0');
-  content = content.replace(/\.enableUpcomingFeature\(/g, '// .enableUpcomingFeature(');
+  if (!isSwift62OrHigher) {
+    content = content.replace(
+      /swift-tools-version:\s*6\.[1-9]/g,
+      `swift-tools-version: ${swiftMajor}.${swiftMinor}`
+    );
+    content = content.replace(/\.enableUpcomingFeature\(/g, '// .enableUpcomingFeature(');
 
-  const lines = content.split(/\r?\n/);
-  for (let i = 0; i < lines.length - 1; i++) {
-    let nextIdx = i + 1;
-    while (
-      nextIdx < lines.length &&
-      (lines[nextIdx].trim() === '' || lines[nextIdx].trim().startsWith('//'))
-    ) {
-      nextIdx++;
-    }
-    if (nextIdx < lines.length) {
-      const nextTrimmed = lines[nextIdx].trim();
-      if (nextTrimmed.startsWith(')')) {
-        lines[i] = lines[i].replace(/,\s*(\/\/.*)?$/, (match, p1) => (p1 ? ' ' + p1.trim() : ''));
+    // Remove trailing commas before closing parentheses
+    const lines = content.split(/\r?\n/);
+    for (let i = 0; i < lines.length - 1; i++) {
+      let nextIdx = i + 1;
+      while (
+        nextIdx < lines.length &&
+        (lines[nextIdx].trim() === '' || lines[nextIdx].trim().startsWith('//'))
+      ) {
+        nextIdx++;
+      }
+      if (nextIdx < lines.length) {
+        const nextTrimmed = lines[nextIdx].trim();
+        if (nextTrimmed.startsWith(')')) {
+          lines[i] = lines[i].replace(/,\s*(\/\/.*)?$/, (match, p1) => (p1 ? ' ' + p1.trim() : ''));
+        }
       }
     }
+    content = lines.join('\n');
   }
-  content = lines.join('\n');
 
   if (content !== original) {
     fs.writeFileSync(f, content, 'utf8');
@@ -82,7 +105,7 @@ for (const f of pkgFiles) {
   }
 }
 
-// 2. Patch Swift files: weak let -> weak var
+// 2. Patch Swift files: weak let -> weak var (invalid across all Swift versions)
 const swiftFiles = findFiles(nodeModulesDir, (n) => n.endsWith('.swift'));
 console.log(`[patch] Checking ${swiftFiles.length} Swift files for 'weak let'...`);
 
@@ -108,15 +131,15 @@ for (const f of schedulerFiles) {
   }
 }
 
-// 4. Patch build-xcframework.sh: remove -quiet flag and ensure verbose output
+// 4. Patch build-xcframework.sh: remove -quiet flag cleanly without leaving empty argument lines
 const buildScripts = findFiles(nodeModulesDir, (n) => n === 'build-xcframework.sh');
 for (const f of buildScripts) {
   let content = fs.readFileSync(f, 'utf8');
   if (content.includes('-quiet')) {
-    content = content.replace(/-quiet\s*\\?/g, '');
+    content = content.replace(/^[ \t]*-quiet[ \t]*(\\)?\r?\n/gm, '');
     fs.writeFileSync(f, content, 'utf8');
     console.log(`[patch] Patched build-xcframework.sh: ${path.relative(nodeModulesDir, f)}`);
   }
 }
 
-console.log('[patch] All Xcode 16.2 / Swift 6.0 patches applied successfully!');
+console.log('[patch] All patches processed successfully!');

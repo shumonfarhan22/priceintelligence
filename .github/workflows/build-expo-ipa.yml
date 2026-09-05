@@ -29,10 +29,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16.2
+      - name: Select latest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.2'
+          xcode-version: 'latest-stable'
+
+      - name: Print Xcode & Swift version
+        run: |
+          xcodebuild -version
+          swift --version
+          ls -ld /Applications/Xcode*
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -73,7 +79,11 @@ jobs:
           SCRIPT=$(find ../node_modules -name "build-xcframework.sh" | head -n 1)
           if [ -n "$SCRIPT" ]; then
             echo "Prebuilding ExpoModulesJSI with: $SCRIPT"
-            bash "$SCRIPT"
+            bash "$SCRIPT" 2>&1 | tee ../build_xcframework.log || {
+              echo "::error::ExpoModulesJSI build failed! Displaying compiler errors:"
+              grep -E "error:" ../build_xcframework.log || tail -n 100 ../build_xcframework.log
+              exit 1
+            }
           fi
 
       - name: Build unsigned iOS archive
@@ -92,7 +102,11 @@ jobs:
             -archivePath ../build/App.xcarchive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee ../archive.log || {
+              echo "::error::xcodebuild archive failed! Displaying errors:"
+              grep -E "error:" ../archive.log || tail -n 100 ../archive.log
+              exit 1
+            }
 
       - name: Package into unsigned IPA
         run: |
