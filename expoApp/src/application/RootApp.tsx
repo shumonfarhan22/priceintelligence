@@ -5,7 +5,12 @@ import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  AppState,
+  BackHandler,
+  Easing,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -15,12 +20,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BottomBanner, type BannerNotice, type BannerTone } from '../components/BottomBanner';
+import {
+  BottomBanner,
+  type BannerNotice,
+  type BannerTone,
+  type UndoNotice,
+} from '../components/BottomBanner';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MAX_BACKUP_BYTES } from '../data/backup';
 import { InventoryRepository, type ComparisonOverview } from '../data/inventoryRepository';
+import type { InventoryProduct } from '../domain/models';
+import { priceChangeNotificationNavigation } from '../domain/priceChangeNotifications';
+import { ProductDetailsModal } from '../features/comparison/ProductDetailsModal';
 import { QuickCompareScreen } from '../features/comparison/QuickCompareScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
+import { PriceMovementScreen } from '../features/dashboard/PriceMovementScreen';
+import { PricingInsightsScreen } from '../features/insights/PricingInsightsScreen';
 import { InventoryScreen } from '../features/inventory/InventoryScreen';
+import { PersonalizationAccordionModal } from '../features/settings/PersonalizationAccordionModal';
+import { CustomizationProvider, useCustomization } from '../theme/CustomizationContext';
 import { colors, radius, spacing, type } from '../theme/tokens';
 
 interface RootAppProps {
@@ -32,17 +50,49 @@ type LoadState =
   | { phase: 'ready'; repository: InventoryRepository; overview: ComparisonOverview }
   | { phase: 'error'; message: string };
 
-type Route = 'dashboard' | 'inventory' | 'comparison';
+type Destination = 'inventory' | 'comparison' | 'priceMovement' | 'insights';
 
-export function RootApp({ fontFallback }: RootAppProps) {
+export function RootApp(props: RootAppProps) {
+  return (
+    <ErrorBoundary>
+      <CustomizationProvider>
+        <RootAppContent {...props} />
+      </CustomizationProvider>
+    </ErrorBoundary>
+  );
+}
+
+function RootAppContent({ fontFallback }: RootAppProps) {
+  const { colors: dynamicColors, customization, priceChangeNotificationsEnabled } = useCustomization();
+  const customizationRef = useRef(customization);
+  customizationRef.current = customization;
+  const notifEnabledRef = useRef(priceChangeNotificationsEnabled);
+  notifEnabledRef.current = priceChangeNotificationsEnabled;
+
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
-  const [route, setRoute] = useState<Route>('dashboard');
+
+  // ── Navigation Shell State matching Compose App.kt ──
+  const [hubVisible, setHubVisible] = useState(true);
+  const [destination, setDestination] = useState<Destination | null>(null);
+  const [insightsFilter, setInsightsFilter] = useState<'COMPETITIVE' | 'REVIEW' | null>(null);
+  const [selectedPriorityProduct, setSelectedPriorityProduct] = useState<InventoryProduct | null>(null);
+
   const [toolsVisible, setToolsVisible] = useState(false);
+  const [personalizationVisible, setPersonalizationVisible] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [quickCompareKey, setQuickCompareKey] = useState(0);
+
+  // ── Coordinated Dual Banners ──
   const [notice, setNotice] = useState<BannerNotice | null>(null);
+  const [undoNotice, setUndoNotice] = useState<UndoNotice | null>(null);
   const noticeCounter = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const repositoryRef = useRef<InventoryRepository | null>(null);
+
+  // ── Spring Transition Animated Values ──
+  const hubAnim = useRef(new Animated.Value(1)).current;
+  const destAnim = useRef(new Animated.Value(0)).current;
+  const reduceMotion = customization.motionPreference === 'REDUCED';
 
   const showBanner = useCallback((
     message: string,
@@ -59,7 +109,7 @@ export function RootApp({ fontFallback }: RootAppProps) {
     };
     setNotice(nextNotice);
     noticeTimer.current = setTimeout(() => {
-      setNotice((current) => current?.id === nextNotice.id ? null : current);
+      setNotice((current) => (current?.id === nextNotice.id ? null : current));
     }, action ? 5000 : 4200);
   }, []);
 
@@ -98,6 +148,13 @@ export function RootApp({ fontFallback }: RootAppProps) {
         const overview = await repository.getComparisonOverview();
         if (active) {
           repositoryRef.current = repository;
+          if (Platform.OS === 'web') {
+            (window as any).__expoRepository = repository;
+            (window as any).__openTools = () => setToolsVisible(true);
+            (window as any).__closeTools = () => setToolsVisible(false);
+            (window as any).__openPersonalization = () => setPersonalizationVisible(true);
+            (window as any).__closePersonalization = () => setPersonalizationVisible(false);
+          }
           setState({ phase: 'ready', repository, overview });
         }
       })
@@ -111,39 +168,195 @@ export function RootApp({ fontFallback }: RootAppProps) {
     };
   }, []);
 
+  // ── Spring Navigation Transitions ──
+  const navigateTo = useCallback((dest: Destination, filter?: 'COMPETITIVE' | 'REVIEW') => {
+    setDestination(dest);
+    setInsightsFilter(filter || null);
+    if (dest === 'comparison') {
+      setQuickCompareKey((k) => k + 1);
+    }
+    if (reduceMotion) {
+      hubAnim.setValue(0);
+      destAnim.setValue(1);
+      setHubVisible(false);
+    } else {
+      setHubVisible(false);
+      Animated.parallel([
+        Animated.timing(hubAnim, {
+          toValue: 0,
+          duration: 150,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(destAnim, {
+          toValue: 1,
+          damping: 15,
+          stiffness: 220,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [destAnim, hubAnim, reduceMotion]);
+
+  useEffect(() => {
+    const unsubscribe = priceChangeNotificationNavigation.subscribe((target) => {
+      if (target) {
+        navigateTo('priceMovement');
+      }
+    });
+    return unsubscribe;
+  }, [navigateTo]);
+
+
+  const navigateHome = useCallback(() => {
+    if (reduceMotion) {
+      hubAnim.setValue(1);
+      destAnim.setValue(0);
+      setHubVisible(true);
+    } else {
+      setHubVisible(true);
+      Animated.parallel([
+        Animated.spring(hubAnim, {
+          toValue: 1,
+          damping: 16,
+          stiffness: 240,
+          useNativeDriver: true,
+        }),
+        Animated.timing(destAnim, {
+          toValue: 0,
+          duration: 140,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [destAnim, hubAnim, reduceMotion]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      (window as any).__navigateTo = navigateTo;
+      (window as any).__navigateHome = navigateHome;
+      (window as any).__setRoute = (r: string) => {
+        if (r === 'home') navigateHome();
+        else navigateTo(r as Destination);
+      };
+      (window as any).__setSelectedProduct = (p: InventoryProduct | null) => setSelectedPriorityProduct(p);
+    }
+  }, [navigateTo, navigateHome]);
+
+  // ── Hardware Back Handler & Interactive Edge Swipe ──
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (selectedPriorityProduct) {
+        setSelectedPriorityProduct(null);
+        return true;
+      }
+      if (personalizationVisible) {
+        setPersonalizationVisible(false);
+        return true;
+      }
+      if (toolsVisible) {
+        setToolsVisible(false);
+        return true;
+      }
+      if (!hubVisible) {
+        navigateHome();
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [selectedPriorityProduct, personalizationVisible, toolsVisible, hubVisible, navigateHome]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) => {
+        return !hubVisible && gesture.moveX < 45 && gesture.dx > 15 && Math.abs(gesture.dy) < 30;
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (!hubVisible && gesture.dx > 60) {
+          navigateHome();
+        }
+      },
+    }),
+  ).current;
+
+  // ── Price Alert Navigation ──
+  useEffect(() => {
+    if (state.phase !== 'ready') return;
+
+    const unsubNav = priceChangeNotificationNavigation.subscribe((target) => {
+      if (target) {
+        navigateTo('priceMovement');
+        priceChangeNotificationNavigation.consume(target.requestId);
+      }
+    });
+
+    return () => {
+      unsubNav();
+    };
+  }, [state.phase, navigateTo]);
+
   if (state.phase === 'loading') return <CenteredStatus label="Preparing secure local storage…" />;
   if (state.phase === 'error') return <CenteredStatus label={state.message} error />;
 
   const importBackup = async () => {
-    let backupFile: File;
-    if (Platform.OS === 'android') {
-      // FileSystem's picker retains Android's content-provider grant. Reading the
-      // returned content:// File avoids the permission failures caused by turning
-      // a DocumentPicker cache URI back into a plain filesystem path.
-      const selection = await File.pickFileAsync({
-        mimeTypes: ['application/json', 'text/json', 'text/plain'],
-        multipleFiles: false,
-      });
-      if (selection.canceled) return;
-      backupFile = selection.result;
-    } else {
+    let contents = '';
+    if (Platform.OS === 'web') {
       const selection = await DocumentPicker.getDocumentAsync({
         type: ['application/json', 'text/json', 'text/plain'],
-        copyToCacheDirectory: true,
         multiple: false,
       });
-      if (selection.canceled) return;
-      backupFile = new File(selection.assets[0].uri);
-    }
-    setToolsVisible(false);
-    if (backupFile.size != null && backupFile.size > MAX_BACKUP_BYTES) {
-      showBanner('This backup is too large to import safely.', 'error');
-      return;
+      if (selection.canceled || !selection.assets[0].file) return;
+      const domFile = selection.assets[0].file as any;
+      if (domFile.size > MAX_BACKUP_BYTES) {
+        showBanner('This backup is too large to import safely.', 'error');
+        return;
+      }
+      setToolsVisible(false);
+      setBusy(true);
+      try {
+        contents = await domFile.text();
+      } catch (error) {
+        setBusy(false);
+        showBanner('Failed to read file on web.', 'error');
+        return;
+      }
+    } else {
+      let backupFile: File;
+      if (Platform.OS === 'android') {
+        const selection = await File.pickFileAsync({
+          mimeTypes: ['application/json', 'text/json', 'text/plain'],
+          multipleFiles: false,
+        });
+        if (selection.canceled) return;
+        backupFile = selection.result;
+      } else {
+        const selection = await DocumentPicker.getDocumentAsync({
+          type: ['application/json', 'text/json', 'text/plain'],
+          copyToCacheDirectory: true,
+          multiple: false,
+        });
+        if (selection.canceled) return;
+        backupFile = new File(selection.assets[0].uri);
+      }
+      setToolsVisible(false);
+      if (backupFile.size != null && backupFile.size > MAX_BACKUP_BYTES) {
+        showBanner('This backup is too large to import safely.', 'error');
+        return;
+      }
+
+      setBusy(true);
+      try {
+        contents = await backupFile.text();
+      } catch (error) {
+        setBusy(false);
+        showBanner('Failed to read backup file.', 'error');
+        return;
+      }
     }
 
-    setBusy(true);
     try {
-      const contents = await backupFile.text();
       const result = await state.repository.importBackupJson(contents);
       const productCount = await state.repository.countProducts();
       updateProductCount(productCount);
@@ -181,32 +394,128 @@ export function RootApp({ fontFallback }: RootAppProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      {route === 'dashboard' ? (
-        <DashboardScreen
-          overview={state.overview}
-          onOpenInventory={() => setRoute('inventory')}
-          onOpenCompare={() => setRoute('comparison')}
-          onOpenTools={() => setToolsVisible(true)}
-        />
-      ) : route === 'inventory' ? (
-        <InventoryScreen
-          repository={state.repository}
-          productCount={state.overview.productCount}
-          onBack={() => setRoute('dashboard')}
-          onProductCountChanged={updateProductCount}
-          showBanner={showBanner}
-          bannerVisible={notice != null}
-        />
-      ) : (
-        <QuickCompareScreen
-          repository={state.repository}
-          onBack={() => setRoute('dashboard')}
-          onComparisonChanged={() => refreshOverview(state.repository).catch(() => undefined)}
-          showBanner={showBanner}
-        />
-      )}
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: dynamicColors.background }]} edges={['top', 'left', 'right']}>
+      <View style={styles.contentShell} {...panResponder.panHandlers}>
+        {/* ── Launch Hub Layer ── */}
+        <Animated.View
+          pointerEvents={hubVisible ? 'auto' : 'none'}
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              opacity: hubAnim,
+              transform: [
+                {
+                  scale: hubAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.97, 1],
+                  }),
+                },
+                {
+                  translateY: hubAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <DashboardScreen
+            overview={state.overview}
+            repository={state.repository}
+            onOpenInventory={() => navigateTo('inventory')}
+            onOpenCompare={() => navigateTo('comparison')}
+            onOpenTools={() => setToolsVisible(true)}
+            onOpenPriceMovement={() => navigateTo('priceMovement')}
+            onOpenInsights={(filter) => navigateTo('insights', filter)}
+            onSelectProduct={(product) => setSelectedPriorityProduct(product)}
+          />
+        </Animated.View>
 
+        {/* ── Destination Layer with Spring Enter/Exit ── */}
+        <Animated.View
+          pointerEvents={!hubVisible ? 'auto' : 'none'}
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              opacity: destAnim,
+              transform: [
+                {
+                  scale: destAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.93, 1],
+                  }),
+                },
+                {
+                  translateY: destAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {destination === 'insights' ? (
+            <PricingInsightsScreen
+              onBack={navigateHome}
+              repository={state.repository}
+              showBanner={showBanner}
+              initialGroup={
+                insightsFilter === 'COMPETITIVE'
+                  ? 'SHOP_LOWER'
+                  : insightsFilter === 'REVIEW'
+                  ? 'ONLINE_LOWER'
+                  : null
+              }
+            />
+          ) : destination === 'priceMovement' ? (
+            <PriceMovementScreen repository={state.repository} onClose={navigateHome} />
+          ) : destination === 'inventory' ? (
+            <InventoryScreen
+              repository={state.repository}
+              productCount={state.overview.productCount}
+              onBack={navigateHome}
+              onProductCountChanged={updateProductCount}
+              showBanner={showBanner}
+              bannerVisible={notice != null || undoNotice != null}
+              onQueueUndo={(n) =>
+                setUndoNotice({
+                  id: Date.now(),
+                  itemCount: n.itemCount,
+                  onUndo: () => {
+                    n.onUndo();
+                    setUndoNotice(null);
+                  },
+                })
+              }
+            />
+          ) : destination === 'comparison' ? (
+            <QuickCompareScreen
+              key={`quick-compare-${quickCompareKey}`}
+              repository={state.repository}
+              onBack={navigateHome}
+              onComparisonChanged={() => refreshOverview(state.repository).catch(() => undefined)}
+              showBanner={showBanner}
+            />
+          ) : null}
+        </Animated.View>
+      </View>
+
+      {/* ── Priority Product Direct Details Sheet ── */}
+      {selectedPriorityProduct ? (
+        <ProductDetailsModal
+          product={selectedPriorityProduct}
+          repository={state.repository}
+          showBanner={showBanner}
+          onClose={() => setSelectedPriorityProduct(null)}
+          onProductUpdated={(updated) => {
+            refreshOverview(state.repository).catch(() => undefined);
+          }}
+        />
+      ) : null}
+
+      {/* ── App Tools & Personalization Modals ── */}
       <MigrationToolsModal
         visible={toolsVisible}
         productCount={state.overview.productCount}
@@ -215,12 +524,25 @@ export function RootApp({ fontFallback }: RootAppProps) {
         onClose={() => setToolsVisible(false)}
         onImport={importBackup}
         onExport={exportBackup}
+        onPersonalize={() => {
+          setToolsVisible(false);
+          setPersonalizationVisible(true);
+        }}
       />
+      <PersonalizationAccordionModal
+        visible={personalizationVisible}
+        onClose={() => setPersonalizationVisible(false)}
+      />
+
+      {/* ── Coordinated Dual Banners (Undo + Status) ── */}
       <BottomBanner
         notice={notice}
         onDismiss={() => setNotice(null)}
+        undoNotice={undoNotice}
+        onUndo={() => setUndoNotice(null)}
         bottomOffset={0}
       />
+
       {busy ? (
         <View style={styles.busyOverlay} accessibilityLiveRegion="polite">
           <ActivityIndicator color={colors.primary} size="large" />
@@ -239,6 +561,7 @@ function MigrationToolsModal({
   onClose,
   onImport,
   onExport,
+  onPersonalize,
 }: {
   visible: boolean;
   productCount: number;
@@ -247,7 +570,10 @@ function MigrationToolsModal({
   onClose: () => void;
   onImport: () => void;
   onExport: () => void;
+  onPersonalize: () => void;
 }) {
+  const { colors } = useCustomization();
+
   return (
     <Modal
       visible={visible}
@@ -256,34 +582,37 @@ function MigrationToolsModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={[styles.toolsRoot, Platform.OS === 'android' && styles.toolsBackdrop]}>
-        <View style={styles.toolsSheet}>
-          <View style={styles.toolsHeader}>
+      <SafeAreaView style={[styles.toolsRoot, { backgroundColor: colors.surface }, Platform.OS === 'android' && styles.toolsBackdrop]}>
+        <View style={[styles.toolsSheet, { backgroundColor: colors.surface }]}>
+          <View style={[styles.toolsHeader, { borderBottomColor: colors.border }]}>
             <View>
-              <Text style={styles.toolsEyebrow}>DATA SAFETY</Text>
-              <Text style={styles.toolsTitle}>Backup & migration</Text>
+              <Text style={[styles.toolsEyebrow, { color: colors.primary }]}>DATA SAFETY</Text>
+              <Text style={[styles.toolsTitle, { color: colors.text }]}>App tools</Text>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close tools" onPress={onClose} style={styles.closeButton}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close tools"
+              onPress={onClose}
+              style={[styles.closeButton, { borderColor: colors.border }]}
+            >
               <Ionicons name="close" size={26} color={colors.text} />
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.toolsContent}>
-            <View style={styles.databaseCard}>
-              <Ionicons name="shield-checkmark" size={25} color={colors.primary} />
-              <View style={styles.databaseText}>
-                <Text style={styles.databaseTitle}>
-                  {productCount} {productCount === 1 ? 'product' : 'products'} in V2
-                </Text>
-                <Text style={styles.databaseBody}>Stored locally in the isolated SQLite database.</Text>
-              </View>
-            </View>
+            <ToolButton
+              icon="color-palette-outline"
+              title="Settings & Personalization"
+              subtitle="Change colours, layouts, graphs, alerts and motion"
+              onPress={onPersonalize}
+              disabled={busy}
+              primary
+            />
             <ToolButton
               icon="download-outline"
               title="Import current app backup"
               subtitle="Safely merge products and price history"
               onPress={onImport}
               disabled={busy}
-              primary
             />
             <ToolButton
               icon="share-outline"
@@ -292,13 +621,26 @@ function MigrationToolsModal({
               onPress={onExport}
               disabled={busy}
             />
-            <View style={styles.safetyNote}>
-              <Text style={styles.safetyTitle}>The current app stays protected</Text>
-              <Text style={styles.safetyBody}>
+            <View style={[styles.databaseCard, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}>
+              <Ionicons name="shield-checkmark" size={25} color={colors.primary} />
+              <View style={styles.databaseText}>
+                <Text style={[styles.databaseTitle, { color: colors.text }]}>
+                  {productCount} {productCount === 1 ? 'product' : 'products'} in V2
+                </Text>
+                <Text style={[styles.databaseBody, { color: colors.textMuted }]}>Stored locally in the isolated SQLite database.</Text>
+              </View>
+            </View>
+            <View style={[styles.safetyNote, { backgroundColor: colors.surfaceRaised }]}>
+              <Text style={[styles.safetyTitle, { color: colors.text }]}>The current app stays protected</Text>
+              <Text style={[styles.safetyBody, { color: colors.textMuted }]}>
                 V2 never opens or modifies the Room inventory database. Migration only reads a backup file you choose.
               </Text>
             </View>
-            {fontFallback ? <Text style={styles.fontWarning}>Bundled typography could not load; system text is being used.</Text> : null}
+            {fontFallback ? (
+              <Text style={[styles.fontWarning, { color: colors.warning }]}>
+                Bundled typography could not load; system text is being used.
+              </Text>
+            ) : null}
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -321,20 +663,27 @@ function ToolButton({
   disabled: boolean;
   primary?: boolean;
 }) {
+  const { colors } = useCustomization();
+
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.toolButton, primary && styles.toolButtonPrimary, pressed && styles.pressed, disabled && styles.disabled]}
+      style={({ pressed }) => [
+        styles.toolButton,
+        { backgroundColor: colors.background, borderColor: primary ? colors.primary : colors.border },
+        pressed && styles.pressed,
+        disabled && styles.disabled,
+      ]}
     >
-      <View style={styles.toolIcon}>
+      <View style={[styles.toolIcon, { backgroundColor: colors.surfaceRaised }]}>
         <Ionicons name={icon} size={23} color={primary ? colors.primary : colors.textMuted} />
       </View>
       <View style={styles.toolText}>
-        <Text style={styles.toolTitle}>{title}</Text>
-        <Text style={styles.toolSubtitle}>{subtitle}</Text>
+        <Text style={[styles.toolTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.toolSubtitle, { color: colors.textMuted }]}>{subtitle}</Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
     </Pressable>
@@ -342,10 +691,16 @@ function ToolButton({
 }
 
 function CenteredStatus({ label, error = false }: { label: string; error?: boolean }) {
+  const { colors } = useCustomization();
+
   return (
-    <SafeAreaView style={styles.centered}>
-      {!error ? <ActivityIndicator color={colors.primary} size="large" /> : <Ionicons name="alert-circle" size={38} color={colors.danger} />}
-      <Text style={[styles.centeredLabel, error && styles.error]}>{label}</Text>
+    <SafeAreaView style={[styles.centered, { backgroundColor: colors.background }]}>
+      {!error ? (
+        <ActivityIndicator color={colors.primary} size="large" />
+      ) : (
+        <Ionicons name="alert-circle" size={38} color={colors.danger} />
+      )}
+      <Text style={[styles.centeredLabel, { color: colors.textMuted }, error && styles.error]}>{label}</Text>
     </SafeAreaView>
   );
 }
@@ -356,32 +711,103 @@ function messageFrom(error: unknown): string {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  busyOverlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.62)', zIndex: 200 },
+  contentShell: { flex: 1, overflow: 'hidden' },
+  busyOverlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    zIndex: 200,
+  },
   busyText: { color: colors.text, fontFamily: type.semibold, fontSize: 16, marginTop: spacing.md },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, padding: spacing.xl },
-  centeredLabel: { color: colors.textMuted, fontFamily: type.semibold, fontSize: 16, textAlign: 'center', marginTop: spacing.lg },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    padding: spacing.xl,
+  },
+  centeredLabel: {
+    color: colors.textMuted,
+    fontFamily: type.semibold,
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+  },
   error: { color: colors.danger },
   toolsRoot: { flex: 1, backgroundColor: colors.surface },
   toolsBackdrop: { backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end' },
-  toolsSheet: { flex: Platform.OS === 'ios' ? 1 : undefined, maxHeight: Platform.OS === 'ios' ? '100%' : '90%', backgroundColor: colors.surface, borderTopLeftRadius: Platform.OS === 'ios' ? 0 : radius.lg, borderTopRightRadius: Platform.OS === 'ios' ? 0 : radius.lg, overflow: 'hidden' },
-  toolsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border },
+  toolsSheet: {
+    flex: Platform.OS === 'ios' ? 1 : undefined,
+    maxHeight: Platform.OS === 'ios' ? '100%' : '90%',
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: Platform.OS === 'ios' ? 0 : radius.lg,
+    borderTopRightRadius: Platform.OS === 'ios' ? 0 : radius.lg,
+    overflow: 'hidden',
+  },
+  toolsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   toolsEyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.2 },
   toolsTitle: { color: colors.text, fontFamily: type.bold, fontSize: 24, marginTop: spacing.xs },
-  closeButton: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  closeButton: {
+    width: 46,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   toolsContent: { padding: spacing.xl, gap: spacing.lg, paddingBottom: 48 },
-  databaseCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primaryMuted, borderWidth: 1, borderColor: 'rgba(16,185,129,0.45)', borderRadius: radius.md, padding: spacing.lg },
+  databaseCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.45)',
+    borderRadius: radius.md,
+    padding: spacing.lg,
+  },
   databaseText: { flex: 1, marginLeft: spacing.md },
   databaseTitle: { color: colors.text, fontFamily: type.bold, fontSize: 17 },
   databaseBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, marginTop: spacing.xs },
-  toolButton: { minHeight: 76, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md },
+  toolButton: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
   toolButtonPrimary: { borderColor: colors.primary },
-  toolIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceRaised, borderRadius: radius.sm },
+  toolIcon: {
+    width: 46,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.sm,
+  },
   toolText: { flex: 1, marginHorizontal: spacing.md },
   toolTitle: { color: colors.text, fontFamily: type.bold, fontSize: 16 },
   toolSubtitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, marginTop: spacing.xs },
   safetyNote: { backgroundColor: colors.surfaceRaised, borderRadius: radius.md, padding: spacing.lg },
   safetyTitle: { color: colors.text, fontFamily: type.bold, fontSize: 15 },
-  safetyBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13, lineHeight: 19, marginTop: spacing.sm },
+  safetyBody: {
+    color: colors.textMuted,
+    fontFamily: type.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: spacing.sm,
+  },
   fontWarning: { color: colors.warning, fontFamily: type.regular, fontSize: 13 },
   pressed: { opacity: 0.68 },
   disabled: { opacity: 0.5 },

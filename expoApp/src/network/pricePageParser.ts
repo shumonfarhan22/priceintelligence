@@ -21,11 +21,11 @@ export function parseRetailerPage(html: string, url: string): ParsedRetailerPage
 
   const structured = extractStructuredData(html, url);
   const price = structured.price
-    ?? extractMetaPrice(html)
-    ?? extractRetailerPrice(html, url);
+    ?? extractRetailerPrice(html, url)
+    ?? extractMetaPrice(html);
   const image = structured.image
-    ?? normalizeImageUrl(extractMetaImage(html), url)
-    ?? extractRetailerImage(html, url);
+    ?? extractRetailerImage(html, url)
+    ?? normalizeImageUrl(extractMetaImage(html), url);
 
   return { price, image, blocked: false };
 }
@@ -50,13 +50,27 @@ function extractStructuredData(
   baseUrl: string,
 ): { price: number | null; image: string | null } {
   let image: string | null = null;
-  const scriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
-  for (const match of html.matchAll(scriptPattern)) {
-    const attributes = parseAttributes(match[1] ?? '');
-    if (attributes.type?.toLocaleLowerCase() !== 'application/ld+json') continue;
+  let startIndex = 0;
+  
+  while ((startIndex = html.indexOf('<script', startIndex)) !== -1) {
+    const endBracket = html.indexOf('>', startIndex);
+    if (endBracket === -1) break;
+    
+    const tagContent = html.substring(startIndex, endBracket + 1);
+    if (!tagContent.toLocaleLowerCase().includes('application/ld+json')) {
+      startIndex = endBracket + 1;
+      continue;
+    }
+    
+    const endScript = html.indexOf('</script>', endBracket);
+    if (endScript === -1) break;
+    
+    const jsonContent = html.substring(endBracket + 1, endScript);
+    startIndex = endScript + 9;
+    
     let root: unknown;
     try {
-      root = JSON.parse((match[2] ?? '').trim());
+      root = JSON.parse(jsonContent.trim());
     } catch {
       continue;
     }
@@ -131,7 +145,21 @@ function extractMetaPrice(html: string): number | null {
 function extractMetaImage(html: string): string | null {
   for (const attributes of tagAttributes(html, 'meta')) {
     const property = (attributes.property ?? attributes.name)?.toLocaleLowerCase();
-    if (property === 'og:image' && attributes.content?.trim()) return attributes.content.trim();
+    if (
+      (property === 'og:image' ||
+        property === 'og:image:secure_url' ||
+        property === 'twitter:image' ||
+        property === 'twitter:image:src') &&
+      attributes.content?.trim()
+    ) {
+      return attributes.content.trim();
+    }
+  }
+  for (const attributes of tagAttributes(html, 'link')) {
+    const rel = attributes.rel?.toLocaleLowerCase();
+    if (rel === 'image_src' && attributes.href?.trim()) {
+      return attributes.href.trim();
+    }
   }
   return null;
 }
@@ -139,50 +167,180 @@ function extractMetaImage(html: string): string | null {
 function extractRetailerPrice(html: string, url: string): number | null {
   const lowerUrl = url.toLocaleLowerCase();
   if (lowerUrl.includes('amazon') || lowerUrl.includes('amzn.')) {
-    return firstElementPrice(html, ['a-offscreen', 'a-price-whole'], [
-      'priceblock_ourprice',
-      'priceblock_dealprice',
-    ]);
+    return extractAmazonPrice(html);
   }
   if (lowerUrl.includes('flipkart')) {
-    return firstElementPrice(html, ['Nx9bqj', '_30jeq3', 'CEmiEU'], []);
+    return extractFlipkartPrice(html);
   }
   return null;
 }
 
+function extractFlipkartPrice(html: string): number | null {
+  // 1. Direct CSS classes
+  const cssPrice = firstElementPrice(html, ['Nx9bqj', '_30jeq3', 'CEmiEU'], []);
+  if (cssPrice != null) return cssPrice;
+
+  // 2. Embedded page data JSON (ppd / finalPrice / fsp)
+  const ppdMatch = html.match(/"(?:finalPrice|fsp)"\s*:\s*(\d+(?:\.\d+)?)/i);
+  if (ppdMatch) {
+    const price = Number(ppdMatch[1]);
+    if (Number.isFinite(price) && price > 0) return price;
+  }
+
+  const specialPriceMatch = html.match(/"specialPrice"\s*:\s*true[^{}]*?"price"\s*:\s*(\d+(?:\.\d+)?)/i);
+  if (specialPriceMatch) {
+    const price = Number(specialPriceMatch[1]);
+    if (Number.isFinite(price) && price > 0) return price;
+  }
+
+  return null;
+}
+
+function extractAmazonPrice(html: string): number | null {
+  const buyboxIds = [
+    'corePriceDisplay_desktop_feature_div',
+    'corePrice_desktop',
+    'corePrice_mobile_feature_div',
+    'price_inside_buybox',
+    'priceblock_dealprice',
+    'priceblock_ourprice',
+    'priceblock_saleprice',
+  ];
+
+  for (const id of buyboxIds) {
+    const containerRegex = new RegExp(`<div\\b[^>]*id=["']${id}["'][^>]*>([\\s\\S]*?)<\\/div>`, 'i');
+    const match = html.match(containerRegex);
+    if (match) {
+      const price = firstElementPrice(match[1], ['a-offscreen', 'a-price-whole'], []);
+      if (price != null) return price;
+    }
+  }
+
+  const priceToPayRegex = /<(?:span|div)\b[^>]*class=["'][^"']*(?:priceToPay|apexPriceToPay)[^"']*["'][^>]*>([\s\S]*?)<\/(?:span|div)>/gi;
+  for (const match of html.matchAll(priceToPayRegex)) {
+    const price = firstElementPrice(match[0], ['a-offscreen', 'a-price-whole'], []);
+    if (price != null) return price;
+  }
+
+  return firstElementPrice(html, ['a-offscreen', 'a-price-whole'], [
+    'priceblock_ourprice',
+    'priceblock_dealprice',
+    'priceblock_saleprice',
+  ]);
+}
+
 function extractRetailerImage(html: string, url: string): string | null {
   const lowerUrl = url.toLocaleLowerCase();
+  const isAmazon = lowerUrl.includes('amazon') || lowerUrl.includes('amzn.');
+  const isFlipkart = lowerUrl.includes('flipkart');
   const images = tagAttributes(html, 'img');
-  if (lowerUrl.includes('amazon') || lowerUrl.includes('amzn.')) {
+
+  if (isAmazon) {
     for (const attributes of images) {
-      const id = attributes.id ?? '';
-      const classes = classNames(attributes.class);
-      if (id !== 'landingImage' && id !== 'imgBlkFront' && !classes.includes('a-dynamic-image')) continue;
+      const id = (attributes.id ?? '').toLocaleLowerCase();
+      const isMainId = id === 'landingimage' || id === 'imgblkfront' || id === 'main-image';
+      if (!isMainId) continue;
+
       const dynamic = attributes['data-a-dynamic-image'];
       if (dynamic) {
         try {
           const decoded = JSON.parse(decodeHtml(dynamic)) as unknown;
           if (isRecord(decoded)) {
-            const first = Object.keys(decoded)[0];
-            const normalized = normalizeImageUrl(first ?? null, url);
-            if (normalized) return normalized;
+            const entries = Object.entries(decoded)
+              .filter(([imgUrl]) => isValidProductImageUrl(imgUrl, url))
+              .map(([imgUrl, dims]) => {
+                let area = 0;
+                if (Array.isArray(dims) && dims.length >= 2) {
+                  area = (Number(dims[0]) || 0) * (Number(dims[1]) || 0);
+                }
+                return { url: imgUrl, area };
+              })
+              .sort((a, b) => b.area - a.area);
+
+            if (entries.length > 0) {
+              const normalized = normalizeImageUrl(entries[0].url, url);
+              if (normalized) return normalized;
+            }
           }
         } catch {
-          // Fall back to ordinary image attributes.
+          // Fall back to direct attributes.
         }
       }
-      const normalized = normalizeImageUrl(attributes['data-old-hires'] ?? attributes.src, url);
-      if (normalized) return normalized;
+
+      const oldHires = attributes['data-old-hires'];
+      if (oldHires && isValidProductImageUrl(oldHires, url)) {
+        const normalized = normalizeImageUrl(oldHires, url);
+        if (normalized) return normalized;
+      }
+
+      const src = attributes.src;
+      if (src && isValidProductImageUrl(src, url)) {
+        const normalized = normalizeImageUrl(src, url);
+        if (normalized) return normalized;
+      }
+    }
+
+    // Check main image container wrappers
+    const wrapperPattern = /<div\b[^>]*(?:id=["'](?:imgTagWrapperId|main-image-container)["'])[^>]*>([\s\S]*?)<\/div>/gi;
+    for (const match of html.matchAll(wrapperPattern)) {
+      for (const attributes of tagAttributes(match[1], 'img')) {
+        const candidate = attributes['data-old-hires'] ?? attributes.src;
+        if (candidate && isValidProductImageUrl(candidate, url)) {
+          const normalized = normalizeImageUrl(candidate, url);
+          if (normalized) return normalized;
+        }
+      }
+    }
+
+    // Embedded colorImages fallback in scripts
+    const colorImagesMatch = html.match(/['"]colorImages['"]\s*:\s*\{\s*['"]initial['"]\s*:\s*(\[[^\]]+\])/i);
+    if (colorImagesMatch) {
+      try {
+        const parsed = JSON.parse(colorImagesMatch[1]) as unknown;
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (isRecord(item)) {
+              const candidate = (typeof item.hiRes === 'string' && item.hiRes)
+                || (typeof item.large === 'string' && item.large)
+                || (typeof item.main === 'string' && item.main);
+              if (candidate && isValidProductImageUrl(candidate, url)) {
+                const normalized = normalizeImageUrl(candidate, url);
+                if (normalized) return normalized;
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore JSON parse error
+      }
     }
   }
-  if (lowerUrl.includes('flipkart')) {
-    const supportedClasses = ['_396cs4', 'DByuf4', 'vLrBgc'];
+
+  if (isFlipkart) {
+    const supportedClasses = ['_396cs4', 'DByuf4', 'vLrBgc', '_53XmG7', 'q6DClP', '_2r_T1I'];
     for (const attributes of images) {
       if (!classNames(attributes.class).some((name) => supportedClasses.includes(name))) continue;
-      const normalized = normalizeImageUrl(attributes.src, url);
-      if (normalized) return normalized;
+      const candidate = attributes.src ?? attributes['data-src'];
+      if (candidate && isValidProductImageUrl(candidate, url)) {
+        const normalized = normalizeImageUrl(candidate, url);
+        if (normalized) return normalized;
+      }
+    }
+
+    for (const attributes of images) {
+      const candidate = attributes.src ?? attributes['data-src'];
+      if (
+        candidate &&
+        (candidate.includes('flixcart.com/image/') || candidate.includes('flixcart.com/dl/image/')) &&
+        candidate.includes('-original-') &&
+        isValidProductImageUrl(candidate, url)
+      ) {
+        const normalized = normalizeImageUrl(candidate, url);
+        if (normalized) return normalized;
+      }
     }
   }
+
   return null;
 }
 
@@ -192,10 +350,24 @@ function firstElementPrice(html: string, classes: string[], ids: string[]): numb
     const attributes = parseAttributes(match[2] ?? '');
     const matchingClass = classNames(attributes.class).some((name) => classes.includes(name));
     if (!matchingClass && !ids.includes(attributes.id ?? '')) continue;
+
+    // Skip strikethrough original prices and rating texts
+    const preceding = html.slice(Math.max(0, (match.index ?? 0) - 250), match.index ?? 0).toLocaleLowerCase();
+    if (
+      preceding.includes('a-text-price') ||
+      preceding.includes('data-a-strike="true"') ||
+      preceding.includes('basisprice')
+    ) {
+      continue;
+    }
+
     const start = (match.index ?? 0) + match[0].length;
     const close = html.toLocaleLowerCase().indexOf(`</${(match[1] ?? '').toLocaleLowerCase()}`, start);
     const content = close >= 0 ? html.slice(start, close) : '';
-    const price = parsePrice(decodeHtml(stripTags(content)));
+    const text = decodeHtml(stripTags(content));
+    if (text.toLocaleLowerCase().includes('out of 5 stars')) continue;
+
+    const price = parsePrice(text);
     if (price != null) return price;
   }
   return null;
@@ -237,13 +409,120 @@ function parsePrice(value: unknown): number | null {
   return Number.isFinite(price) && price > 0 ? price : null;
 }
 
+export function isValidProductImageUrl(url: string | null | undefined, baseUrl?: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return false;
+  const lower = trimmed.toLowerCase();
+
+  const genericBad = [
+    'spacer',
+    'pixel',
+    '1x1',
+    'blank.gif',
+    'loading',
+    'spinner',
+    'placeholder',
+    'data:image',
+  ];
+  if (genericBad.some((k) => lower.includes(k))) return false;
+  if (
+    lower.includes('/transparent.') ||
+    lower.includes('transparent.gif') ||
+    lower.includes('transparent_pixel') ||
+    lower.includes('1x1_transparent') ||
+    lower.includes('transparent-pixel') ||
+    lower.endsWith('/transparent.png') ||
+    lower.endsWith('/transparent.jpg')
+  ) {
+    return false;
+  }
+
+  const isAmazon = (baseUrl && (baseUrl.toLowerCase().includes('amazon') || baseUrl.toLowerCase().includes('amzn.')))
+    || lower.includes('amazon')
+    || lower.includes('media-amazon.com')
+    || lower.includes('ssl-images-amazon.com');
+
+  if (isAmazon) {
+    if (lower.includes('/images/g/')) return false;
+
+    const amazonBad = [
+      'prime',
+      'badge',
+      'logo',
+      'sprite',
+      'fba',
+      'check_box',
+      'rating',
+      'stars',
+      'nav-',
+      'play-button',
+      'overlay',
+      'icon',
+      'cb542734830',
+    ];
+    if (amazonBad.some((k) => lower.includes(k))) return false;
+
+    if (lower.includes('media-amazon.com') || lower.includes('ssl-images-amazon.com')) {
+      if (!lower.includes('/images/i/')) return false;
+    }
+  }
+
+  const isFlipkart = (baseUrl && baseUrl.toLowerCase().includes('flipkart'))
+    || lower.includes('flipkart')
+    || lower.includes('flixcart');
+
+  if (isFlipkart) {
+    const flipkartBad = ['plus', 'badge', 'logo', 'sprite', 'icon', 'fk-header', 'fk-cp-zion'];
+    if (flipkartBad.some((k) => lower.includes(k))) return false;
+  }
+
+  return true;
+}
+
+export function normalizeMediumQualityImageUrl(url: string | null | undefined, baseUrl?: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  let result = trimmed;
+  const lower = result.toLowerCase();
+
+  // Flipkart CDN: normalize to balanced 500x500 medium quality (~14KB)
+  if (lower.includes('flixcart.com') || lower.includes('flipkart.com')) {
+    result = result.replace('rukmini1.flixcart.com', 'rukminim2.flixcart.com');
+    result = result.replace(/\/image\/\d+\/\d+\//, '/image/500/500/');
+    return result;
+  }
+
+  // Amazon CDN: normalize to balanced 500px medium quality (~23KB)
+  if (
+    lower.includes('media-amazon.com') ||
+    lower.includes('ssl-images-amazon.com') ||
+    lower.includes('images-amazon.com')
+  ) {
+    const modifierRegex = /\._(?:AC_)?[A-Z0-9_,]+_\.(jpe?g|png|webp)/i;
+    if (modifierRegex.test(result)) {
+      result = result.replace(modifierRegex, (_match, ext) => `._SL500_.${ext}`);
+    } else {
+      result = result.replace(/\.(jpe?g|png|webp)($|\?)/i, (_match, ext, query) => `._SL500_.${ext}${query || ''}`);
+    }
+    return result;
+  }
+
+  return result;
+}
+
 function normalizeImageUrl(value: string | null | undefined, baseUrl: string): string | null {
   if (!value?.trim()) return null;
   try {
     const parsed = new URL(decodeHtml(value.trim()), baseUrl);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
     if (parsed.protocol === 'http:') parsed.protocol = 'https:';
-    return parsed.toString();
+    let result = parsed.toString();
+    if (!isValidProductImageUrl(result, baseUrl)) return null;
+    const mediumQuality = normalizeMediumQualityImageUrl(result, baseUrl);
+    return mediumQuality && isValidProductImageUrl(mediumQuality, baseUrl) ? mediumQuality : result;
   } catch {
     return null;
   }

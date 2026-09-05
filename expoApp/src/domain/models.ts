@@ -25,6 +25,14 @@ export interface PriceObservation {
   checkedAt: number;
 }
 
+export interface PriceHistoryEntry {
+  id: number;
+  inventoryItemId: number;
+  retailer: PriceRetailer;
+  price: number;
+  checkedAt: number;
+}
+
 export interface ImportedProduct extends Omit<InventoryProduct, 'id'> {
   priceHistory: PriceObservation[];
 }

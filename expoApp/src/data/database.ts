@@ -93,5 +93,14 @@ async function openAndMigrateDatabase(): Promise<SQLite.SQLiteDatabase> {
     });
   }
 
+  await database.execAsync(`
+    UPDATE inventory
+    SET image_url = NULL
+    WHERE image_url LIKE '%/images/G/%'
+       OR lower(image_url) LIKE '%prime%'
+       OR lower(image_url) LIKE '%badge%'
+       OR lower(image_url) LIKE '%sprite%';
+  `);
+
   return database;
 }

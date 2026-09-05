@@ -1,9 +1,24 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
+import { triggerSuccessHaptic } from '../../utils/haptics';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Animated,
+  Easing,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  Vibration,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, Line, Mask, Rect } from 'react-native-svg';
 
+import { useCustomization } from '../../theme/CustomizationContext';
 import { colors, radius, spacing, type } from '../../theme/tokens';
 
 const PRODUCT_BARCODE_TYPES = [
@@ -23,112 +38,369 @@ export function BarcodeScannerModal({
   visible,
   onClose,
   onScanned,
+  onError,
   embedded = false,
 }: {
   visible: boolean;
   onClose: () => void;
   onScanned: (value: string) => void;
+  onError?: (message: string) => void;
   embedded?: boolean;
 }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [handled, setHandled] = useState(false);
+  const [torchEnabled, setTorchEnabled] = useState(false);
+  const [permissionRecoveryVisible, setPermissionRecoveryVisible] = useState(false);
   const handledRef = useRef(false);
   const permissionRequestStartedRef = useRef(false);
+
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+
+  let hapticsEnabled = true;
+  let isReducedMotion = false;
+  try {
+    const ctx = useCustomization();
+    hapticsEnabled = ctx.customization.hapticsEnabled;
+    isReducedMotion = ctx.customization.motionPreference === 'REDUCED';
+  } catch {
+    // fallback if used without context
+  }
+
+  // Viewfinder geometry matching Compose: 70% width square cutout
+  const cutoutWidth = Math.round(Math.min(width * 0.70, 320));
+  const cutoutHeight = cutoutWidth;
+  const cutoutLeft = Math.round((width - cutoutWidth) / 2);
+  const cutoutTop = Math.round((height - cutoutHeight) / 2 - 20);
+  const cutoutRight = cutoutLeft + cutoutWidth;
+  const cutoutBottom = cutoutTop + cutoutHeight;
+
+  // Oscillating laser sweep animation
+  const laserAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       handledRef.current = false;
       setHandled(false);
+      setTorchEnabled(false);
+      setPermissionRecoveryVisible(false);
     } else {
       permissionRequestStartedRef.current = false;
     }
   }, [visible]);
 
+  // Request permission automatically when opened
   useEffect(() => {
     if (
-      !visible
-      || !permission
-      || permission.granted
-      || !permission.canAskAgain
-      || permissionRequestStartedRef.current
-    ) return;
+      !visible ||
+      !permission ||
+      permission.granted ||
+      permissionRequestStartedRef.current
+    ) {
+      return;
+    }
+
+    if (!permission.canAskAgain && !permission.granted) {
+      setPermissionRecoveryVisible(true);
+      return;
+    }
 
     permissionRequestStartedRef.current = true;
-    requestPermission().catch(() => {
-      permissionRequestStartedRef.current = false;
-    });
+    requestPermission()
+      .then((res) => {
+        if (!res.granted) {
+          setPermissionRecoveryVisible(true);
+        }
+      })
+      .catch(() => {
+        setPermissionRecoveryVisible(true);
+      });
   }, [permission, requestPermission, visible]);
+
+  // Laser sweep animation loop
+  useEffect(() => {
+    if (!visible || handled || isReducedMotion) {
+      laserAnim.setValue(0.5);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(laserAnim, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(laserAnim, {
+          toValue: 0,
+          duration: 1800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [visible, handled, isReducedMotion, laserAnim]);
+
+  const laserTranslateY = laserAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [cutoutTop + 10, cutoutBottom - 14],
+  });
 
   const handleScan = (result: BarcodeScanningResult) => {
     const value = result.data.trim();
     if (!value || handledRef.current) return;
     handledRef.current = true;
     setHandled(true);
-    onScanned(value);
-    if (Platform.OS === 'ios') {
-      // The handled state removes CameraView immediately. A very short release
-      // delay lets AVFoundation release the camera before the system vibration,
-      // without the noticeable one-second lag of the previous implementation.
-      setTimeout(() => Vibration.vibrate(), 70);
+
+    if (hapticsEnabled) {
+      void triggerSuccessHaptic();
     }
+
+    onScanned(value);
   };
 
-  const scannerContent = (
-    <SafeAreaView style={styles.screen}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>BARCODE SCANNER</Text>
-            <Text style={styles.title}>Place the code inside the frame</Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Close scanner"
-            onPress={onClose}
-            style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
-          >
-            <Ionicons name="close" size={26} color={colors.text} />
-          </Pressable>
-        </View>
+  const bracketLength = 36;
+  const bracketStroke = 4;
+  const bracketColor = '#10B981';
 
-        {!permission ? (
-          <View style={styles.permissionState}>
-            <ActivityIndicator color={colors.primary} size="large" />
-          </View>
-        ) : permission.granted && !handled ? (
-          <View style={styles.cameraFrame}>
-            <CameraView
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: [...PRODUCT_BARCODE_TYPES] }}
-              onBarcodeScanned={handled ? undefined : handleScan}
+  const scannerContent = (
+    <View style={styles.fullscreen}>
+      {/* 1. Camera View */}
+      {permission?.granted ? (
+        <CameraView
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          enableTorch={torchEnabled}
+          barcodeScannerSettings={{ barcodeTypes: [...PRODUCT_BARCODE_TYPES] }}
+          onBarcodeScanned={handled ? undefined : handleScan}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.cameraPlaceholder]} />
+      )}
+
+      {/* 2. Cutout Canvas Overlay with 65% Black scrim and rounded cutout */}
+      <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
+        <Defs>
+          <Mask id="cutoutMask" x="0" y="0" width={width} height={height}>
+            <Rect x="0" y="0" width={width} height={height} fill="#FFFFFF" />
+            <Rect
+              x={cutoutLeft}
+              y={cutoutTop}
+              width={cutoutWidth}
+              height={cutoutHeight}
+              rx={16}
+              ry={16}
+              fill="#000000"
             />
-            <View style={styles.guide}>
-              <View style={styles.scanWindow} />
-              <Text style={styles.guideText}>EAN, UPC, Code 128, or QR</Text>
+          </Mask>
+        </Defs>
+
+        {/* 65% Black Scrim punched out by mask */}
+        <Rect
+          x="0"
+          y="0"
+          width={width}
+          height={height}
+          fill="rgba(0,0,0,0.65)"
+          mask="url(#cutoutMask)"
+        />
+
+        {/* 4 Emerald Corner Brackets matching Compose */}
+        {/* Top-Left */}
+        <Line
+          x1={cutoutLeft}
+          y1={cutoutTop}
+          x2={cutoutLeft + bracketLength}
+          y2={cutoutTop}
+          stroke={bracketColor}
+          strokeWidth={bracketStroke}
+          strokeLinecap="round"
+        />
+        <Line
+          x1={cutoutLeft}
+          y1={cutoutTop}
+          x2={cutoutLeft}
+          y2={cutoutTop + bracketLength}
+          stroke={bracketColor}
+          strokeWidth={bracketStroke}
+          strokeLinecap="round"
+        />
+
+        {/* Top-Right */}
+        <Line
+          x1={cutoutRight}
+          y1={cutoutTop}
+          x2={cutoutRight - bracketLength}
+          y2={cutoutTop}
+          stroke={bracketColor}
+          strokeWidth={bracketStroke}
+          strokeLinecap="round"
+        />
+        <Line
+          x1={cutoutRight}
+          y1={cutoutTop}
+          x2={cutoutRight}
+          y2={cutoutTop + bracketLength}
+          stroke={bracketColor}
+          strokeWidth={bracketStroke}
+          strokeLinecap="round"
+        />
+
+        {/* Bottom-Left */}
+        <Line
+          x1={cutoutLeft}
+          y1={cutoutBottom}
+          x2={cutoutLeft + bracketLength}
+          y2={cutoutBottom}
+          stroke={bracketColor}
+          strokeWidth={bracketStroke}
+          strokeLinecap="round"
+        />
+        <Line
+          x1={cutoutLeft}
+          y1={cutoutBottom}
+          x2={cutoutLeft}
+          y2={cutoutBottom - bracketLength}
+          stroke={bracketColor}
+          strokeWidth={bracketStroke}
+          strokeLinecap="round"
+        />
+
+        {/* Bottom-Right */}
+        <Line
+          x1={cutoutRight}
+          y1={cutoutBottom}
+          x2={cutoutRight - bracketLength}
+          y2={cutoutBottom}
+          stroke={bracketColor}
+          strokeWidth={bracketStroke}
+          strokeLinecap="round"
+        />
+        <Line
+          x1={cutoutRight}
+          y1={cutoutBottom}
+          x2={cutoutRight}
+          y2={cutoutBottom - bracketLength}
+          stroke={bracketColor}
+          strokeWidth={bracketStroke}
+          strokeLinecap="round"
+        />
+      </Svg>
+
+      {/* 3. Animated Oscillating Laser Sweep Bar */}
+      {!handled && !isReducedMotion && (
+        <Animated.View
+          style={[
+            styles.laserBar,
+            {
+              left: cutoutLeft + 14,
+              width: cutoutWidth - 28,
+              transform: [{ translateY: laserTranslateY }],
+            },
+          ]}
+        />
+      )}
+
+      {/* 4. Top Close Button (matching Compose padding and 52dp hit box) */}
+      <View
+        style={[
+          styles.closeButtonContainer,
+          { top: Math.max(insets.top + 8, 20) },
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close scanner"
+          onPress={onClose}
+          style={({ pressed }) => [
+            styles.closeIconButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <MaterialIcons name="close" size={30} color="#FFFFFF" />
+        </Pressable>
+      </View>
+
+      {/* 5. Bottom Controls (Torch & Instruction text matching Compose) */}
+      <View
+        style={[
+          styles.bottomControls,
+          { bottom: Math.max(insets.bottom, 24) + 16 },
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={torchEnabled ? 'Turn flashlight off' : 'Turn flashlight on'}
+          onPress={() => setTorchEnabled((prev) => !prev)}
+          style={({ pressed }) => [
+            styles.flashlightButton,
+            torchEnabled && styles.flashlightButtonActive,
+            pressed && styles.pressed,
+          ]}
+        >
+          <MaterialIcons
+            name="flashlight-on"
+            size={25}
+            color={torchEnabled ? '#FFD700' : '#FFFFFF'}
+          />
+        </Pressable>
+
+        <Text style={styles.instructionText}>
+          Point the camera at a barcode
+        </Text>
+      </View>
+
+      {/* 6. Permission Recovery Dialog */}
+      {permissionRecoveryVisible && (
+        <View style={styles.dialogBackdrop}>
+          <View style={styles.dialogCard}>
+            <View style={styles.dialogIconContainer}>
+              <MaterialIcons name="videocam-off" size={28} color={colors.warning} />
+            </View>
+            <Text style={styles.dialogTitle}>Camera access is off</Text>
+            <Text style={styles.dialogExplanation}>
+              Allow camera access in Settings to scan product barcodes. Manual barcode entry remains available.
+            </Text>
+            <View style={styles.dialogActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setPermissionRecoveryVisible(false);
+                  onClose();
+                }}
+                style={({ pressed }) => [
+                  styles.dialogSecondaryButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.dialogSecondaryButtonText}>Not now</Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={async () => {
+                  setPermissionRecoveryVisible(false);
+                  try {
+                    await Linking.openSettings();
+                  } catch {}
+                  onClose();
+                }}
+                style={({ pressed }) => [
+                  styles.dialogPrimaryButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.dialogPrimaryButtonText}>Open Settings</Text>
+              </Pressable>
             </View>
           </View>
-        ) : permission.granted ? (
-          <View style={styles.permissionState}>
-            <Ionicons name="checkmark-circle" size={46} color={colors.primary} />
-            <Text style={styles.permissionTitle}>Barcode captured</Text>
-          </View>
-        ) : (
-          <View style={styles.permissionState}>
-            <Ionicons name="camera-outline" size={44} color={colors.textMuted} />
-            <Text style={styles.permissionTitle}>Camera permission is required</Text>
-            <Text style={styles.permissionBody}>
-              Price Intelligence only uses the camera while you scan a product code.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => requestPermission()}
-              style={({ pressed }) => [styles.permissionButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.permissionButtonText}>Allow camera</Text>
-            </Pressable>
-          </View>
-        )}
-    </SafeAreaView>
+        </View>
+      )}
+    </View>
   );
 
   if (embedded) return visible ? scannerContent : null;
@@ -146,19 +418,141 @@ export function BarcodeScannerModal({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl },
-  eyebrow: { color: colors.primary, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.3 },
-  title: { color: colors.text, fontFamily: type.bold, fontSize: 20, marginTop: spacing.xs },
-  closeButton: { width: 48, height: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  cameraFrame: { flex: 1, overflow: 'hidden', margin: spacing.lg, marginTop: 0, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
-  guide: { ...StyleSheet.absoluteFill, pointerEvents: 'none', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.12)' },
-  scanWindow: { width: '82%', height: 190, borderWidth: 3, borderColor: colors.primary, borderRadius: radius.md, backgroundColor: 'transparent' },
-  guideText: { color: colors.text, fontFamily: type.semibold, fontSize: 14, backgroundColor: 'rgba(11,15,20,0.82)', borderRadius: radius.pill, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, marginTop: spacing.lg },
-  permissionState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
-  permissionTitle: { color: colors.text, fontFamily: type.bold, fontSize: 21, textAlign: 'center', marginTop: spacing.lg },
-  permissionBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 15, lineHeight: 22, textAlign: 'center', marginTop: spacing.sm },
-  permissionButton: { minHeight: 52, justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md, paddingHorizontal: spacing.xl, marginTop: spacing.xl },
-  permissionButtonText: { color: colors.background, fontFamily: type.bold, fontSize: 16 },
-  pressed: { opacity: 0.7 },
+  fullscreen: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  cameraPlaceholder: {
+    backgroundColor: '#0A0E14',
+  },
+  laserBar: {
+    position: 'absolute',
+    height: 3,
+    backgroundColor: '#10B981',
+    borderRadius: 2,
+    shadowColor: '#10B981',
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  closeButtonContainer: {
+    position: 'absolute',
+    left: 14,
+    zIndex: 10,
+  },
+  closeIconButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(0, 0, 0, 0.40)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomControls: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  flashlightButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 26,
+  },
+  flashlightButtonActive: {
+    backgroundColor: 'rgba(255, 215, 0, 0.20)',
+    borderColor: '#FFD700',
+    borderWidth: 2,
+  },
+  instructionText: {
+    color: '#FFFFFF',
+    fontFamily: type.semibold,
+    fontSize: 15,
+    fontWeight: '500',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  dialogBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    zIndex: 50,
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#161B22',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#30363D',
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  dialogIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  dialogTitle: {
+    color: '#F0F6FC',
+    fontFamily: type.bold,
+    fontSize: 19,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  dialogExplanation: {
+    color: '#8B949E',
+    fontFamily: type.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    width: '100%',
+    gap: spacing.md,
+  },
+  dialogSecondaryButton: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+  },
+  dialogSecondaryButtonText: {
+    color: '#8B949E',
+    fontFamily: type.semibold,
+    fontSize: 14,
+  },
+  dialogPrimaryButton: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    backgroundColor: '#10B981',
+    borderRadius: radius.md,
+  },
+  dialogPrimaryButtonText: {
+    color: '#0D1117',
+    fontFamily: type.bold,
+    fontSize: 14,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
 });

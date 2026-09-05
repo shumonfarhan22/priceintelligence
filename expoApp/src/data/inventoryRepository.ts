@@ -2,7 +2,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { ComparisonSort } from '../domain/comparison';
 import { summarizeProductComparison } from '../domain/comparison';
-import type { BackupImportResult, ImportedProduct, InventoryProduct, PriceObservation } from '../domain/models';
+import type { BackupImportResult, ImportedProduct, InventoryProduct, PriceObservation, PriceHistoryEntry, PriceRetailer } from '../domain/models';
+import { fetchRetailerPrice } from '../network/retailerPriceClient';
 import type { ValidatedInventoryInput } from '../domain/inventoryValidation';
 import {
   encodeBackupDocument,
@@ -11,6 +12,7 @@ import {
   parseBackupJson,
 } from './backup';
 import { getDatabase, withWriteTransaction } from './database';
+import { isValidProductImageUrl, normalizeMediumQualityImageUrl } from '../network/pricePageParser';
 
 interface InventoryRow {
   id: number;
@@ -51,11 +53,198 @@ export interface ComparisonOverview {
   uncheckedCount: number;
 }
 
+export interface ShopPricePoint {
+  price: number;
+  checkedAt: number;
+}
+
+export interface ShopPriceChange {
+  productId: number;
+  retailer: 'AMAZON' | 'FLIPKART';
+  oldPrice: number;
+  newPrice: number;
+  checkedAt: number;
+  direction: 'HIGHER' | 'LOWER';
+  percentage: number;
+}
+
+export interface ShopProductMovement {
+  item: InventoryProduct;
+  amazonHistory: ShopPricePoint[];
+  flipkartHistory: ShopPricePoint[];
+  changes: ShopPriceChange[];
+}
+
+export interface ShopPriceMovementSnapshot {
+  products: ShopProductMovement[];
+  generatedAt: number;
+}
+
+export interface PriorityProductSummary {
+  id: number;
+  productName: string;
+  shopPrice: number;
+  onlinePrice: number;
+  gap: number;
+  purchaseCost: number | null;
+  onlineRetailer: 'Amazon' | 'Flipkart';
+  marginRisk: boolean;
+  item: InventoryProduct;
+}
+
 export class InventoryRepository {
   private constructor(private readonly database: SQLiteDatabase) {}
 
   static async create(): Promise<InventoryRepository> {
     return new InventoryRepository(await getDatabase());
+  }
+
+  async getPriceMovementSnapshot(days: number): Promise<ShopPriceMovementSnapshot> {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const inventoryRows = await this.database.getAllAsync<InventoryRow>('SELECT * FROM inventory');
+    const items = inventoryRows.map(mapInventoryRow);
+
+    const historyRows = await this.database.getAllAsync<HistoryRow & { inventory_item_id: number }>(
+      'SELECT inventory_item_id, retailer, price, checked_at FROM price_history WHERE checked_at >= ? ORDER BY checked_at ASC',
+      cutoff
+    );
+
+    const pointsByKey = new Map<string, ShopPricePoint[]>();
+    for (const row of historyRows) {
+      const key = `${row.inventory_item_id}-${row.retailer}`;
+      if (!pointsByKey.has(key)) pointsByKey.set(key, []);
+      pointsByKey.get(key)!.push({ price: row.price, checkedAt: row.checked_at });
+    }
+
+    const buildChanges = (productId: number, retailer: 'AMAZON' | 'FLIPKART', points: ShopPricePoint[]) => {
+      const changes: ShopPriceChange[] = [];
+      for (let i = 1; i < points.length; i++) {
+        const oldPoint = points[i - 1];
+        const newPoint = points[i];
+        if (oldPoint.price !== newPoint.price) {
+          changes.push({
+            productId,
+            retailer,
+            oldPrice: oldPoint.price,
+            newPrice: newPoint.price,
+            checkedAt: newPoint.checkedAt,
+            direction: newPoint.price < oldPoint.price ? 'LOWER' : 'HIGHER',
+            percentage: oldPoint.price > 0 ? (Math.abs(newPoint.price - oldPoint.price) / oldPoint.price) * 100 : 0
+          });
+        }
+      }
+      return changes;
+    };
+
+    const products: ShopProductMovement[] = [];
+    for (const item of items) {
+      const amazonHistory = pointsByKey.get(`${item.id}-AMAZON`) || [];
+      const flipkartHistory = pointsByKey.get(`${item.id}-FLIPKART`) || [];
+      
+      const changes = [
+        ...buildChanges(item.id, 'AMAZON', amazonHistory),
+        ...buildChanges(item.id, 'FLIPKART', flipkartHistory)
+      ].sort((a, b) => b.checkedAt - a.checkedAt);
+
+      if (amazonHistory.length > 0 || flipkartHistory.length > 0) {
+        products.push({
+          item,
+          amazonHistory,
+          flipkartHistory,
+          changes
+        });
+      }
+    }
+
+    return {
+      products,
+      generatedAt: Date.now()
+    };
+  }
+
+  async getTopPriorityProducts(
+    limit = 3,
+    sortMode: 'RUPEE_GAP' | 'PERCENTAGE_GAP' = 'RUPEE_GAP'
+  ): Promise<PriorityProductSummary[]> {
+    const rows = await this.database.getAllAsync<InventoryRow>(
+      `SELECT * FROM inventory WHERE (amazon_last_price IS NOT NULL AND amazon_last_price < shop_price) OR (flipkart_last_price IS NOT NULL AND flipkart_last_price < shop_price)`
+    );
+    const summaries: PriorityProductSummary[] = [];
+    for (const row of rows) {
+      const item = mapInventoryRow(row);
+      const azPrice = item.amazonLastPrice;
+      const fkPrice = item.flipkartLastPrice;
+      let onlinePrice: number | null = null;
+      let onlineRetailer: 'Amazon' | 'Flipkart' = 'Amazon';
+      if (azPrice != null && fkPrice != null) {
+        if (azPrice <= fkPrice) {
+          onlinePrice = azPrice;
+          onlineRetailer = 'Amazon';
+        } else {
+          onlinePrice = fkPrice;
+          onlineRetailer = 'Flipkart';
+        }
+      } else if (azPrice != null) {
+        onlinePrice = azPrice;
+        onlineRetailer = 'Amazon';
+      } else if (fkPrice != null) {
+        onlinePrice = fkPrice;
+        onlineRetailer = 'Flipkart';
+      }
+      if (onlinePrice != null && onlinePrice < item.shopPrice) {
+        const gap = item.shopPrice - onlinePrice;
+        const marginRisk = item.purchaseCost != null && onlinePrice <= item.purchaseCost + 0.01;
+        summaries.push({
+          id: item.id,
+          productName: item.productName,
+          shopPrice: item.shopPrice,
+          onlinePrice,
+          gap,
+          purchaseCost: item.purchaseCost,
+          onlineRetailer,
+          marginRisk,
+          item,
+        });
+      }
+    }
+    return summaries
+      .sort((a, b) => {
+        if (sortMode === 'PERCENTAGE_GAP') {
+          const aPct = a.gap / (a.shopPrice || 1);
+          const bPct = b.gap / (b.shopPrice || 1);
+          return bPct - aPct;
+        }
+        return b.gap - a.gap;
+      })
+      .slice(0, limit);
+  }
+
+  async getMetadata(key: string): Promise<string | null> {
+    try {
+      await this.database.execAsync(
+        'CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)'
+      );
+      const row = await this.database.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_metadata WHERE key = ?',
+        key,
+      );
+      return row?.value ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async setMetadata(key: string, value: string): Promise<void> {
+    try {
+      await this.database.execAsync(
+        'CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)'
+      );
+      await this.database.runAsync(
+        'INSERT OR REPLACE INTO app_metadata (key, value) VALUES (?, ?)',
+        key,
+        value,
+      );
+    } catch {}
   }
 
   async countProducts(): Promise<number> {
@@ -185,10 +374,18 @@ export class InventoryRepository {
     await withWriteTransaction(this.database, async (transaction) => {
       const update = await transaction.runAsync(
         `UPDATE inventory
-         SET ${priceColumn} = ?, ${checkedColumn} = ?, image_url = COALESCE(?, image_url)
+         SET ${priceColumn} = ?,
+             ${checkedColumn} = ?,
+             image_url = CASE
+               WHEN image_url IS NOT NULL AND image_url != '' AND image_url NOT LIKE '%/images/G/%' AND lower(image_url) NOT LIKE '%prime%' AND lower(image_url) NOT LIKE '%badge%' THEN image_url
+               WHEN ? IS NOT NULL THEN ?
+               WHEN image_url LIKE '%/images/G/%' OR lower(image_url) LIKE '%prime%' OR lower(image_url) LIKE '%badge%' THEN NULL
+               ELSE image_url
+             END
          WHERE id = ?`,
         price,
         checkedAt,
+        safeImage,
         safeImage,
         itemId,
       );
@@ -219,6 +416,69 @@ export class InventoryRepository {
       price: row.price,
       checkedAt: row.checked_at,
     }));
+  }
+
+  async getPriceHistory(productId: number): Promise<PriceHistoryEntry[]> {
+    const rows = await this.database.getAllAsync<{
+      id: number;
+      inventory_item_id: number;
+      retailer: PriceRetailer;
+      price: number;
+      checked_at: number;
+    }>(
+      `SELECT id, inventory_item_id, retailer, price, checked_at
+       FROM price_history
+       WHERE inventory_item_id = ?
+       ORDER BY checked_at ASC, id ASC`,
+      productId,
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      inventoryItemId: r.inventory_item_id,
+      retailer: r.retailer,
+      price: r.price,
+      checkedAt: r.checked_at,
+    }));
+  }
+
+  async refreshProductPrices(productId: number): Promise<{ success: boolean; message?: string }> {
+    const product = await this.getProduct(productId);
+    if (!product) {
+      return { success: false, message: 'Product not found.' };
+    }
+    const linkedRetailers: Array<{ retailer: PriceRetailer; url: string }> = [];
+    if (product.amazonUrl) linkedRetailers.push({ retailer: 'AMAZON', url: product.amazonUrl });
+    if (product.flipkartUrl) linkedRetailers.push({ retailer: 'FLIPKART', url: product.flipkartUrl });
+    if (linkedRetailers.length === 0) {
+      return { success: false, message: 'No retailer links configured for this product.' };
+    }
+
+    let successCount = 0;
+    const errors: string[] = [];
+    for (const { retailer, url } of linkedRetailers) {
+      try {
+        const result = await fetchRetailerPrice(url, retailer, undefined, {
+          skipImage: Boolean(product.imageUrl),
+        });
+        if (result.ok) {
+          await this.recordRetailerPrice(productId, retailer, result.price, result.checkedAt, result.image);
+          successCount++;
+        } else {
+          errors.push(`${retailer}: ${result.message}`);
+        }
+      } catch (err) {
+        errors.push(`${retailer}: ${err instanceof Error ? err.message : 'Check failed'}`);
+      }
+    }
+
+    if (successCount > 0) {
+      return { success: true };
+    }
+    return { success: false, message: errors.join('; ') || 'Failed to refresh prices.' };
+  }
+
+  async refreshPrices(productId: number): Promise<{ success: boolean; message?: string }> {
+    return this.refreshProductPrices(productId);
   }
 
   async saveProduct(input: ValidatedInventoryInput, editingId: number | null): Promise<number> {
@@ -438,7 +698,7 @@ function mapInventoryRow(row: InventoryRow): InventoryProduct {
     pricebuddyProductId: row.pricebuddy_product_id,
     amazonUrl: row.amazon_url,
     flipkartUrl: row.flipkart_url,
-    imageUrl: row.image_url,
+    imageUrl: normalizeRemoteImage(row.image_url),
     searchCount: row.search_count,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -496,7 +756,10 @@ function normalizeRemoteImage(value: string | null): string | null {
     const parsed = new URL(trimmed);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
     if (parsed.protocol === 'http:') parsed.protocol = 'https:';
-    return parsed.toString();
+    const result = parsed.toString();
+    if (!isValidProductImageUrl(result)) return null;
+    const medium = normalizeMediumQualityImageUrl(result);
+    return medium && isValidProductImageUrl(medium) ? medium : result;
   } catch {
     return null;
   }

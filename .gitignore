@@ -18,3 +18,7 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
 .pnpm-store/
+.codex-remote-attachments/
+.tmp_inventory_frames/
+.tmp_inventory_video_frames.ps1
+.codex-verify-personalization-simple/

@@ -1,31 +1,49 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   BackHandler,
+  Easing,
   Keyboard,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  LayoutAnimation,
   PanResponder,
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 import type { BannerTone } from '../../components/BottomBanner';
 import type { InventoryProduct } from '../../domain/models';
 import type { ValidatedInventoryInput } from '../../domain/inventoryValidation';
 import { InventoryRepository } from '../../data/inventoryRepository';
-import { colors, spacing, type } from '../../theme/tokens';
+import { spacing, type } from '../../theme/tokens';
+import { useCustomization } from '../../theme/CustomizationContext';
+import type { DynamicColors } from '../../theme/dynamicTheme';
+
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { ProductEditorModal } from './ProductEditorModal';
+
+function useInventoryTheme() {
+  const { colors } = useCustomization();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  return { colors, styles };
+}
 
 interface InventorySection {
   title: string;
@@ -46,6 +64,7 @@ export function InventoryScreen({
   onProductCountChanged,
   showBanner,
   bannerVisible,
+  onQueueUndo,
 }: {
   repository: InventoryRepository;
   productCount: number;
@@ -53,15 +72,21 @@ export function InventoryScreen({
   onProductCountChanged: (count: number) => void;
   showBanner: ShowBanner;
   bannerVisible: boolean;
+  onQueueUndo?: (notice: { itemCount: number; onUndo: () => void }) => void;
 }) {
+  const { colors, styles } = useInventoryTheme();
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [fullyRenderedGroups, setFullyRenderedGroups] = useState<Set<string>>(new Set());
+  const deferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingProduct, setEditingProduct] = useState<InventoryProduct | null>(null);
+
+  const selectionCount = selectedIds.size;
   const [scannerVisible, setScannerVisible] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<InventoryProduct[] | null>(null);
   const insets = useSafeAreaInsets();
@@ -69,10 +94,8 @@ export function InventoryScreen({
   const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDeleteRef = useRef<InventoryProduct[] | null>(null);
   const searchRef = useRef<TextInput>(null);
-  const lastScrollY = useRef(0);
-  const accumulatedScroll = useRef(0);
-  const headerProgress = useRef(new Animated.Value(1)).current;
-  const [scrollHeaderVisible, setScrollHeaderVisible] = useState(true);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const fabAnim = useRef(new Animated.Value(1)).current;
 
   const loadProducts = useCallback(async (search = query) => {
     const id = ++requestId.current;
@@ -91,12 +114,13 @@ export function InventoryScreen({
         setLoading(false);
         showBanner(messageFrom(error), 'error');
       });
-    }, query ? 160 : 0);
+    }, query ? 250 : 0);
     return () => clearTimeout(timeout);
   }, [query, loadProducts, showBanner]);
 
   useEffect(() => () => {
     if (deleteTimer.current) clearTimeout(deleteTimer.current);
+    if (deferTimerRef.current) clearTimeout(deferTimerRef.current);
     const pending = pendingDeleteRef.current;
     if (pending) repository.deleteProducts(pending.map((product) => product.id)).catch(() => undefined);
   }, [repository]);
@@ -119,53 +143,72 @@ export function InventoryScreen({
       .map(([title, groupProducts]) => ({
         title,
         count: groupProducts.length,
-        data: query.trim() || expandedGroups.has(title) ? groupProducts : [],
+        data: groupProducts,
       }));
-  }, [expandedGroups, query, visibleProducts]);
+  }, [visibleProducts]);
+
+  const toggleGroup = useCallback((title: string) => {
+    if (deferTimerRef.current) {
+      clearTimeout(deferTimerRef.current);
+      deferTimerRef.current = null;
+    }
+
+    setExpandedGroups((current) => {
+      const isCurrentlyExpanded = current.has(title);
+      const next = new Set(current);
+
+      if (isCurrentlyExpanded) {
+        LayoutAnimation.configureNext({
+          duration: 180,
+          update: {
+            type: LayoutAnimation.Types.easeInEaseOut,
+          },
+        });
+        next.delete(title);
+        setFullyRenderedGroups((prev) => {
+          const updated = new Set(prev);
+          updated.delete(title);
+          return updated;
+        });
+      } else {
+        LayoutAnimation.configureNext({
+          duration: 200,
+          update: {
+            type: LayoutAnimation.Types.easeInEaseOut,
+          },
+        });
+        next.add(title);
+        deferTimerRef.current = setTimeout(() => {
+          setFullyRenderedGroups((prev) => new Set(prev).add(title));
+        }, 90);
+      }
+      return next;
+    });
+  }, []);
 
   const allShownIds = visibleProducts.map((product) => product.id);
   const allShownSelected = allShownIds.length > 0 && allShownIds.every((id) => selectedIds.has(id));
   const selectionMode = selectedIds.size > 0;
-  const headerVisible = selectionMode || visibleProducts.length === 0 || scrollHeaderVisible;
+  const fabVisible = !selectionMode && !bannerVisible && visibleProducts.length > 0;
 
   useEffect(() => {
-    Animated.timing(headerProgress, {
-      toValue: headerVisible ? 1 : 0,
-      duration: 170,
-      useNativeDriver: false,
+    Animated.timing(fabAnim, {
+      toValue: fabVisible ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
     }).start();
-  }, [headerProgress, headerVisible]);
+  }, [fabAnim, fabVisible]);
 
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offset = Math.max(0, event.nativeEvent.contentOffset.y);
-    const delta = offset - lastScrollY.current;
-    if (
-      (delta > 0 && accumulatedScroll.current < 0) ||
-      (delta < 0 && accumulatedScroll.current > 0)
-    ) {
-      accumulatedScroll.current = 0;
-    }
-    accumulatedScroll.current += delta;
-    if (selectionMode || visibleProducts.length === 0 || offset < 8) {
-      setScrollHeaderVisible(true);
-      accumulatedScroll.current = 0;
-    } else if (accumulatedScroll.current > 12) {
-      setScrollHeaderVisible(false);
-      accumulatedScroll.current = 0;
-    } else if (accumulatedScroll.current < -8) {
-      setScrollHeaderVisible(true);
-      accumulatedScroll.current = 0;
-    }
-    lastScrollY.current = offset;
-  }, [selectionMode, visibleProducts.length]);
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
 
-  const toggleSelection = (id: number) => {
+  const toggleSelection = useCallback((id: number) => {
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   const commitPendingDelete = useCallback(async () => {
     const pending = pendingDeleteRef.current;
@@ -204,27 +247,38 @@ export function InventoryScreen({
     pendingDeleteRef.current = items;
     setPendingDelete(items);
     setSelectedIds(new Set());
+    if (deleteTimer.current) clearTimeout(deleteTimer.current);
     deleteTimer.current = setTimeout(() => {
       commitPendingDelete().catch(() => undefined);
-    }, 5200);
-    const label = items.length === 1 ? 'Product removed' : `${items.length} products removed`;
-    showBanner(label, 'info', {
-      label: 'UNDO',
-      onPress: () => {
-        if (deleteTimer.current) clearTimeout(deleteTimer.current);
-        deleteTimer.current = null;
-        pendingDeleteRef.current = null;
-        setPendingDelete(null);
-      },
-    });
-  }, [commitPendingDelete, showBanner]);
+    }, 4000);
+
+    if (onQueueUndo) {
+      onQueueUndo({
+        itemCount: items.length,
+        onUndo: () => {
+          if (deleteTimer.current) clearTimeout(deleteTimer.current);
+          deleteTimer.current = null;
+          pendingDeleteRef.current = null;
+          setPendingDelete(null);
+        },
+      });
+    } else {
+      const label = items.length === 1 ? 'Product removed' : `${items.length} products removed`;
+      showBanner(label, 'info', {
+        label: 'UNDO',
+        onPress: () => {
+          if (deleteTimer.current) clearTimeout(deleteTimer.current);
+          deleteTimer.current = null;
+          pendingDeleteRef.current = null;
+          setPendingDelete(null);
+        },
+      });
+    }
+  }, [commitPendingDelete, onQueueUndo, showBanner]);
 
   const refresh = async () => {
     setRefreshing(true);
     Keyboard.dismiss();
-    lastScrollY.current = 0;
-    accumulatedScroll.current = 0;
-    setScrollHeaderVisible(true);
     setQuery('');
     setExpandedGroups(new Set());
     setSelectedIds(new Set());
@@ -251,43 +305,68 @@ export function InventoryScreen({
     showBanner(editingId == null ? 'Product added' : 'Product updated', 'success');
   };
 
-  const openNewProduct = () => {
+  const openNewProduct = useCallback(() => {
     Keyboard.dismiss();
     setEditingProduct(null);
     setEditorVisible(true);
-  };
+  }, []);
 
-  const openEditor = (product: InventoryProduct) => {
+  const openEditor = useCallback((product: InventoryProduct) => {
     Keyboard.dismiss();
     setEditingProduct(product);
     setEditorVisible(true);
-  };
+  }, []);
+
+  const handleProductPress = useCallback(
+    (product: InventoryProduct) => {
+      if (selectedIdsRef.current.size > 0) {
+        toggleSelection(product.id);
+      } else {
+        openEditor(product);
+      }
+    },
+    [openEditor, toggleSelection],
+  );
+
+  const handleProductLongPress = useCallback(
+    (product: InventoryProduct) => {
+      toggleSelection(product.id);
+    },
+    [toggleSelection],
+  );
+
+  const handleProductEdit = useCallback(
+    (product: InventoryProduct) => {
+      openEditor(product);
+    },
+    [openEditor],
+  );
+
+  const handleProductDelete = useCallback(
+    (product: InventoryProduct) => {
+      queueDelete([product]);
+    },
+    [queueDelete],
+  );
 
   return (
     <View style={styles.screen}>
       <View style={styles.directoryChrome}>
-        <Animated.View
-          style={[
-            styles.headerClip,
-            {
-              height: headerProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 60] }),
-              opacity: headerProgress,
-            },
-          ]}
-        >
+        <View style={styles.headerClip}>
           <InventoryHeader
             total={loading ? productCount : visibleProducts.length}
             selectionCount={selectedIds.size}
             allShownSelected={allShownSelected}
+            refreshing={refreshing}
             onBack={leaveInventory}
             onRefresh={refresh}
             onSelectAll={() => setSelectedIds(allShownSelected ? new Set() : new Set(allShownIds))}
             onClearSelection={() => setSelectedIds(new Set())}
             onDeleteSelection={() => queueDelete(visibleProducts.filter((product) => selectedIds.has(product.id)))}
           />
-        </Animated.View>
+        </View>
         <View style={styles.searchShell}>
-          <Ionicons name="search" size={21} color={colors.textMuted} />
+          <MaterialIcons name="search" size={21} color={colors.textMuted} />
           <TextInput
             ref={searchRef}
             value={query}
@@ -316,7 +395,7 @@ export function InventoryScreen({
                 }}
                 style={styles.searchAction}
               >
-                <Ionicons name="close" size={20} color={colors.textMuted} />
+                <MaterialIcons name="close" size={20} color={colors.textMuted} />
               </Pressable>
             ) : null}
           </View>
@@ -329,89 +408,98 @@ export function InventoryScreen({
             }}
             style={styles.searchAction}
           >
-            <Ionicons name="camera" size={21} color={colors.textMuted} />
+            <MaterialIcons name="camera-alt" size={21} color={colors.textMuted} />
           </Pressable>
         </View>
       </View>
-      <SectionList
+      <ScrollView
+        scrollEnabled={!isSwiping}
+        bounces={true}
+        directionalLockEnabled={true}
         style={styles.list}
-        sections={sections}
-        keyExtractor={(item) => item.id.toString()}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        stickySectionHeadersEnabled={false}
-        contentContainerStyle={styles.listContent}
-        onScroll={handleScroll}
-        onScrollBeginDrag={Keyboard.dismiss}
-        scrollEventThrottle={16}
-        refreshControl={(
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refresh}
-            tintColor={colors.primary}
-            colors={[colors.primary]}
-            progressBackgroundColor={colors.surface}
-          />
-        )}
-        renderSectionHeader={({ section }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: query.trim() ? true : expandedGroups.has(section.title) }}
-            onPress={() => {
-              Keyboard.dismiss();
-              if (query.trim()) return;
-              setExpandedGroups((current) => {
-                const next = new Set(current);
-                if (next.has(section.title)) next.delete(section.title); else next.add(section.title);
-                return next;
-              });
-            }}
-            style={({ pressed }) => [styles.groupHeader, pressed && styles.pressed]}
-          >
-            <Text style={styles.groupName}>{section.title}</Text>
-            <View style={styles.groupMeta}>
-              <Text style={styles.groupCount}>{section.count} item{section.count === 1 ? '' : 's'}</Text>
-              <Ionicons
-                name={(query.trim() || expandedGroups.has(section.title)) ? 'chevron-up' : 'chevron-down'}
-                size={19}
-                color={colors.textMuted}
-              />
-            </View>
-          </Pressable>
-        )}
-        renderItem={({ item }) => (
-          <ProductRow
-            product={item}
-            selected={selectedIds.has(item.id)}
-            selectionMode={selectedIds.size > 0}
-            onPress={() => selectedIds.size > 0 ? toggleSelection(item.id) : openEditor(item)}
-            onLongPress={() => toggleSelection(item.id)}
-            onEdit={() => openEditor(item)}
-            onDelete={() => queueDelete([item])}
-          />
-        )}
-        ListEmptyComponent={!loading ? (
-          <View style={styles.emptyState}>
-            <Ionicons name={query ? 'search-outline' : 'cube-outline'} size={42} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>{query ? 'No matching products' : 'Your inventory is empty'}</Text>
-            <Text style={styles.emptyBody}>
-              {query ? 'Try a product name, barcode, Amazon link, or Flipkart link.' : 'Add the first product to start comparing prices.'}
-            </Text>
-          </View>
-        ) : null}
-        ListFooterComponent={<View style={{ height: 100 + insets.bottom + (bannerVisible ? 64 : 0) }} />}
-      />
+        contentContainerStyle={[
+          styles.listContent,
+          {
+            paddingBottom: 110 + insets.bottom,
+          },
+        ]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+      >
+        {sections.map((section) => {
+          const isSearching = Boolean(query.trim());
+          const isExpanded = isSearching || expandedGroups.has(section.title);
+          const isFullyRendered = isSearching || fullyRenderedGroups.has(section.title) || section.data.length <= 6;
+          const displayProducts = isFullyRendered ? section.data : section.data.slice(0, 6);
 
-      {!selectionMode && !bannerVisible ? (
+          return (
+            <View key={section.title} style={styles.groupContainer}>
+              <SectionHeader
+                title={section.title}
+                count={section.count}
+                isExpanded={isExpanded}
+                onToggle={toggleGroup}
+              />
+              {isExpanded ? (
+                <View style={styles.groupProducts}>
+                  {displayProducts.map((item, index) => (
+                    <AnimatedProductRowWrapper
+                      key={item.id}
+                      index={index}
+                      isSearching={isSearching}
+                      isDeferred={index >= 6}
+                    >
+                      <ProductRow
+                        product={item}
+                        selected={selectedIds.has(item.id)}
+                        selectionMode={selectionMode}
+                        onPress={handleProductPress}
+                        onLongPress={handleProductLongPress}
+                        onEdit={handleProductEdit}
+                        onDelete={handleProductDelete}
+                        onSwipeActiveChange={setIsSwiping}
+                      />
+                    </AnimatedProductRowWrapper>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
+
+        {!loading && visibleProducts.length === 0 ? (
+          <CompactInventoryEmptyState isSearching={Boolean(query.trim())} />
+        ) : null}
+      </ScrollView>
+
+      <Animated.View
+        style={[
+          styles.fabWrapper,
+          {
+            bottom: 20 + insets.bottom,
+            opacity: fabAnim,
+            transform: [
+              {
+                scale: fabAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.6, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+        pointerEvents={fabVisible ? 'auto' : 'none'}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Add new product"
           onPress={openNewProduct}
-          style={({ pressed }) => [styles.fab, { bottom: spacing.lg + insets.bottom }, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
         >
-          <Ionicons name="add" size={31} color={colors.background} />
+          <MaterialIcons name="add" size={27} color="#FFFFFF" />
         </Pressable>
-      ) : null}
+      </Animated.View>
 
       <ProductEditorModal
         visible={editorVisible}
@@ -433,10 +521,11 @@ export function InventoryScreen({
   );
 }
 
-function InventoryHeader({
+const InventoryHeader = memo(function InventoryHeader({
   total,
   selectionCount,
   allShownSelected,
+  refreshing,
   onBack,
   onRefresh,
   onSelectAll,
@@ -446,25 +535,42 @@ function InventoryHeader({
   total: number;
   selectionCount: number;
   allShownSelected: boolean;
+  refreshing: boolean;
   onBack: () => void;
   onRefresh: () => void;
   onSelectAll: () => void;
   onClearSelection: () => void;
   onDeleteSelection: () => void;
 }) {
+  const { colors, styles } = useInventoryTheme();
   const selectionMode = selectionCount > 0;
   if (selectionMode) {
     return (
       <View style={styles.selectionHeader}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Clear selection" onPress={onClearSelection} style={styles.headerIcon}>
-          <Ionicons name="close" size={25} color={colors.text} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel selection"
+          onPress={onClearSelection}
+          style={styles.headerIcon}
+        >
+          <MaterialIcons name="close" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.selectionTitle}>{selectionCount} selected</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={allShownSelected ? 'Deselect all shown' : 'Select all shown'} onPress={onSelectAll} style={styles.selectionAllButton}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={allShownSelected ? 'Deselect all shown' : 'Select all shown'}
+          onPress={onSelectAll}
+          style={styles.selectionAllButton}
+        >
           <Text style={styles.selectionAllText}>{allShownSelected ? 'None' : 'All'}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Delete selected products" onPress={onDeleteSelection} style={styles.headerIcon}>
-          <Ionicons name="trash" size={23} color={colors.danger} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Delete selected products"
+          onPress={onDeleteSelection}
+          style={styles.headerIcon}
+        >
+          <MaterialIcons name="delete" size={22} color={colors.danger} />
         </Pressable>
       </View>
     );
@@ -472,27 +578,191 @@ function InventoryHeader({
 
   return (
     <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.headerIcon}>
-        <Ionicons name="arrow-back" size={25} color={colors.primary} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+        onPress={onBack}
+        style={styles.headerIcon}
+      >
+        <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
       </Pressable>
       <View style={styles.headerBadge}>
-        <Ionicons name="storefront" size={24} color={colors.primary} />
+        <MaterialIcons name="inventory-2" size={22} color={colors.primary} />
       </View>
       <View style={styles.headerText}>
         <View style={styles.headerTitleRow}>
           <Text style={styles.headerBrand}>SUPREME </Text>
           <Text style={styles.headerName}>INVENTORY</Text>
         </View>
-        <Text style={styles.headerSubtitle}>{total} Total {total === 1 ? 'Product' : 'Products'}</Text>
+        <Text style={styles.headerSubtitle}>
+          {total} Total {total === 1 ? 'Product' : 'Products'}
+        </Text>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Refresh inventory" onPress={onRefresh} style={styles.headerIcon}>
-        <Ionicons name="refresh" size={25} color={colors.text} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Refresh inventory"
+        onPress={onRefresh}
+        disabled={refreshing}
+        style={styles.headerIcon}
+      >
+        {refreshing ? (
+          <ActivityIndicator size={20} color={colors.primary} />
+        ) : (
+          <MaterialIcons name="refresh" size={24} color={colors.text} />
+        )}
       </Pressable>
     </View>
   );
+});
+
+const SectionHeader = memo(function SectionHeader({
+  title,
+  count,
+  isExpanded,
+  onToggle,
+}: {
+  title: string;
+  count: number;
+  isExpanded: boolean;
+  onToggle: (title: string) => void;
+}) {
+  const { colors, styles } = useInventoryTheme();
+  const rotation = useRef(new Animated.Value(isExpanded ? 1 : 0)).current;
+  const pressScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(rotation, {
+      toValue: isExpanded ? 1 : 0,
+      duration: 200,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [isExpanded, rotation]);
+
+  const spin = rotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  const handlePressIn = () => {
+    Animated.spring(pressScale, {
+      toValue: 0.985,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 300,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(pressScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 300,
+    }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: pressScale }] }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isExpanded }}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={() => {
+          onToggle(title);
+        }}
+        style={({ pressed }) => [styles.groupHeader, pressed && styles.groupHeaderPressed]}
+      >
+        <Text style={styles.groupName}>{title}</Text>
+        <View style={styles.groupMeta}>
+          <Text style={styles.groupCount}>
+            {count === 1 ? '1 item' : `${count} items`}
+          </Text>
+          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+            <MaterialIcons name="expand-more" size={20} color={colors.textMuted} />
+          </Animated.View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
+const AnimatedProductRowWrapper = memo(function AnimatedProductRowWrapper({
+  index,
+  isSearching,
+  isDeferred,
+  children,
+}: {
+  index: number;
+  isSearching: boolean;
+  isDeferred?: boolean;
+  children: React.ReactNode;
+}) {
+  const anim = useRef(new Animated.Value(isSearching || isDeferred ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (isSearching || isDeferred) {
+      anim.setValue(1);
+      return;
+    }
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 150,
+      delay: Math.min(index * 12, 60),
+      useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+  }, [anim, index, isSearching, isDeferred]);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: anim,
+        transform: [
+          {
+            translateY: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [7, 0],
+            }),
+          },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+});
+
+function MaterialCheckbox({ checked }: { checked: boolean }) {
+  const { styles } = useInventoryTheme();
+  const checkScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(checkScale, {
+      toValue: 1,
+      damping: 16,
+      stiffness: 280,
+      useNativeDriver: true,
+    }).start();
+  }, [checkScale]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.checkbox,
+        checked ? styles.checkboxChecked : styles.checkboxUnchecked,
+        { transform: [{ scale: checkScale }] },
+      ]}
+    >
+      {checked ? (
+        <MaterialIcons name="check" size={13} color="#FFFFFF" />
+      ) : null}
+    </Animated.View>
+  );
 }
 
-function ProductRow({
+const ProductRow = memo(function ProductRow({
   product,
   selected,
   selectionMode,
@@ -500,64 +770,187 @@ function ProductRow({
   onLongPress,
   onEdit,
   onDelete,
+  onSwipeActiveChange,
 }: {
   product: InventoryProduct;
   selected: boolean;
   selectionMode: boolean;
-  onPress: () => void;
-  onLongPress: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  onPress: (product: InventoryProduct) => void;
+  onLongPress: (product: InventoryProduct) => void;
+  onEdit: (product: InventoryProduct) => void;
+  onDelete: (product: InventoryProduct) => void;
+  onSwipeActiveChange?: (active: boolean) => void;
 }) {
-  const longPressHandled = useRef(false);
+  const { colors, styles } = useInventoryTheme();
   const swipeX = useRef(new Animated.Value(0)).current;
+  const pressScale = useRef(new Animated.Value(1)).current;
   const swipeOpen = useRef(false);
+  const isDragging = useRef(false);
+  const longPressHandled = useRef(false);
 
-  const settleSwipe = (open: boolean) => {
-    swipeOpen.current = open;
-    Animated.spring(swipeX, {
-      toValue: open ? -76 : 0,
-      useNativeDriver: Platform.OS !== 'web',
-      damping: 22,
-      stiffness: 240,
-      mass: 0.65,
-    }).start();
-  };
-
-  const panResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => (
-      !selectionMode && Math.abs(gesture.dx) > 7 && Math.abs(gesture.dx) > Math.abs(gesture.dy)
-    ),
-    onPanResponderMove: (_, gesture) => {
-      const base = swipeOpen.current ? -76 : 0;
-      swipeX.setValue(Math.max(-92, Math.min(0, base + gesture.dx)));
+  const settleSwipe = useCallback(
+    (open: boolean) => {
+      swipeOpen.current = open;
+      Animated.spring(swipeX, {
+        toValue: open ? -80 : 0,
+        useNativeDriver: true,
+        bounciness: 0,
+        speed: 20,
+      }).start();
     },
-    onPanResponderRelease: (_, gesture) => settleSwipe((swipeOpen.current ? -76 : 0) + gesture.dx < -42),
-    onPanResponderTerminate: () => settleSwipe(swipeOpen.current),
-  }), [selectionMode, swipeX]);
+    [swipeX],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_, gesture) => {
+          if (selectionMode) return false;
+          return Math.abs(gesture.dx) > 12 && Math.abs(gesture.dy) < 12;
+        },
+        onPanResponderGrant: () => {
+          isDragging.current = true;
+          swipeX.stopAnimation();
+          onSwipeActiveChange?.(true);
+        },
+        onPanResponderMove: (_, gesture) => {
+          if (selectionMode) return;
+          const base = swipeOpen.current ? -80 : 0;
+          const next = Math.max(-100, Math.min(0, base + gesture.dx));
+          swipeX.setValue(next);
+        },
+        onPanResponderRelease: (_, gesture) => {
+          isDragging.current = false;
+          onSwipeActiveChange?.(false);
+          if (selectionMode) {
+            settleSwipe(false);
+            return;
+          }
+          const movedLeft = gesture.dx < -30 || (swipeOpen.current && gesture.dx < 20);
+          settleSwipe(movedLeft);
+        },
+        onPanResponderTerminate: () => {
+          isDragging.current = false;
+          onSwipeActiveChange?.(false);
+          settleSwipe(false);
+        },
+      }),
+    [onSwipeActiveChange, selectionMode, settleSwipe, swipeX],
+  );
+
+  const handlePressIn = useCallback(() => {
+    if (isDragging.current) return;
+    Animated.spring(pressScale, {
+      toValue: 0.985,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 300,
+    }).start();
+  }, [pressScale]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.spring(pressScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 300,
+    }).start();
+  }, [pressScale]);
+
+  useEffect(() => {
+    if (!selectionMode && swipeOpen.current) {
+      settleSwipe(false);
+    }
+  }, [selectionMode, settleSwipe]);
+
+  const colorAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
+  const isInitialMount = useRef(true);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    Animated.timing(colorAnim, {
+      toValue: selected ? 1 : 0,
+      duration: 250,
+      useNativeDriver: false,
+    }).start();
+  }, [selected, colorAnim]);
+
+  const animatedBackgroundColor = colorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.surface, colors.isDark ? '#123626' : '#DCFCE7'],
+  });
+  const animatedBorderColor = colorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.border, colors.primary],
+  });
 
   return (
-    <View style={styles.swipeContainer}>
-      <View style={styles.deleteUnderlay}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Delete ${product.productName}`}
-          onPress={() => {
-            settleSwipe(false);
-            onDelete();
-          }}
-          style={styles.deleteAction}
+    <Animated.View style={{ transform: [{ scale: pressScale }] }}>
+      <View style={styles.swipeContainer}>
+        {!selectionMode ? (
+          <Animated.View
+            style={[
+              styles.deleteUnderlay,
+              {
+                opacity: swipeX.interpolate({
+                  inputRange: [-80, -10, 0],
+                  outputRange: [1, 0.4, 0],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.deleteAction,
+                {
+                  transform: [
+                    {
+                      scale: swipeX.interpolate({
+                        inputRange: [-80, -20, 0],
+                        outputRange: [1, 0.6, 0],
+                        extrapolate: 'clamp',
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${product.productName}`}
+                onPress={() => {
+                  settleSwipe(false);
+                  onDelete(product);
+                }}
+                style={styles.deletePressable}
+              >
+                <MaterialIcons name="delete" size={24} color={colors.danger} />
+              </Pressable>
+            </Animated.View>
+          </Animated.View>
+        ) : null}
+        <Animated.View
+          style={[
+            styles.productRow,
+            {
+              backgroundColor: animatedBackgroundColor as any,
+              borderColor: animatedBorderColor as any,
+              transform: [{ translateX: swipeX }],
+            },
+          ]}
+          {...panResponder.panHandlers}
         >
-          <Ionicons name="trash" size={22} color={colors.text} />
-          <Text style={styles.deleteText}>Delete</Text>
-        </Pressable>
-      </View>
-      <Animated.View style={{ transform: [{ translateX: swipeX }] }} {...panResponder.panHandlers}>
-        <View style={[styles.productRow, selected && styles.productSelected]}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${selectionMode ? 'Select' : 'Open'} ${product.productName}`}
             accessibilityState={{ selected }}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
             onPress={() => {
               if (longPressHandled.current) {
                 longPressHandled.current = false;
@@ -567,122 +960,290 @@ function ProductRow({
                 settleSwipe(false);
                 return;
               }
-              onPress();
+              onPress(product);
             }}
             onLongPress={() => {
               longPressHandled.current = true;
               settleSwipe(false);
-              onLongPress();
+              onLongPress(product);
             }}
             style={({ pressed }) => [styles.productMain, pressed && styles.pressed]}
           >
-            {selectionMode ? (
-              <Ionicons
-                name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-                size={25}
-                color={selected ? colors.primary : colors.textMuted}
-                style={styles.selectionCheck}
-              />
-            ) : null}
+            {selectionMode ? <MaterialCheckbox checked={selected} /> : null}
             <View style={styles.productImageShell}>
               {product.imageUrl ? (
-                <Image source={product.imageUrl} style={styles.productImage} contentFit="contain" transition={120} />
+                <Image
+                  source={product.imageUrl}
+                  style={styles.productImage}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  recyclingKey={product.imageUrl}
+                />
               ) : (
-                <Ionicons name="cube-outline" size={25} color={colors.textMuted} />
+                <MaterialIcons name="camera-alt" size={26} color={colors.textMuted} />
               )}
             </View>
             <View style={styles.productContent}>
-              <Text style={styles.productName} numberOfLines={2}>{product.productName}</Text>
+              <Text style={styles.productName} numberOfLines={2}>
+                {product.productName}
+              </Text>
               <View style={styles.pricePill}>
-                <Ionicons name="pricetag" size={12} color={colors.primary} />
-                <Text style={styles.priceLabel} numberOfLines={1}>Supreme Price:</Text>
-                <Text style={styles.priceValue} numberOfLines={1}>{formatInr(product.shopPrice)}</Text>
+                <MaterialIcons name="sell" size={12} color={colors.primary} />
+                <Text style={styles.priceLabel} numberOfLines={1}>
+                  Supreme Price:
+                </Text>
+                <Text style={styles.priceValue} numberOfLines={1}>
+                  {formatInr(product.shopPrice)}
+                </Text>
               </View>
             </View>
           </Pressable>
           {!selectionMode ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${product.productName}`} onPress={onEdit} hitSlop={8} style={styles.rowAction}>
-              <Ionicons name="pencil" size={20} color={colors.textMuted} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${product.productName}`}
+              onPress={() => onEdit(product)}
+              hitSlop={8}
+              style={styles.rowAction}
+            >
+              <MaterialIcons name="edit" size={20} color={colors.textMuted} />
             </Pressable>
           ) : null}
-        </View>
-      </Animated.View>
+        </Animated.View>
+      </View>
+    </Animated.View>
+  );
+});
+
+function CompactInventoryEmptyState({ isSearching }: { isSearching: boolean }) {
+  const { colors, styles } = useInventoryTheme();
+  return (
+    <View style={styles.emptyState}>
+      <MaterialIcons
+        name={isSearching ? 'search' : 'inventory-2'}
+        size={40}
+        color={colors.textMuted}
+      />
+      <Text style={styles.emptyTitle}>
+        {isSearching ? 'No matching products' : 'Inventory is empty'}
+      </Text>
+      <Text style={styles.emptyBody}>
+        {isSearching ? 'Try another search' : 'Tap + to add a product'}
+      </Text>
     </View>
   );
 }
 
 function formatInr(value: number): string {
-  return `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(value)}`;
+  return `\u20B9${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(value)}`;
 }
 
 function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : 'Something unexpected happened.';
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  directoryChrome: { paddingHorizontal: spacing.lg },
-  headerClip: { overflow: 'hidden' },
-  list: { flex: 1 },
-  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
-  header: { minHeight: 60, flexDirection: 'row', alignItems: 'center' },
-  selectionHeader: { minHeight: 52, flexDirection: 'row', alignItems: 'center' },
-  headerIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerBadge: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryMuted, marginLeft: spacing.xs },
-  headerText: { flex: 1, marginLeft: 10 },
-  headerTitleRow: { flexDirection: 'row', alignItems: 'center' },
-  headerBrand: { color: colors.primary, fontFamily: type.bold, fontSize: 19, lineHeight: 21 },
-  headerName: { color: colors.text, fontFamily: type.bold, fontSize: 19, lineHeight: 21 },
-  headerSubtitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginTop: 1 },
-  selectionTitle: { flex: 1, color: colors.text, fontFamily: type.bold, fontSize: 16, marginLeft: spacing.xs },
-  selectionAllButton: { minWidth: 52, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  selectionAllText: { color: colors.textMuted, fontFamily: type.bold, fontSize: 13 },
-  searchShell: { height: 56, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, paddingLeft: 14, paddingRight: spacing.xs, marginVertical: spacing.md },
-  searchInput: { flex: 1, minHeight: 54, color: colors.text, fontFamily: type.regular, fontSize: 16, paddingHorizontal: spacing.md },
-  searchClearSlot: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  searchAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  groupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceRaised, borderColor: 'transparent', borderWidth: 1, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, marginTop: spacing.xs, marginBottom: 10 },
-  groupName: { color: colors.primary, fontFamily: type.bold, fontSize: 15, letterSpacing: 0.3 },
-  groupMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  groupCount: { color: colors.textMuted, fontFamily: type.regular, fontSize: 13 },
-  swipeContainer: { overflow: 'hidden', borderRadius: 12, marginBottom: 10 },
-  deleteUnderlay: { ...StyleSheet.absoluteFill, alignItems: 'flex-end', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.danger },
-  deleteAction: { width: 76, height: '100%', alignItems: 'center', justifyContent: 'center' },
-  deleteText: { color: colors.text, fontFamily: type.bold, fontSize: 10, marginTop: 2 },
-  productRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 12 },
-  productMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
-  productSelected: { borderColor: colors.primary, backgroundColor: colors.primaryMuted },
-  selectionCheck: { marginRight: spacing.sm },
-  productImageShell: { width: 64, height: 64, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  productImage: { width: 52, height: 52 },
-  productContent: { flex: 1, marginLeft: 14, marginRight: spacing.sm },
-  productName: { color: colors.text, fontFamily: type.semibold, fontSize: 15, lineHeight: 19 },
-  pricePill: { width: '100%', flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16,185,129,0.30)', borderRadius: 6, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, marginTop: 10 },
-  priceLabel: { flex: 1, color: colors.primary, fontFamily: type.regular, fontSize: 12, marginLeft: 6 },
-  priceValue: { color: colors.primary, fontFamily: type.bold, fontSize: 12, marginLeft: 5 },
-  rowAction: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
-  emptyTitle: { color: colors.text, fontFamily: type.bold, fontSize: 20, marginTop: spacing.lg },
-  emptyBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: spacing.sm },
-  fab: {
-    position: 'absolute',
-    right: 14,
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    ...Platform.select({
-      web: { boxShadow: '0 5px 10px rgba(0, 0, 0, 0.35)' },
-      default: {
-        shadowColor: '#000',
-        shadowOpacity: 0.35,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 5 },
-        elevation: 9,
-      },
-    }),
-  },
-  pressed: { opacity: 0.72 },
-});
+const createStyles = (colors: DynamicColors) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    directoryChrome: { paddingHorizontal: spacing.lg },
+    headerClip: { overflow: 'hidden' },
+    list: { flex: 1 },
+    listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+    header: { minHeight: 60, flexDirection: 'row', alignItems: 'center' },
+    selectionHeader: { minHeight: 52, flexDirection: 'row', alignItems: 'center' },
+    headerIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    headerBadge: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      marginLeft: spacing.xs,
+    },
+    headerText: { flex: 1, marginLeft: 10 },
+    headerTitleRow: { flexDirection: 'row', alignItems: 'center' },
+    headerBrand: { color: colors.primary, fontFamily: type.bold, fontSize: 19, lineHeight: 21 },
+    headerName: { color: colors.text, fontFamily: type.bold, fontSize: 19, lineHeight: 21 },
+    headerSubtitle: { color: colors.textMuted, fontFamily: type.regular, fontSize: 11, marginTop: 1 },
+    selectionTitle: { flex: 1, color: colors.text, fontFamily: type.bold, fontSize: 16, marginLeft: spacing.xs },
+    selectionAllButton: { minWidth: 52, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    selectionAllText: { color: colors.textMuted, fontFamily: type.bold, fontSize: 13 },
+    searchShell: {
+      height: 56,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: 12,
+      paddingLeft: 14,
+      paddingRight: spacing.xs,
+      marginVertical: spacing.md,
+    },
+    searchInput: {
+      flex: 1,
+      minHeight: 54,
+      color: colors.text,
+      fontFamily: type.regular,
+      fontSize: 16,
+      paddingHorizontal: spacing.md,
+    },
+    searchClearSlot: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    searchAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    groupContainer: {
+      marginVertical: 4,
+    },
+    groupProducts: {
+      gap: 10,
+      marginTop: 8,
+      marginBottom: 6,
+    },
+    groupHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.isDark ? 'rgba(49, 53, 64, 0.55)' : colors.surfaceRaised,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    groupHeaderPressed: { opacity: 0.72 },
+    groupName: {
+      color: colors.primary,
+      fontFamily: Platform.select({ ios: 'System', default: type.bold }),
+      fontWeight: '700',
+      fontSize: 15,
+      flex: 1,
+    },
+    groupMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    groupCount: {
+      color: colors.textMuted,
+      fontFamily: Platform.select({ ios: 'System', default: type.regular }),
+      fontWeight: '400',
+      fontSize: 13,
+    },
+    swipeContainer: { overflow: 'hidden', borderRadius: 12 },
+    deleteUnderlay: {
+      ...StyleSheet.absoluteFill,
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      borderRadius: 12,
+      backgroundColor: 'rgba(239, 68, 68, 0.20)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.50)',
+    },
+    deleteAction: { width: 68, height: '100%', alignItems: 'center', justifyContent: 'center' },
+    deletePressable: { width: 68, height: '100%', alignItems: 'center', justifyContent: 'center' },
+    productRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      minHeight: 100,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 12,
+    },
+    productMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+    checkbox: {
+      width: 18,
+      height: 18,
+      borderRadius: 3,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+    },
+    checkboxUnchecked: {
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: 'transparent',
+    },
+    checkboxChecked: {
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      backgroundColor: colors.primary,
+    },
+    productImageShell: {
+      width: 76,
+      height: 76,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.isDark ? '#14181D' : '#F8FAFC',
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+      padding: 6,
+    },
+    productImage: { width: '100%', height: '100%' },
+    productContent: {
+      flex: 1,
+      marginLeft: 14,
+      marginRight: spacing.xs,
+      justifyContent: 'center',
+    },
+    productName: {
+      color: colors.text,
+      fontFamily: Platform.select({ ios: 'System', default: type.semibold }),
+      fontWeight: '600',
+      fontSize: 15,
+      lineHeight: 21,
+    },
+    pricePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      borderWidth: 1,
+      borderColor: colors.isDark ? 'rgba(16, 185, 129, 0.30)' : 'rgba(16, 185, 129, 0.40)',
+      backgroundColor: colors.isDark ? 'transparent' : 'rgba(16, 185, 129, 0.08)',
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      marginTop: 10,
+    },
+    priceLabel: {
+      color: colors.primary,
+      fontFamily: Platform.select({ ios: 'System', default: type.regular }),
+      fontWeight: '500',
+      fontSize: 12,
+      marginLeft: 6,
+      marginRight: 5,
+    },
+    priceValue: {
+      color: colors.primary,
+      fontFamily: Platform.select({ ios: 'System', default: type.bold }),
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    rowAction: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
+    emptyState: { alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 72 },
+    emptyTitle: { color: colors.text, fontFamily: type.bold, fontSize: 16, marginTop: 10 },
+    emptyBody: { color: colors.textMuted, fontFamily: type.regular, fontSize: 12, textAlign: 'center', marginTop: 4 },
+    fabWrapper: {
+      position: 'absolute',
+      right: 14,
+      zIndex: 10,
+    },
+    fab: {
+      width: 56,
+      height: 56,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+      ...Platform.select({
+        web: { boxShadow: '0 5px 10px rgba(0, 0, 0, 0.35)' },
+        default: {
+          shadowColor: '#000',
+          shadowOpacity: 0.35,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 5 },
+          elevation: 9,
+        },
+      }),
+    },
+    pressed: { opacity: 0.72 },
+  });

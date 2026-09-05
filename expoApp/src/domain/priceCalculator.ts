@@ -5,7 +5,7 @@ export function evaluatePriceExpression(expression: string): number {
   const normalized = expression
     .replaceAll('×', '*')
     .replaceAll('÷', '/')
-    .replaceAll('−', '-')
+    .replaceAll('-', '-')
     .replaceAll(' ', '');
   if (!normalized) throw new Error('Enter a calculation');
 
