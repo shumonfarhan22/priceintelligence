@@ -105,20 +105,24 @@ for (const f of pkgFiles) {
   }
 }
 
-// 2. Patch Swift files: weak let -> weak var (invalid across all Swift versions)
-const swiftFiles = findFiles(nodeModulesDir, (n) => n.endsWith('.swift'));
-console.log(`[patch] Checking ${swiftFiles.length} Swift files for 'weak let'...`);
+// 2. Patch Swift files: only on Swift < 6.2 (Swift 6.2+ natively supports `weak let` on Sendable types)
+if (!isSwift62OrHigher) {
+  const swiftFiles = findFiles(nodeModulesDir, (n) => n.endsWith('.swift'));
+  console.log(`[patch] Checking ${swiftFiles.length} Swift files for 'weak let'...`);
 
-let weakLetCount = 0;
-for (const f of swiftFiles) {
-  let content = fs.readFileSync(f, 'utf8');
-  if (content.includes('weak let')) {
-    content = content.replace(/\bweak\s+let\b/g, 'weak var');
-    fs.writeFileSync(f, content, 'utf8');
-    weakLetCount++;
+  let weakLetCount = 0;
+  for (const f of swiftFiles) {
+    let content = fs.readFileSync(f, 'utf8');
+    if (content.includes('weak let')) {
+      content = content.replace(/\bweak\s+let\b/g, 'nonisolated(unsafe) weak var');
+      fs.writeFileSync(f, content, 'utf8');
+      weakLetCount++;
+    }
   }
+  console.log(`[patch] Patched 'weak let' in ${weakLetCount} Swift files`);
+} else {
+  console.log('[patch] Swift 6.2+ detected: keeping native `weak let` properties intact');
 }
-console.log(`[patch] Patched 'weak let' in ${weakLetCount} Swift files`);
 
 // 3. Patch RuntimeScheduler.h: remove SWIFT_RETURNS_RETAINED from constructors
 const schedulerFiles = findFiles(nodeModulesDir, (n) => n === 'RuntimeScheduler.h');
