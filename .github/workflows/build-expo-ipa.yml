@@ -51,6 +51,11 @@ jobs:
       - name: Prebuild iOS project
         run: npx expo prebuild --platform ios --clean --no-install
 
+      - name: Configure Xcode Node environment
+        run: |
+          echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local
+          cat ios/.xcode.env.local
+
       - name: Install CocoaPods
         run: |
           cd ios
@@ -60,24 +65,19 @@ jobs:
         run: |
           cd ios
           WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -n 1)
+          APP_NAME=$(basename $(find . -maxdepth 1 -name "*.xcodeproj" | head -n 1) .xcodeproj)
           echo "Found workspace: $WORKSPACE"
+          echo "Building main application scheme: $APP_NAME"
 
-          SCHEMES=$(xcodebuild -workspace "$WORKSPACE" -list -json)
-          SCHEME=$(node -e "const data = JSON.parse(process.argv[1]); const s = data.workspace?.schemes || []; const target = s.find(x => !x.includes('Pods') && !x.includes('Tests')) || s[0]; console.log(target);" "$SCHEMES")
-          echo "Building scheme: $SCHEME"
-
-          xcodebuild \
+          xcodebuild archive \
             -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+            -scheme "$APP_NAME" \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath ../build/App.xcarchive \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGN_ENTITLEMENTS="" \
-            CODE_SIGNING_INJECT_BASE_ENTITLEMENTS=NO \
-            clean archive
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Package into unsigned IPA
         run: |
