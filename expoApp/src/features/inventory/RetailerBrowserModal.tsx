@@ -1,19 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
   Easing,
   Linking,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import { normalizeRetailerUrl } from '../../data/backup';
@@ -51,14 +53,70 @@ export function RetailerBrowserModal({
   const [loadError, setLoadError] = useState<string | null>(null);
   const webViewRef = useRef<WebView>(null);
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const bannerAnim = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(windowHeight)).current;
+  const isClosingRef = useRef(false);
+
+  // Safe area top padding ensuring notch / dynamic island never overlap buttons
+  const safeTopPadding = Math.max(insets.top, Platform.OS === 'ios' ? 48 : 24);
+
+  const dismissModal = useCallback((callback?: () => void) => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+    Animated.timing(translateY, {
+      toValue: windowHeight,
+      duration: 220,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      isClosingRef.current = false;
+      if (callback) {
+        callback();
+      } else {
+        onClose();
+      }
+    });
+  }, [onClose, translateY, windowHeight]);
 
   useEffect(() => {
     if (!visible) return;
+    isClosingRef.current = false;
     setCurrentUrl(details.startUrl);
     setLoading(Platform.OS !== 'web');
     setLoadError(null);
-  }, [details.startUrl, visible]);
+    translateY.setValue(windowHeight);
+    Animated.timing(translateY, {
+      toValue: 0,
+      duration: 280,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [details.startUrl, translateY, visible, windowHeight]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 6 && Math.abs(gesture.dx) < 30,
+      onPanResponderMove: (_, gesture) => {
+        if (gesture.dy > 0) {
+          translateY.setValue(gesture.dy);
+        }
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy > 120 || gesture.vy > 0.5) {
+          dismissModal();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            damping: 22,
+            stiffness: 240,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   const acceptedUrl = useMemo(
     () => normalizeRetailerUrl(currentUrl, details.retailer),
@@ -91,29 +149,46 @@ export function RetailerBrowserModal({
   }, [bannerAnim, canonicalProductUrl]);
 
   const content = (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <View style={styles.dragHandle} />
-      <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Close ${details.name} browser`} onPress={onClose} style={styles.headerButton}>
-          <Ionicons name="close" size={26} color={colors.text} />
-        </Pressable>
-
-        <View style={styles.headerCopy}>
-          <Text style={styles.title}>{details.name}</Text>
-          <Text style={styles.url} numberOfLines={1}>INCOGNITO  •  {currentUrl}</Text>
+    <Animated.View
+      style={[
+        styles.root,
+        {
+          paddingTop: safeTopPadding,
+          transform: [{ translateY }],
+        },
+      ]}
+    >
+      <View style={styles.topArea} {...panResponder.panHandlers}>
+        <View style={styles.dragHandleTouchArea}>
+          <View style={styles.dragHandle} />
         </View>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Close ${details.name} browser`}
+            onPress={() => dismissModal()}
+            style={styles.headerButton}
+          >
+            <Ionicons name="close" size={26} color={colors.text} />
+          </Pressable>
 
-        {loading ? <ActivityIndicator size="small" color={colors.primary} style={styles.loader} /> : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Use this ${details.name} link`}
-          accessibilityState={{ disabled: !bestUrlToUse }}
-          disabled={!bestUrlToUse}
-          onPress={() => bestUrlToUse && onUseLink(bestUrlToUse)}
-          style={[styles.headerButton, !bestUrlToUse && styles.disabled]}
-        >
-          <Ionicons name="checkmark" size={27} color={bestUrlToUse ? colors.primary : colors.textMuted} />
-        </Pressable>
+          <View style={styles.headerCopy}>
+            <Text style={styles.title}>{details.name}</Text>
+            <Text style={styles.url} numberOfLines={1}>INCOGNITO  •  {currentUrl}</Text>
+          </View>
+
+          {loading ? <ActivityIndicator size="small" color={colors.primary} style={styles.loader} /> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Use this ${details.name} link`}
+            accessibilityState={{ disabled: !bestUrlToUse }}
+            disabled={!bestUrlToUse}
+            onPress={() => bestUrlToUse && dismissModal(() => onUseLink(bestUrlToUse))}
+            style={[styles.headerButton, !bestUrlToUse && styles.disabled]}
+          >
+            <Ionicons name="checkmark" size={27} color={bestUrlToUse ? colors.primary : colors.textMuted} />
+          </Pressable>
+        </View>
       </View>
 
       {Platform.OS === 'web' ? (
@@ -234,12 +309,12 @@ export function RetailerBrowserModal({
           </View>
         </Animated.View>
       ) : null}
-    </SafeAreaView>
+    </Animated.View>
   );
 
   if (embedded) return visible ? content : null;
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" presentationStyle="overFullScreen" onRequestClose={() => dismissModal()}>
       {content}
     </Modal>
   );
@@ -248,7 +323,24 @@ export function RetailerBrowserModal({
 const createStyles = (colors: DynamicColors) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
-    dragHandle: { width: 42, height: 4, alignSelf: 'center', borderRadius: radius.pill, backgroundColor: 'rgba(148,163,184,0.55)', marginTop: 8 },
+    topArea: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+    },
+    dragHandleTouchArea: {
+      paddingVertical: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+    },
+    dragHandle: {
+      width: 44,
+      height: 5,
+      alignSelf: 'center',
+      borderRadius: radius.pill,
+      backgroundColor: 'rgba(148,163,184,0.65)',
+    },
     header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: spacing.sm },
     headerButton: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
     headerCopy: { flex: 1, minWidth: 0, paddingHorizontal: 6 },

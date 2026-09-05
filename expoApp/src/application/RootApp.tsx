@@ -17,6 +17,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -268,15 +269,49 @@ function RootAppContent({ fontFallback }: RootAppProps) {
     return () => sub.remove();
   }, [selectedPriorityProduct, personalizationVisible, toolsVisible, hubVisible, navigateHome]);
 
+  const { width: windowWidth } = useWindowDimensions();
+  const dragX = useRef(new Animated.Value(0)).current;
+
   const panResponder = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gesture) => {
-        return !hubVisible && gesture.moveX < 45 && gesture.dx > 15 && Math.abs(gesture.dy) < 30;
+        if (hubVisible) return false;
+        const startX = gesture.moveX - gesture.dx;
+        return startX <= 48 && gesture.dx > 10 && Math.abs(gesture.dy) < 32;
+      },
+      onPanResponderMove: (_, gesture) => {
+        if (gesture.dx > 0) {
+          dragX.setValue(gesture.dx);
+        }
       },
       onPanResponderRelease: (_, gesture) => {
-        if (!hubVisible && gesture.dx > 60) {
-          navigateHome();
+        if (gesture.dx > 75 || gesture.vx > 0.4) {
+          Animated.timing(dragX, {
+            toValue: windowWidth,
+            duration: 180,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }).start(() => {
+            dragX.setValue(0);
+            navigateHome();
+          });
+        } else {
+          Animated.spring(dragX, {
+            toValue: 0,
+            damping: 22,
+            stiffness: 260,
+            useNativeDriver: true,
+          }).start();
         }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(dragX, {
+          toValue: 0,
+          damping: 22,
+          stiffness: 260,
+          useNativeDriver: true,
+        }).start();
       },
     }),
   ).current;
@@ -405,10 +440,16 @@ function RootAppContent({ fontFallback }: RootAppProps) {
               opacity: hubAnim,
               transform: [
                 {
-                  scale: hubAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.97, 1],
-                  }),
+                  scale: hubVisible
+                    ? hubAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.97, 1],
+                      })
+                    : dragX.interpolate({
+                        inputRange: [0, windowWidth],
+                        outputRange: [0.96, 1],
+                        extrapolate: 'clamp',
+                      }),
                 },
                 {
                   translateY: hubAnim.interpolate({
@@ -432,8 +473,27 @@ function RootAppContent({ fontFallback }: RootAppProps) {
           />
         </Animated.View>
 
-        {/* ── Destination Layer with Spring Enter/Exit ── */}
+        {/* ── Swipe-Back Backdrop Dimming ── */}
+        {!hubVisible ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: '#000000',
+                opacity: dragX.interpolate({
+                  inputRange: [0, windowWidth],
+                  outputRange: [0.22, 0],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ]}
+          />
+        ) : null}
+
+        {/* ── Destination Layer with Spring Enter/Exit & Swipe-to-Go-Back ── */}
         <Animated.View
+          {...panResponder.panHandlers}
           pointerEvents={!hubVisible ? 'auto' : 'none'}
           style={[
             StyleSheet.absoluteFill,
@@ -451,6 +511,9 @@ function RootAppContent({ fontFallback }: RootAppProps) {
                     inputRange: [0, 1],
                     outputRange: [30, 0],
                   }),
+                },
+                {
+                  translateX: dragX,
                 },
               ],
             },

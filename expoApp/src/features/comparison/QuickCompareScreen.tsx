@@ -79,6 +79,7 @@ export function QuickCompareScreen({
     (window as any).__products = products;
   }
   const requestId = useRef(0);
+  const listRef = useRef<FlatList<InventoryProduct>>(null);
   const searchRef = useRef<TextInput>(null);
   const searchProgress = useRef(new Animated.Value(1)).current;
   const keyboardVisible = useRef(false);
@@ -188,6 +189,11 @@ export function QuickCompareScreen({
     }, query.trim() ? 180 : 0);
     return () => clearTimeout(timeout);
   }, [defaultSort, loadProducts, page, query, showBanner]);
+
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    updateSearchBarVisibility(true);
+  }, [page, updateSearchBarVisibility]);
 
   const leave = useCallback(() => {
     searchRef.current?.blur();
@@ -422,6 +428,7 @@ export function QuickCompareScreen({
       {header}
       <Animated.View style={[{ flex: 1 }, { opacity: catalogFadeAnim }]}>
         <FlatList
+          ref={listRef}
           key={singleColumn ? 'single-column' : 'two-column'}
           data={catalogRevealed ? products : []}
           numColumns={singleColumn ? 1 : 2}
@@ -444,10 +451,12 @@ export function QuickCompareScreen({
               onPrevious={() => {
                 setLoading(true);
                 setPage((current) => Math.max(1, current - 1));
+                listRef.current?.scrollToOffset({ offset: 0, animated: false });
               }}
               onNext={() => {
                 setLoading(true);
                 setPage((current) => Math.min(totalPages, current + 1));
+                listRef.current?.scrollToOffset({ offset: 0, animated: false });
               }}
             />
           ) : null}

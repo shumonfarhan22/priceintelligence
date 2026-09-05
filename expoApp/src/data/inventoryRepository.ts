@@ -13,6 +13,7 @@ import {
 } from './backup';
 import { getDatabase, withWriteTransaction } from './database';
 import { isValidProductImageUrl, normalizeMediumQualityImageUrl } from '../network/pricePageParser';
+import { comparisonOrder, comparisonSearch } from './inventorySearch';
 
 interface InventoryRow {
   id: number;
@@ -263,32 +264,12 @@ export class InventoryRepository {
       return rows.map(mapInventoryRow);
     }
 
-    if (/^\d+$/.test(trimmed)) {
-      const barcodeRows = await this.database.getAllAsync<InventoryRow>(
-        `SELECT * FROM inventory
-         WHERE barcode = ? COLLATE NOCASE
-         ORDER BY product_name COLLATE NOCASE, id`,
-        trimmed,
-      );
-      if (barcodeRows.length > 0) return barcodeRows.map(mapInventoryRow);
-    }
-
-    const words = trimmed.split(/\s+/).filter(Boolean).slice(0, 12);
-    const nameClause = words.map(() => 'instr(lower(product_name), lower(?)) > 0').join(' AND ');
-    const params: string[] = [
-      ...words,
-      trimmed,
-      trimmed,
-      trimmed,
-    ];
+    const search = comparisonSearch(trimmed);
+    const order = comparisonOrder('ALPHABETICAL', trimmed);
     const rows = await this.database.getAllAsync<InventoryRow>(
-      `SELECT * FROM inventory
-       WHERE (${nameClause})
-          OR instr(lower(COALESCE(barcode, '')), lower(?)) > 0
-          OR instr(lower(COALESCE(amazon_url, '')), lower(?)) > 0
-          OR instr(lower(COALESCE(flipkart_url, '')), lower(?)) > 0
-       ORDER BY product_name COLLATE NOCASE, id`,
-      params,
+      `SELECT * FROM inventory${search.where}
+       ORDER BY ${order.orderSql}`,
+      [...search.params, ...order.orderParams],
     );
     return rows.map(mapInventoryRow);
   }
@@ -308,11 +289,12 @@ export class InventoryRepository {
     const total = countRow?.count ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / safePageSize));
     const page = Math.min(totalPages, Math.max(1, Math.trunc(requestedPage)));
+    const order = comparisonOrder(sort, query);
     const rows = await this.database.getAllAsync<InventoryRow>(
       `SELECT * FROM inventory${search.where}
-       ORDER BY ${comparisonOrder(sort)}
+       ORDER BY ${order.orderSql}
        LIMIT ? OFFSET ?`,
-      [...search.params, safePageSize, (page - 1) * safePageSize],
+      [...search.params, ...order.orderParams, safePageSize, (page - 1) * safePageSize],
     );
     return { products: rows.map(mapInventoryRow), total, page, totalPages };
   }
@@ -709,45 +691,7 @@ function mapInventoryRow(row: InventoryRow): InventoryProduct {
   };
 }
 
-function comparisonSearch(query: string): { where: string; params: string[] } {
-  const trimmed = query.trim();
-  if (!trimmed) return { where: '', params: [] };
-  if (/^\d+$/.test(trimmed)) {
-    return {
-      where: ' WHERE lower(COALESCE(barcode, \'\')) = lower(?)',
-      params: [trimmed],
-    };
-  }
-  const words = trimmed.split(/\s+/).filter(Boolean).slice(0, 12);
-  const nameClause = words.map(() => 'instr(lower(product_name), lower(?)) > 0').join(' AND ');
-  return {
-    where: ` WHERE ((${nameClause})
-      OR instr(lower(COALESCE(barcode, '')), lower(?)) > 0
-      OR instr(lower(COALESCE(amazon_url, '')), lower(?)) > 0
-      OR instr(lower(COALESCE(flipkart_url, '')), lower(?)) > 0)`,
-    params: [...words, trimmed, trimmed, trimmed],
-  };
-}
 
-function comparisonOrder(sort: ComparisonSort): string {
-  switch (sort) {
-    case 'ALPHABETICAL':
-      return 'product_name COLLATE NOCASE ASC, id ASC';
-    case 'RECENT':
-      return 'updated_at DESC, product_name COLLATE NOCASE ASC, id ASC';
-    case 'BEST_SAVING':
-      return `(shop_price - CASE
-        WHEN amazon_last_price > 0 AND flipkart_last_price > 0
-          THEN CASE WHEN amazon_last_price < flipkart_last_price THEN amazon_last_price ELSE flipkart_last_price END
-        WHEN amazon_last_price > 0 THEN amazon_last_price
-        WHEN flipkart_last_price > 0 THEN flipkart_last_price
-        ELSE shop_price
-      END) DESC, product_name COLLATE NOCASE ASC, id ASC`;
-    case 'MOST_VIEWED':
-    default:
-      return 'search_count DESC, updated_at DESC, product_name COLLATE NOCASE ASC, id ASC';
-  }
-}
 
 function normalizeRemoteImage(value: string | null): string | null {
   const trimmed = value?.trim();

@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.supreme.priceintelligence.priceintelligence.v2"
+      "bundleIdentifier": "com.supreme.priceintelligence.priceintelligence.v2",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.supreme.priceintelligence.v2",
@@ -25,7 +28,10 @@
         "foregroundImage": "./assets/brand/app_icon.png",
         "monochromeImage": "./assets/brand/app_icon.png"
       },
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/brand/app_icon.png"
@@ -53,6 +59,11 @@
           "barcodeScannerEnabled": true
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "511d6288-5cca-4d9b-81d6-bd3669577a45"
+      }
+    }
   }
 }
