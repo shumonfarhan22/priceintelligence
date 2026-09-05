@@ -48,8 +48,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Patch ExpoModulesJSI for Swift 6 / Xcode 16.2
+      - name: Patch ExpoModulesJSI for Swift 6.0 / Xcode 16.2
         run: |
+          echo "Patching swift-tools-version to 6.0 in all Package.swift files..."
+          find node_modules -name "Package.swift" -exec sed -i '' 's/swift-tools-version: 6.2/swift-tools-version: 6.0/g' {} + || true
+
+          echo "Disabling Swift 6.2 upcoming features in Package.swift..."
+          find node_modules -name "Package.swift" -exec sed -i '' 's/\.enableUpcomingFeature(/\/\/ .enableUpcomingFeature(/g' {} + || true
+
           echo "Patching weak let -> weak var in Swift files..."
           find node_modules -name "*.swift" -exec sed -i '' 's/weak let/weak var/g' {} + || true
 
