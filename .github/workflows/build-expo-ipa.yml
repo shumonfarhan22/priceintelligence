@@ -1,0 +1,89 @@
+name: Build Free Expo iOS IPA (Sideloadly)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/expo-v2-foundation
+    paths:
+      - "expoApp/**"
+      - ".github/workflows/build-expo-ipa.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: expo-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ipa:
+    name: Build Free Unsigned iOS IPA
+    runs-on: macos-14
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: expoApp
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prebuild iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Build unsigned iOS archive
+        run: |
+          cd ios
+          WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -n 1)
+          echo "Found workspace: $WORKSPACE"
+
+          SCHEMES=$(xcodebuild -workspace "$WORKSPACE" -list -json)
+          SCHEME=$(node -e "const data = JSON.parse(process.argv[1]); const s = data.workspace?.schemes || []; const target = s.find(x => !x.includes('Pods') && !x.includes('Tests')) || s[0]; console.log(target);" "$SCHEMES")
+          echo "Building scheme: $SCHEME"
+
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath ../build/App.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            CODE_SIGNING_INJECT_BASE_ENTITLEMENTS=NO \
+            clean archive
+
+      - name: Package into unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/App.xcarchive/Products/Applications/*.app Payload/
+          zip -r PriceIntelligenceV2-unsigned.ipa Payload
+          ls -lh PriceIntelligenceV2-unsigned.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PriceIntelligenceV2-ipa
+          path: expoApp/PriceIntelligenceV2-unsigned.ipa
+          retention-days: 14
