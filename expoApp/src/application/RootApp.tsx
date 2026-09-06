@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -272,52 +272,97 @@ function RootAppContent({ fontFallback }: RootAppProps) {
   const { width: windowWidth } = useWindowDimensions();
   const dragX = useRef(new Animated.Value(0)).current;
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponderCapture: (_, gesture) => {
-        if (hubVisible) return false;
-        return gesture.x0 <= 48 && gesture.dx > 8 && Math.abs(gesture.dy) < 25;
-      },
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => {
-        dragX.stopAnimation();
-      },
-      onPanResponderMove: (_, gesture) => {
-        if (gesture.dx > 0) {
-          dragX.setValue(gesture.dx);
-        }
-      },
-      onPanResponderRelease: (_, gesture) => {
-        if (gesture.dx > 75 || gesture.vx > 0.35) {
-          Animated.timing(dragX, {
-            toValue: windowWidth,
-            duration: 180,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }).start(() => {
+  // Stable mutable refs to eliminate stale closure bugs in PanResponder
+  const hubVisibleRef = useRef(hubVisible);
+  hubVisibleRef.current = hubVisible;
+
+  const navigateHomeRef = useRef(navigateHome);
+  navigateHomeRef.current = navigateHome;
+
+  const windowWidthRef = useRef(windowWidth);
+  windowWidthRef.current = windowWidth;
+
+  const destAnimRef = useRef(destAnim);
+  destAnimRef.current = destAnim;
+
+  const hubAnimRef = useRef(hubAnim);
+  hubAnimRef.current = hubAnim;
+
+  const hasModalOpenRef = useRef(selectedPriorityProduct != null || personalizationVisible || toolsVisible);
+  hasModalOpenRef.current = selectedPriorityProduct != null || personalizationVisible || toolsVisible;
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponderCapture: () => false,
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponderCapture: (evt, gesture) => {
+          if (hubVisibleRef.current || hasModalOpenRef.current) return false;
+          const currentX = evt.nativeEvent?.pageX ?? gesture.moveX;
+          const startX = currentX - gesture.dx;
+          // Touch originated within 50px of left screen edge and swiped rightwards
+          const isLeftEdge = startX <= 50;
+          const isSwipeRight =
+            gesture.dx > 6 &&
+            (Math.abs(gesture.dy) < Math.abs(gesture.dx) * 0.9 || Math.abs(gesture.dy) < 20);
+          return isLeftEdge && isSwipeRight;
+        },
+        onMoveShouldSetPanResponder: (evt, gesture) => {
+          if (hubVisibleRef.current || hasModalOpenRef.current) return false;
+          const currentX = evt.nativeEvent?.pageX ?? gesture.moveX;
+          const startX = currentX - gesture.dx;
+          const isLeftEdge = startX <= 50;
+          const isSwipeRight =
+            gesture.dx > 6 &&
+            (Math.abs(gesture.dy) < Math.abs(gesture.dx) * 0.9 || Math.abs(gesture.dy) < 20);
+          return isLeftEdge && isSwipeRight;
+        },
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => {
+          dragX.stopAnimation();
+        },
+        onPanResponderMove: (_, gesture) => {
+          if (gesture.dx > 0) {
+            dragX.setValue(gesture.dx);
+          } else {
             dragX.setValue(0);
-            navigateHome();
-          });
-        } else {
+          }
+        },
+        onPanResponderRelease: (_, gesture) => {
+          const width = windowWidthRef.current || 375;
+          const shouldDismiss = gesture.dx > width * 0.25 || gesture.vx > 0.35;
+          if (shouldDismiss) {
+            Animated.timing(dragX, {
+              toValue: width,
+              duration: 160,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }).start(() => {
+              destAnimRef.current.setValue(0);
+              hubAnimRef.current.setValue(1);
+              setHubVisible(true);
+              dragX.setValue(0);
+            });
+          } else {
+            Animated.spring(dragX, {
+              toValue: 0,
+              damping: 22,
+              stiffness: 280,
+              useNativeDriver: true,
+            }).start();
+          }
+        },
+        onPanResponderTerminate: () => {
           Animated.spring(dragX, {
             toValue: 0,
-            damping: 20,
-            stiffness: 250,
+            damping: 22,
+            stiffness: 280,
             useNativeDriver: true,
           }).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(dragX, {
-          toValue: 0,
-          damping: 20,
-          stiffness: 250,
-          useNativeDriver: true,
-        }).start();
-      },
-    }),
-  ).current;
+        },
+      }),
+    [dragX],
+  );
 
   // ── Price Alert Navigation ──
   useEffect(() => {
@@ -433,14 +478,20 @@ function RootAppContent({ fontFallback }: RootAppProps) {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: dynamicColors.background }]} edges={['top', 'left', 'right']}>
-      <View style={styles.contentShell} {...panResponder.panHandlers}>
+      <View style={styles.contentShell}>
         {/* ── Launch Hub Layer ── */}
         <Animated.View
           pointerEvents={hubVisible ? 'auto' : 'none'}
           style={[
             StyleSheet.absoluteFill,
             {
-              opacity: hubAnim,
+              opacity: hubVisible
+                ? hubAnim
+                : dragX.interpolate({
+                    inputRange: [0, 25, windowWidth],
+                    outputRange: [0.9, 0.96, 1],
+                    extrapolate: 'clamp',
+                  }),
               transform: [
                 {
                   scale: hubVisible
@@ -455,10 +506,12 @@ function RootAppContent({ fontFallback }: RootAppProps) {
                       }),
                 },
                 {
-                  translateY: hubAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-20, 0],
-                  }),
+                  translateY: hubVisible
+                    ? hubAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-20, 0],
+                      })
+                    : 0,
                 },
               ],
             },
@@ -486,7 +539,7 @@ function RootAppContent({ fontFallback }: RootAppProps) {
                 backgroundColor: '#000000',
                 opacity: dragX.interpolate({
                   inputRange: [0, windowWidth],
-                  outputRange: [0.22, 0],
+                  outputRange: [0.25, 0],
                   extrapolate: 'clamp',
                 }),
               },
@@ -500,6 +553,7 @@ function RootAppContent({ fontFallback }: RootAppProps) {
           pointerEvents={!hubVisible ? 'auto' : 'none'}
           style={[
             StyleSheet.absoluteFill,
+            styles.destinationLayer,
             {
               transform: [{ translateX: dragX }],
             },
@@ -784,6 +838,13 @@ function messageFrom(error: unknown): string {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   contentShell: { flex: 1, overflow: 'hidden' },
+  destinationLayer: {
+    shadowColor: '#000000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 16,
+  },
   busyOverlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',

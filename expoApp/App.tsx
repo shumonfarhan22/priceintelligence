@@ -98,8 +98,6 @@ function SplashOverlay({ onFinished }: { onFinished: () => void }) {
             resizeMode="contain"
             accessibilityLabel="Price Intelligence Logo"
           />
-          <Text style={styles.splashAppName}>Supreme Price Intelligence</Text>
-          <Text style={styles.splashAppTagline}>SMART RETAIL PRICE INTELLIGENCE</Text>
         </View>
 
         <View style={styles.splashBottom}>
@@ -129,26 +127,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   splashLogo: {
-    width: 140,
-    height: 140,
-  },
-  splashAppName: {
-    marginTop: 18,
-    fontFamily: 'Lato-Bold',
-    fontSize: 21,
-    color: '#F8FAFC',
-    letterSpacing: 0.6,
-    textAlign: 'center',
-    fontWeight: '700',
-  },
-  splashAppTagline: {
-    marginTop: 6,
-    fontFamily: 'Lato-Semibold',
-    fontSize: 10,
-    color: '#10B981',
-    letterSpacing: 1.6,
-    textAlign: 'center',
-    textTransform: 'uppercase',
+    width: 150,
+    height: 150,
   },
   splashBottom: {
     alignItems: 'center',
