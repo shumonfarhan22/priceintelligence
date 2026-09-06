@@ -272,52 +272,19 @@ function RootAppContent({ fontFallback }: RootAppProps) {
   const { width: windowWidth } = useWindowDimensions();
   const dragX = useRef(new Animated.Value(0)).current;
 
-  // Stable mutable refs to eliminate stale closure bugs in PanResponder
-  const hubVisibleRef = useRef(hubVisible);
-  hubVisibleRef.current = hubVisible;
-
   const navigateHomeRef = useRef(navigateHome);
   navigateHomeRef.current = navigateHome;
 
   const windowWidthRef = useRef(windowWidth);
   windowWidthRef.current = windowWidth;
 
-  const destAnimRef = useRef(destAnim);
-  destAnimRef.current = destAnim;
-
-  const hubAnimRef = useRef(hubAnim);
-  hubAnimRef.current = hubAnim;
-
-  const hasModalOpenRef = useRef(selectedPriorityProduct != null || personalizationVisible || toolsVisible);
-  hasModalOpenRef.current = selectedPriorityProduct != null || personalizationVisible || toolsVisible;
-
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponderCapture: () => false,
         onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponderCapture: (evt, gesture) => {
-          if (hubVisibleRef.current || hasModalOpenRef.current) return false;
-          const currentX = evt.nativeEvent?.pageX ?? gesture.moveX;
-          const startX = currentX - gesture.dx;
-          // Touch originated within 50px of left screen edge and swiped rightwards
-          const isLeftEdge = startX <= 50;
-          const isSwipeRight =
-            gesture.dx > 6 &&
-            (Math.abs(gesture.dy) < Math.abs(gesture.dx) * 0.9 || Math.abs(gesture.dy) < 20);
-          return isLeftEdge && isSwipeRight;
+        onMoveShouldSetPanResponder: (_, gesture) => {
+          return gesture.dx > 8 && Math.abs(gesture.dy) < 25;
         },
-        onMoveShouldSetPanResponder: (evt, gesture) => {
-          if (hubVisibleRef.current || hasModalOpenRef.current) return false;
-          const currentX = evt.nativeEvent?.pageX ?? gesture.moveX;
-          const startX = currentX - gesture.dx;
-          const isLeftEdge = startX <= 50;
-          const isSwipeRight =
-            gesture.dx > 6 &&
-            (Math.abs(gesture.dy) < Math.abs(gesture.dx) * 0.9 || Math.abs(gesture.dy) < 20);
-          return isLeftEdge && isSwipeRight;
-        },
-        onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
           dragX.stopAnimation();
         },
@@ -330,24 +297,21 @@ function RootAppContent({ fontFallback }: RootAppProps) {
         },
         onPanResponderRelease: (_, gesture) => {
           const width = windowWidthRef.current || 375;
-          const shouldDismiss = gesture.dx > width * 0.25 || gesture.vx > 0.35;
-          if (shouldDismiss) {
+          if (gesture.dx > 75 || gesture.vx > 0.35) {
             Animated.timing(dragX, {
               toValue: width,
-              duration: 160,
+              duration: 150,
               easing: Easing.out(Easing.cubic),
               useNativeDriver: true,
             }).start(() => {
-              destAnimRef.current.setValue(0);
-              hubAnimRef.current.setValue(1);
-              setHubVisible(true);
               dragX.setValue(0);
+              navigateHomeRef.current();
             });
           } else {
             Animated.spring(dragX, {
               toValue: 0,
-              damping: 22,
-              stiffness: 280,
+              damping: 20,
+              stiffness: 260,
               useNativeDriver: true,
             }).start();
           }
@@ -355,8 +319,8 @@ function RootAppContent({ fontFallback }: RootAppProps) {
         onPanResponderTerminate: () => {
           Animated.spring(dragX, {
             toValue: 0,
-            damping: 22,
-            stiffness: 280,
+            damping: 20,
+            stiffness: 260,
             useNativeDriver: true,
           }).start();
         },
@@ -485,33 +449,19 @@ function RootAppContent({ fontFallback }: RootAppProps) {
           style={[
             StyleSheet.absoluteFill,
             {
-              opacity: hubVisible
-                ? hubAnim
-                : dragX.interpolate({
-                    inputRange: [0, 25, windowWidth],
-                    outputRange: [0.9, 0.96, 1],
-                    extrapolate: 'clamp',
-                  }),
+              opacity: hubAnim,
               transform: [
                 {
-                  scale: hubVisible
-                    ? hubAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.97, 1],
-                      })
-                    : dragX.interpolate({
-                        inputRange: [0, windowWidth],
-                        outputRange: [0.96, 1],
-                        extrapolate: 'clamp',
-                      }),
+                  scale: hubAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.97, 1],
+                  }),
                 },
                 {
-                  translateY: hubVisible
-                    ? hubAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-20, 0],
-                      })
-                    : 0,
+                  translateY: hubAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
                 },
               ],
             },
@@ -547,40 +497,34 @@ function RootAppContent({ fontFallback }: RootAppProps) {
           />
         ) : null}
 
-        {/* ── Destination Layer with Interactive Swipe-to-Go-Back ── */}
+        {/* ── Destination Layer ── */}
         <Animated.View
-          {...panResponder.panHandlers}
           pointerEvents={!hubVisible ? 'auto' : 'none'}
           style={[
             StyleSheet.absoluteFill,
             styles.destinationLayer,
             {
-              transform: [{ translateX: dragX }],
+              opacity: destAnim,
+              transform: [
+                {
+                  scale: destAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.93, 1],
+                  }),
+                },
+                {
+                  translateY: destAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+                {
+                  translateX: dragX,
+                },
+              ],
             },
           ]}
         >
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                opacity: destAnim,
-                transform: [
-                  {
-                    scale: destAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.93, 1],
-                    }),
-                  },
-                  {
-                    translateY: destAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [30, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
           {destination === 'insights' ? (
             <PricingInsightsScreen
               onBack={navigateHome}
@@ -624,8 +568,15 @@ function RootAppContent({ fontFallback }: RootAppProps) {
               showBanner={showBanner}
             />
           ) : null}
-          </Animated.View>
         </Animated.View>
+
+        {/* ── Left Edge Swipe-to-Go-Back Zone (Active Only on Destination Screens) ── */}
+        {!hubVisible ? (
+          <View
+            style={styles.edgeSwipeStrip}
+            {...panResponder.panHandlers}
+          />
+        ) : null}
       </View>
 
       {/* ── Priority Product Direct Details Sheet ── */}
@@ -838,6 +789,14 @@ function messageFrom(error: unknown): string {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   contentShell: { flex: 1, overflow: 'hidden' },
+  edgeSwipeStrip: {
+    position: 'absolute',
+    left: 0,
+    top: 60,
+    bottom: 0,
+    width: 32,
+    zIndex: 9999,
+  },
   destinationLayer: {
     shadowColor: '#000000',
     shadowOffset: { width: -4, height: 0 },
