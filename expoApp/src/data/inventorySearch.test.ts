@@ -7,24 +7,32 @@ describe('inventoryRepository search mechanism', () => {
     expect(comparisonSearch('   ')).toEqual({ where: '', params: [] });
   });
 
-  it('handles purely numeric queries like "500" or "12" by searching both product name and barcode', () => {
+  it('handles numeric queries like "500" by searching product name and exact barcode', () => {
     const result = comparisonSearch('500');
     expect(result.where).toContain('instr(lower(product_name), ?)');
-    expect(result.where).toContain("instr(lower(COALESCE(barcode, '')), ?)");
+    expect(result.where).toContain("lower(COALESCE(barcode, '')) = ?");
     expect(result.params).toContain('500');
   });
 
-  it('handles multi-word queries with punctuation like "Tea, 250g"', () => {
+  it('handles multi-word queries with punctuation and units like "Tea, 250g"', () => {
     const result = comparisonSearch('Tea, 250g');
     expect(result.where).toContain('instr(lower(product_name), ?)');
     expect(result.params).toContain('tea');
-    expect(result.params).toContain('250g');
+    expect(result.params).toContain('250');
+    expect(result.params).toContain('g');
   });
 
-  it('handles barcode queries with exact and partial matches', () => {
+  it('handles barcode queries with 4+ digits using partial match', () => {
     const result = comparisonSearch('8901030001234');
     expect(result.where).toContain("instr(lower(COALESCE(barcode, '')), ?)");
     expect(result.params).toContain('8901030001234');
+  });
+
+  it('handles URLs by searching retailer links specifically', () => {
+    const result = comparisonSearch('https://www.amazon.in/dp/B00EXAMPLE');
+    expect(result.where).toContain('amazon_url');
+    expect(result.where).toContain('flipkart_url');
+    expect(result.where).not.toContain('product_name');
   });
 
   it('orders exact barcode match and exact/prefix name matches first when query is provided', () => {

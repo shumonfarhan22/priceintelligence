@@ -274,11 +274,14 @@ function RootAppContent({ fontFallback }: RootAppProps) {
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gesture) => {
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponderCapture: (_, gesture) => {
         if (hubVisible) return false;
-        const startX = gesture.moveX - gesture.dx;
-        return startX <= 48 && gesture.dx > 10 && Math.abs(gesture.dy) < 32;
+        return gesture.x0 <= 48 && gesture.dx > 8 && Math.abs(gesture.dy) < 25;
+      },
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        dragX.stopAnimation();
       },
       onPanResponderMove: (_, gesture) => {
         if (gesture.dx > 0) {
@@ -286,7 +289,7 @@ function RootAppContent({ fontFallback }: RootAppProps) {
         }
       },
       onPanResponderRelease: (_, gesture) => {
-        if (gesture.dx > 75 || gesture.vx > 0.4) {
+        if (gesture.dx > 75 || gesture.vx > 0.35) {
           Animated.timing(dragX, {
             toValue: windowWidth,
             duration: 180,
@@ -299,8 +302,8 @@ function RootAppContent({ fontFallback }: RootAppProps) {
         } else {
           Animated.spring(dragX, {
             toValue: 0,
-            damping: 22,
-            stiffness: 260,
+            damping: 20,
+            stiffness: 250,
             useNativeDriver: true,
           }).start();
         }
@@ -308,8 +311,8 @@ function RootAppContent({ fontFallback }: RootAppProps) {
       onPanResponderTerminate: () => {
         Animated.spring(dragX, {
           toValue: 0,
-          damping: 22,
-          stiffness: 260,
+          damping: 20,
+          stiffness: 250,
           useNativeDriver: true,
         }).start();
       },
@@ -491,34 +494,39 @@ function RootAppContent({ fontFallback }: RootAppProps) {
           />
         ) : null}
 
-        {/* ── Destination Layer with Spring Enter/Exit & Swipe-to-Go-Back ── */}
+        {/* ── Destination Layer with Interactive Swipe-to-Go-Back ── */}
         <Animated.View
           {...panResponder.panHandlers}
           pointerEvents={!hubVisible ? 'auto' : 'none'}
           style={[
             StyleSheet.absoluteFill,
             {
-              opacity: destAnim,
-              transform: [
-                {
-                  scale: destAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.93, 1],
-                  }),
-                },
-                {
-                  translateY: destAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
-                  }),
-                },
-                {
-                  translateX: dragX,
-                },
-              ],
+              transform: [{ translateX: dragX }],
             },
           ]}
         >
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                opacity: destAnim,
+                transform: [
+                  {
+                    scale: destAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.93, 1],
+                    }),
+                  },
+                  {
+                    translateY: destAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [30, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
           {destination === 'insights' ? (
             <PricingInsightsScreen
               onBack={navigateHome}
@@ -562,6 +570,7 @@ function RootAppContent({ fontFallback }: RootAppProps) {
               showBanner={showBanner}
             />
           ) : null}
+          </Animated.View>
         </Animated.View>
       </View>
 

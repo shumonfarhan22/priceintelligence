@@ -1,38 +1,50 @@
 import type { ComparisonSort } from '../domain/comparison';
 
+function looksLikeUrl(value: string): boolean {
+  return value.startsWith('http') || value.includes('amazon') || value.includes('flipkart');
+}
+
 export function comparisonSearch(query: string): { where: string; params: string[] } {
   const trimmed = query.trim();
   if (!trimmed) return { where: '', params: [] };
 
   const lowerTrimmed = trimmed.toLowerCase();
-  // Split query into alphanumeric tokens, stripping punctuation (commas, hyphens, brackets, quotes)
-  const tokens = lowerTrimmed.split(/[^\w]+/i).filter(Boolean).slice(0, 10);
+
+  // If query is a URL, search specifically in retailer link columns
+  if (looksLikeUrl(lowerTrimmed)) {
+    return {
+      where: ` WHERE (instr(lower(COALESCE(amazon_url, '')), ?) > 0
+        OR instr(lower(COALESCE(flipkart_url, '')), ?) > 0)`,
+      params: [lowerTrimmed, lowerTrimmed],
+    };
+  }
+
+  // Normalize units like 500g -> "500 g" so both "500g" and "500 g" match
+  const normalized = lowerTrimmed.replace(/(\d+)\s*(g|kg|ml|l|gm|ltr|pack|pc|pcs)\b/gi, '$1 $2');
+  const tokens = normalized.split(/[^\w]+/i).filter(Boolean).slice(0, 10);
 
   // If tokens exist, require all tokens in product_name
   const nameClause = tokens.length > 0
     ? tokens.map(() => 'instr(lower(product_name), ?) > 0').join(' AND ')
     : '1=1';
 
-  // Barcode can match either lowerTrimmed or digitsOnly if query has digits
-  const digitsOnly = trimmed.replace(/\D/g, '');
-  const barcodeConditions = ['instr(lower(COALESCE(barcode, \'\')), ?) > 0'];
-  const barcodeParams = [lowerTrimmed];
-  if (digitsOnly && digitsOnly !== lowerTrimmed) {
-    barcodeConditions.push('instr(lower(COALESCE(barcode, \'\')), ?) > 0');
-    barcodeParams.push(digitsOnly);
+  // Barcode matching rules:
+  // - If query is purely digits of 4+ characters, allow partial/prefix barcode match
+  // - Otherwise (short digits like "1", "12", or queries with letters), only allow exact barcode match
+  const isPureDigits = /^\d+$/.test(trimmed);
+  let barcodeClause: string;
+  let barcodeParam: string;
+
+  if (isPureDigits && trimmed.length >= 4) {
+    barcodeClause = 'instr(lower(COALESCE(barcode, \'\')), ?) > 0';
+    barcodeParam = lowerTrimmed;
+  } else {
+    barcodeClause = 'lower(COALESCE(barcode, \'\')) = ?';
+    barcodeParam = lowerTrimmed;
   }
 
-  const where = ` WHERE ((${nameClause})
-    OR (${barcodeConditions.join(' OR ')})
-    OR instr(lower(COALESCE(amazon_url, \'\')), ?) > 0
-    OR instr(lower(COALESCE(flipkart_url, \'\')), ?) > 0)`;
-
-  const params = [
-    ...tokens,
-    ...barcodeParams,
-    lowerTrimmed,
-    lowerTrimmed,
-  ];
+  const where = ` WHERE ((${nameClause}) OR (${barcodeClause}))`;
+  const params = [...tokens, barcodeParam];
 
   return { where, params };
 }
@@ -44,7 +56,7 @@ export function comparisonOrder(sort: ComparisonSort, query = ''): { orderSql: s
         WHEN lower(COALESCE(barcode, '')) = ? THEN 0
         WHEN lower(product_name) = ? THEN 1
         WHEN instr(lower(product_name), ?) = 1 THEN 2
-        WHEN instr(lower(COALESCE(barcode, '')) , ?) = 1 THEN 3
+        WHEN instr(lower(product_name), ' ' || ?) > 0 THEN 3
         ELSE 4
       END ASC, `
     : '';

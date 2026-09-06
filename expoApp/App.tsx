@@ -2,7 +2,7 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { RootApp } from './src/application/RootApp';
@@ -53,22 +53,33 @@ function AppContent({ fontFallback }: { fontFallback: boolean }) {
 }
 
 function SplashOverlay({ onFinished }: { onFinished: () => void }) {
-  const opacityAnim = useRef(new Animated.Value(1)).current;
+  const contentOpacity = useRef(new Animated.Value(1)).current;
+  const containerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    // Stage 1: Display full splash for 1.3 seconds
     const timer = setTimeout(() => {
-      Animated.timing(opacityAnim, {
+      // Stage 2: Fade out splash logo, title, and branding against the solid dark background (250ms)
+      Animated.timing(contentOpacity, {
         toValue: 0,
-        duration: 400,
-        easing: Easing.out(Easing.ease),
+        duration: 250,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start(() => {
-        onFinished();
+        // Stage 3: Logo and title are 100% gone. Now smoothly reveal the launch screen (180ms)
+        Animated.timing(containerOpacity, {
+          toValue: 0,
+          duration: 180,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }).start(() => {
+          onFinished();
+        });
       });
-    }, 1400);
+    }, 1300);
 
     return () => clearTimeout(timer);
-  }, [onFinished, opacityAnim]);
+  }, [contentOpacity, containerOpacity, onFinished]);
 
   return (
     <Animated.View
@@ -76,26 +87,30 @@ function SplashOverlay({ onFinished }: { onFinished: () => void }) {
       style={[
         StyleSheet.absoluteFill,
         styles.splashContainer,
-        { opacity: opacityAnim },
+        { opacity: containerOpacity },
       ]}
     >
-      <View style={styles.splashCenter}>
-        <Image
-          source={require('./assets/brand/splash_logo.png')}
-          style={styles.splashLogo}
-          resizeMode="contain"
-          accessibilityLabel="Price Intelligence Logo"
-        />
-      </View>
+      <Animated.View style={[styles.splashContent, { opacity: contentOpacity }]}>
+        <View style={styles.splashCenter}>
+          <Image
+            source={require('./assets/brand/splash_logo.png')}
+            style={styles.splashLogo}
+            resizeMode="contain"
+            accessibilityLabel="Price Intelligence Logo"
+          />
+          <Text style={styles.splashAppName}>Supreme Price Intelligence</Text>
+          <Text style={styles.splashAppTagline}>SMART RETAIL PRICE INTELLIGENCE</Text>
+        </View>
 
-      <View style={styles.splashBottom}>
-        <Image
-          source={require('./assets/brand/splash_branding.png')}
-          style={styles.splashBranding}
-          resizeMode="contain"
-          accessibilityLabel="Price Intelligence Branding"
-        />
-      </View>
+        <View style={styles.splashBottom}>
+          <Image
+            source={require('./assets/brand/splash_branding.png')}
+            style={styles.splashBranding}
+            resizeMode="contain"
+            accessibilityLabel="Price Intelligence Branding"
+          />
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -105,14 +120,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B0F14',
     zIndex: 999999,
   },
+  splashContent: {
+    flex: 1,
+  },
   splashCenter: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   splashLogo: {
-    width: 150,
-    height: 150,
+    width: 140,
+    height: 140,
+  },
+  splashAppName: {
+    marginTop: 18,
+    fontFamily: 'Lato-Bold',
+    fontSize: 21,
+    color: '#F8FAFC',
+    letterSpacing: 0.6,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  splashAppTagline: {
+    marginTop: 6,
+    fontFamily: 'Lato-Semibold',
+    fontSize: 10,
+    color: '#10B981',
+    letterSpacing: 1.6,
+    textAlign: 'center',
+    textTransform: 'uppercase',
   },
   splashBottom: {
     alignItems: 'center',

@@ -68,7 +68,7 @@ export function RetailerBrowserModal({
       toValue: windowHeight,
       duration: 220,
       easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start(() => {
       isClosingRef.current = false;
       if (callback) {
@@ -90,30 +90,76 @@ export function RetailerBrowserModal({
       toValue: 0,
       duration: 280,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [details.startUrl, translateY, visible, windowHeight]);
 
-  const panResponder = useRef(
+  const dragHandlePanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 6 && Math.abs(gesture.dx) < 30,
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_, gesture) => {
         if (gesture.dy > 0) {
           translateY.setValue(gesture.dy);
         }
       },
       onPanResponderRelease: (_, gesture) => {
-        if (gesture.dy > 120 || gesture.vy > 0.5) {
+        if (gesture.dy > 70 || gesture.vy > 0.35) {
           dismissModal();
         } else {
           Animated.spring(translateY, {
             toValue: 0,
-            damping: 22,
-            stiffness: 240,
-            useNativeDriver: true,
+            damping: 20,
+            stiffness: 250,
+            useNativeDriver: false,
           }).start();
         }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateY, {
+          toValue: 0,
+          damping: 20,
+          stiffness: 250,
+          useNativeDriver: false,
+        }).start();
+      },
+    })
+  ).current;
+
+  const headerPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 6 && Math.abs(gesture.dx) < 25,
+      onMoveShouldSetPanResponderCapture: (_, gesture) => gesture.dy > 6 && Math.abs(gesture.dx) < 25,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, gesture) => {
+        if (gesture.dy > 0) {
+          translateY.setValue(gesture.dy);
+        }
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy > 70 || gesture.vy > 0.35) {
+          dismissModal();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            damping: 20,
+            stiffness: 250,
+            useNativeDriver: false,
+          }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateY, {
+          toValue: 0,
+          damping: 20,
+          stiffness: 250,
+          useNativeDriver: false,
+        }).start();
       },
     })
   ).current;
@@ -150,6 +196,7 @@ export function RetailerBrowserModal({
 
   const content = (
     <Animated.View
+      pointerEvents="auto"
       style={[
         styles.root,
         {
@@ -158,11 +205,11 @@ export function RetailerBrowserModal({
         },
       ]}
     >
-      <View style={styles.topArea} {...panResponder.panHandlers}>
-        <View style={styles.dragHandleTouchArea}>
+      <View style={styles.topArea}>
+        <View style={styles.dragHandleTouchArea} {...dragHandlePanResponder.panHandlers}>
           <View style={styles.dragHandle} />
         </View>
-        <View style={styles.header}>
+        <View style={styles.header} {...headerPanResponder.panHandlers}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Close ${details.name} browser`}
