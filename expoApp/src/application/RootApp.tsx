@@ -94,13 +94,13 @@ function RootAppContent({ fontFallback }: RootAppProps) {
   const { width: windowWidth } = useWindowDimensions();
   const windowWidthRef = useRef(windowWidth);
   windowWidthRef.current = windowWidth;
-  const hubAnim = useRef(new Animated.Value(1)).current;
   const destAnim = useRef(new Animated.Value(0)).current;
   const dragX = useRef(new Animated.Value(0)).current;
+  const scrimAnim = useRef(new Animated.Value(0)).current;
   const destAnimRef = useRef(destAnim);
   destAnimRef.current = destAnim;
-  const hubAnimRef = useRef(hubAnim);
-  hubAnimRef.current = hubAnim;
+  const scrimAnimRef = useRef(scrimAnim);
+  scrimAnimRef.current = scrimAnim;
   const reduceMotion = customization.motionPreference === 'REDUCED';
 
   const showBanner = useCallback((
@@ -177,35 +177,32 @@ function RootAppContent({ fontFallback }: RootAppProps) {
     };
   }, []);
 
-  // ── Spring Navigation Transitions ──
+  // ── Navigation Transitions ──
   const navigateTo = useCallback((dest: Destination, filter?: 'COMPETITIVE' | 'REVIEW') => {
+    dragX.stopAnimation();
+    destAnim.stopAnimation();
+    scrimAnim.stopAnimation();
+    dragX.setValue(0);
+    destAnim.setValue(0);
+    scrimAnim.setValue(1);
     setDestination(dest);
     setInsightsFilter(filter || null);
     if (dest === 'comparison') {
       setQuickCompareKey((k) => k + 1);
     }
     if (reduceMotion) {
-      hubAnim.setValue(0);
       destAnim.setValue(1);
       setHubVisible(false);
     } else {
       setHubVisible(false);
-      Animated.parallel([
-        Animated.timing(hubAnim, {
-          toValue: 0,
-          duration: 150,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.spring(destAnim, {
-          toValue: 1,
-          damping: 15,
-          stiffness: 220,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      Animated.timing(destAnim, {
+        toValue: 1,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
     }
-  }, [destAnim, hubAnim, reduceMotion]);
+  }, [destAnim, dragX, scrimAnim, reduceMotion]);
 
   useEffect(() => {
     const unsubscribe = priceChangeNotificationNavigation.subscribe((target) => {
@@ -218,21 +215,17 @@ function RootAppContent({ fontFallback }: RootAppProps) {
 
 
   const navigateHome = useCallback(() => {
+    dragX.stopAnimation();
+    destAnim.stopAnimation();
+    scrimAnim.stopAnimation();
     if (reduceMotion) {
-      hubAnim.setValue(1);
       destAnim.setValue(0);
       dragX.setValue(0);
-      setHubVisible(true);
+      scrimAnim.setValue(0);
       setDestination(null);
-    } else {
       setHubVisible(true);
+    } else {
       Animated.parallel([
-        Animated.spring(hubAnim, {
-          toValue: 1,
-          damping: 18,
-          stiffness: 240,
-          useNativeDriver: true,
-        }),
         Animated.timing(dragX, {
           toValue: windowWidthRef.current || 375,
           duration: 180,
@@ -245,13 +238,21 @@ function RootAppContent({ fontFallback }: RootAppProps) {
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
+        Animated.timing(scrimAnim, {
+          toValue: 0,
+          duration: 180,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
       ]).start(() => {
         destAnim.setValue(0);
         dragX.setValue(0);
+        scrimAnim.setValue(0);
         setDestination(null);
+        setHubVisible(true);
       });
     }
-  }, [destAnim, dragX, hubAnim, reduceMotion]);
+  }, [destAnim, dragX, scrimAnim, reduceMotion]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -301,6 +302,9 @@ function RootAppContent({ fontFallback }: RootAppProps) {
         },
         onPanResponderGrant: () => {
           dragX.stopAnimation();
+          destAnimRef.current.stopAnimation();
+          scrimAnimRef.current.stopAnimation();
+          scrimAnimRef.current.setValue(1);
         },
         onPanResponderMove: (_, gesture) => {
           if (gesture.dx > 0) {
@@ -312,15 +316,23 @@ function RootAppContent({ fontFallback }: RootAppProps) {
         onPanResponderRelease: (_, gesture) => {
           const width = windowWidthRef.current || 375;
           if (gesture.dx > 75 || gesture.vx > 0.35) {
-            Animated.timing(dragX, {
-              toValue: width,
-              duration: 140,
-              easing: Easing.out(Easing.cubic),
-              useNativeDriver: true,
-            }).start(() => {
+            Animated.parallel([
+              Animated.timing(dragX, {
+                toValue: width,
+                duration: 140,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }),
+              Animated.timing(scrimAnimRef.current, {
+                toValue: 0,
+                duration: 140,
+                easing: Easing.out(Easing.ease),
+                useNativeDriver: true,
+              }),
+            ]).start(() => {
               destAnimRef.current.setValue(0);
               dragX.setValue(0);
-              hubAnimRef.current.setValue(1);
+              scrimAnimRef.current.setValue(0);
               setHubVisible(true);
               setDestination(null);
             });
@@ -463,20 +475,7 @@ function RootAppContent({ fontFallback }: RootAppProps) {
         {/* ── Launch Hub Layer ── */}
         <Animated.View
           pointerEvents={hubVisible ? 'auto' : 'none'}
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              opacity: hubAnim,
-              transform: [
-                {
-                  scale: hubAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.97, 1],
-                  }),
-                },
-              ],
-            },
-          ]}
+          style={StyleSheet.absoluteFill}
         >
           <DashboardScreen
             overview={state.overview}
@@ -490,23 +489,20 @@ function RootAppContent({ fontFallback }: RootAppProps) {
           />
         </Animated.View>
 
-        {/* ── Swipe-Back Backdrop Dimming ── */}
-        {!hubVisible ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                backgroundColor: '#000000',
-                opacity: dragX.interpolate({
-                  inputRange: [0, windowWidth],
-                  outputRange: [0.25, 0],
-                  extrapolate: 'clamp',
-                }),
-              },
-            ]}
-          />
-        ) : null}
+        {/* ── Dark Translucent Scrim over Launch Main Page ── */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            styles.scrimBackdrop,
+            {
+              opacity: scrimAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.55],
+              }),
+            },
+          ]}
+        />
 
         {/* ── Destination Layer ── */}
         <Animated.View
@@ -517,12 +513,6 @@ function RootAppContent({ fontFallback }: RootAppProps) {
             {
               opacity: destAnim,
               transform: [
-                {
-                  scale: destAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.96, 1],
-                  }),
-                },
                 {
                   translateX: dragX,
                 },
@@ -803,11 +793,17 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   destinationLayer: {
+    backgroundColor: colors.background,
     shadowColor: '#000000',
     shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
     elevation: 16,
+    zIndex: 2,
+  },
+  scrimBackdrop: {
+    backgroundColor: '#000000',
+    zIndex: 1,
   },
   busyOverlay: {
     ...StyleSheet.absoluteFill,
