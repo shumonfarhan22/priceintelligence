@@ -91,8 +91,16 @@ function RootAppContent({ fontFallback }: RootAppProps) {
   const repositoryRef = useRef<InventoryRepository | null>(null);
 
   // ── Spring Transition Animated Values ──
+  const { width: windowWidth } = useWindowDimensions();
+  const windowWidthRef = useRef(windowWidth);
+  windowWidthRef.current = windowWidth;
   const hubAnim = useRef(new Animated.Value(1)).current;
   const destAnim = useRef(new Animated.Value(0)).current;
+  const dragX = useRef(new Animated.Value(0)).current;
+  const destAnimRef = useRef(destAnim);
+  destAnimRef.current = destAnim;
+  const hubAnimRef = useRef(hubAnim);
+  hubAnimRef.current = hubAnim;
   const reduceMotion = customization.motionPreference === 'REDUCED';
 
   const showBanner = useCallback((
@@ -213,25 +221,37 @@ function RootAppContent({ fontFallback }: RootAppProps) {
     if (reduceMotion) {
       hubAnim.setValue(1);
       destAnim.setValue(0);
+      dragX.setValue(0);
       setHubVisible(true);
+      setDestination(null);
     } else {
       setHubVisible(true);
       Animated.parallel([
         Animated.spring(hubAnim, {
           toValue: 1,
-          damping: 16,
+          damping: 18,
           stiffness: 240,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dragX, {
+          toValue: windowWidthRef.current || 375,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(destAnim, {
           toValue: 0,
-          duration: 140,
-          easing: Easing.in(Easing.cubic),
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        destAnim.setValue(0);
+        dragX.setValue(0);
+        setDestination(null);
+      });
     }
-  }, [destAnim, hubAnim, reduceMotion]);
+  }, [destAnim, dragX, hubAnim, reduceMotion]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -269,14 +289,8 @@ function RootAppContent({ fontFallback }: RootAppProps) {
     return () => sub.remove();
   }, [selectedPriorityProduct, personalizationVisible, toolsVisible, hubVisible, navigateHome]);
 
-  const { width: windowWidth } = useWindowDimensions();
-  const dragX = useRef(new Animated.Value(0)).current;
-
   const navigateHomeRef = useRef(navigateHome);
   navigateHomeRef.current = navigateHome;
-
-  const windowWidthRef = useRef(windowWidth);
-  windowWidthRef.current = windowWidth;
 
   const panResponder = useMemo(
     () =>
@@ -300,12 +314,15 @@ function RootAppContent({ fontFallback }: RootAppProps) {
           if (gesture.dx > 75 || gesture.vx > 0.35) {
             Animated.timing(dragX, {
               toValue: width,
-              duration: 150,
+              duration: 140,
               easing: Easing.out(Easing.cubic),
               useNativeDriver: true,
             }).start(() => {
+              destAnimRef.current.setValue(0);
               dragX.setValue(0);
-              navigateHomeRef.current();
+              hubAnimRef.current.setValue(1);
+              setHubVisible(true);
+              setDestination(null);
             });
           } else {
             Animated.spring(dragX, {
@@ -457,12 +474,6 @@ function RootAppContent({ fontFallback }: RootAppProps) {
                     outputRange: [0.97, 1],
                   }),
                 },
-                {
-                  translateY: hubAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-20, 0],
-                  }),
-                },
               ],
             },
           ]}
@@ -509,13 +520,7 @@ function RootAppContent({ fontFallback }: RootAppProps) {
                 {
                   scale: destAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0.93, 1],
-                  }),
-                },
-                {
-                  translateY: destAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
+                    outputRange: [0.96, 1],
                   }),
                 },
                 {

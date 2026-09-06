@@ -18,6 +18,12 @@ export default function App() {
     'Lato-Bold': require('./assets/brand/lato_bold.ttf'),
   });
 
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, fontError]);
+
   if (!fontsLoaded && !fontError) {
     return null;
   }
@@ -35,17 +41,12 @@ function AppContent({ fontFallback }: { fontFallback: boolean }) {
   const { colors } = useCustomization();
   const [splashVisible, setSplashVisible] = useState(true);
 
-  const handleSplashFinished = useCallback(() => {
-    SplashScreen.hideAsync().catch(() => {});
-    setSplashVisible(false);
-  }, []);
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <StatusBar style={splashVisible ? 'light' : colors.isDark ? 'light' : 'dark'} />
       <RootApp fontFallback={fontFallback} />
       {splashVisible ? (
-        <SplashOverlay onFinished={handleSplashFinished} />
+        <SplashOverlay onFinished={() => setSplashVisible(false)} />
       ) : null}
     </View>
   );
@@ -53,21 +54,32 @@ function AppContent({ fontFallback }: { fontFallback: boolean }) {
 
 function SplashOverlay({ onFinished }: { onFinished: () => void }) {
   const contentOpacity = useRef(new Animated.Value(1)).current;
+  const containerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    // Stage 1: Display full splash (logo + company branding) for 1.3 seconds
     const timer = setTimeout(() => {
+      // Stage 2: Fade out logo & company branding against solid background (240ms)
       Animated.timing(contentOpacity, {
         toValue: 0,
-        duration: 250,
+        duration: 240,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start(() => {
-        onFinished();
+        // Stage 3: Smoothly reveal the main launch screen (180ms)
+        Animated.timing(containerOpacity, {
+          toValue: 0,
+          duration: 180,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }).start(() => {
+          onFinished();
+        });
       });
     }, 1300);
 
     return () => clearTimeout(timer);
-  }, [contentOpacity, onFinished]);
+  }, [contentOpacity, containerOpacity, onFinished]);
 
   return (
     <Animated.View
@@ -75,35 +87,59 @@ function SplashOverlay({ onFinished }: { onFinished: () => void }) {
       style={[
         StyleSheet.absoluteFill,
         styles.splashContainer,
-        { opacity: contentOpacity },
+        { opacity: containerOpacity },
       ]}
     >
-      <View style={styles.splashCenter} />
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: contentOpacity }]}>
+        {/* Exact Center Logo: Centered in the full screen, identical to native splash coordinates */}
+        <View style={styles.centerContainer} pointerEvents="none">
+          <Image
+            source={require('./assets/brand/splash_logo.png')}
+            style={styles.splashLogo}
+            resizeMode="contain"
+            accessibilityLabel="Price Intelligence Logo"
+          />
+        </View>
 
-      <View style={styles.splashBottom}>
-        <Image
-          source={require('./assets/brand/splash_branding.png')}
-          style={styles.splashBranding}
-          resizeMode="contain"
-          accessibilityLabel="Price Intelligence Branding"
-        />
-      </View>
+        {/* Bottom Company Branding: Independent layer pinned to bottom (SwiftUI parity) */}
+        <View style={styles.bottomContainer} pointerEvents="none">
+          <Image
+            source={require('./assets/brand/splash_branding.png')}
+            style={styles.splashBranding}
+            resizeMode="contain"
+            accessibilityLabel="Price Intelligence Branding"
+          />
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   splashContainer: {
-    backgroundColor: 'transparent',
+    backgroundColor: '#0B0F14',
     zIndex: 999999,
   },
-  splashCenter: {
-    flex: 1,
-  },
-  splashBottom: {
+  centerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 40,
+  },
+  splashLogo: {
+    width: 150,
+    height: 150,
+  },
+  bottomContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   splashBranding: {
     width: 220,
